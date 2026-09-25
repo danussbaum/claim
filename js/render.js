@@ -1,3 +1,20 @@
+  // PSYLO: Phase der Hue-Rotation (Grad), lauft nur waehtrend aktiv. Auf Modul-
+  // Ebene, damit die Rotation bei Re-Auslösung glatt weitläuft statt zu springen.
+  let psyloPhase = 0;
+  // Offscreen-Buffer fuer das Double-Vision-Ghosting. Lazily erzeugt und wird
+  // beim Level-/Resize-Größenwechsel neu angelegt.
+  let psyloScreen = null, psyloScreenCtx = null, psyloScreenSize = [0, 0];
+  function ensurePsyloScreen() {
+    const w = boardCanvas.width, h = boardCanvas.height;
+    if (psyloScreen === null || psyloScreenSize[0] !== w || psyloScreenSize[1] !== h) {
+      psyloScreen = document.createElement('canvas');
+      psyloScreen.width = w;
+      psyloScreen.height = h;
+      psyloScreenCtx = psyloScreen.getContext('2d');
+      psyloScreenSize = [w, h];
+    }
+  }
+
   function draw(now) {
     const dtMs = Math.min(120, Math.max(0, now - (lastDrawTime || now)));
     lastDrawTime = now;
@@ -15,6 +32,10 @@
     const gr = Math.round(127 + 128 * threatDisp);
     const gg = Math.round(224 - 150 * threatDisp);
     const gb = Math.round(160 - 105 * threatDisp);
+
+    // PSYLO-Flags schon oben bestimmen, damit sie auch für Hintergrund und Gesicht gelten.
+    const psyloActive = now < psyloUntil;
+    if (psyloActive) psyloPhase = (psyloPhase + dtMs * 0.015) % 360; // ~15°/s
 
     // Spieler: Blickrichtung weich nachziehen, mit leichtem Einlenken
     const [tdx, tdy] = dirDelta(dir);
@@ -44,9 +65,15 @@
     const camFollow = cameraMode === 'follow' || cameraMode === 'push';
 
     const bgT = threatDisp * (0.75 + gridPulse * 0.25);
-    ctx.fillStyle = 'rgb(' + Math.round(10 + 32 * bgT) + ',' +
-                             Math.round(15 - 7 * bgT) + ',' +
-                             Math.round(11 - 3 * bgT) + ')';
+    if (psyloActive) {
+      // PSYLO background: saturated deep rainbow, rotating at double speed of the scene
+      // filter → motion contrast between layers. Lightness pulses with gridPulse.
+      ctx.fillStyle = 'hsl(' + Math.round((psyloPhase * 2) % 360) + ', 90%, ' + (13 + 8 * gridPulse).toFixed(1) + '%)';
+    } else {
+      ctx.fillStyle = 'rgb(' + Math.round(10 + 32 * bgT) + ',' +
+                                Math.round(15 - 7 * bgT) + ',' +
+                                Math.round(11 - 3 * bgT) + ')';
+    }
     ctx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
 
     // Tiefenschicht: folgt der Kamera nur zu PARALLAX_FACTOR und driftet zusaetzlich
@@ -79,17 +106,26 @@
     }
 
     const drunkActive = now < drunkUntil;
-    if (drunkActive) {
-      const tt = now / 1000;
-      const angle = Math.sin(tt * 5.2) * 0.11 + Math.sin(tt * 3.1) * 0.05;
-      const dx = Math.sin(tt * 7.4) * CELL * 0.42 + Math.sin(tt * 4.1) * CELL * 0.15;
-      const dy = Math.cos(tt * 6.3) * CELL * 0.34 + Math.cos(tt * 3.7) * CELL * 0.12;
-      const pivotX = camFollow ? dispPx * CELL + CELL / 2 : COLS * CELL / 2;
-      const pivotY = camFollow ? dispPy * CELL + CELL / 2 : ROWS * CELL / 2;
-      ctx.translate(pivotX, pivotY);
-      ctx.rotate(angle);
-      ctx.translate(-pivotX + dx, -pivotY + dy);
-      ctx.filter = 'blur(2.4px)';
+
+    if (drunkActive || psyloActive) {
+      if (drunkActive) {
+        const tt = now / 1000;
+        const angle = Math.sin(tt * 5.2) * 0.11 + Math.sin(tt * 3.1) * 0.05;
+        const dx = Math.sin(tt * 7.4) * CELL * 0.42 + Math.sin(tt * 4.1) * CELL * 0.15;
+        const dy = Math.cos(tt * 6.3) * CELL * 0.34 + Math.cos(tt * 3.7) * CELL * 0.12;
+        const pivotX = camFollow ? dispPx * CELL + CELL / 2 : COLS * CELL / 2;
+        const pivotY = camFollow ? dispPy * CELL + CELL / 2 : ROWS * CELL / 2;
+        ctx.translate(pivotX, pivotY);
+        ctx.rotate(angle);
+        ctx.translate(-pivotX + dx, -pivotY + dy);
+      }
+      // PSYLO: Hue-Rotation + Sättigung. Drunk-Blur wird kombiniert (keine
+      // Rotation bei PSYLO — siehe note_lsd.md). Reset durch die scene-restore
+      // am Ende der Szene.
+      let sceneFilter = '';
+      if (psyloActive) sceneFilter = 'hue-rotate(' + Math.round(psyloPhase) + 'deg) saturate(1.35)';
+      if (drunkActive) sceneFilter += ' blur(2.4px)';
+      ctx.filter = sceneFilter;
     }
 
     ctx.strokeStyle = 'rgba(' + gr + ',' + gg + ',' + gb + ',' + gridAlpha.toFixed(3) + ')';
@@ -676,7 +712,9 @@
     ctx.rotate(playerLeanDisp);
 
     if (smokeActive) ctx.globalAlpha = 0.38;
-    ctx.fillStyle = showSpeedColor ? '#f5d347' : '#7fe0a0';
+    // PSYLO-Kopf: Regenbogen-Pulsung, der zur Szenenfilter-Drehung phasenversetzt
+    // läuft (innerhalb des gefilterten Blocks also noch schneller als die Bühne).
+    ctx.fillStyle = psyloActive ? 'hsl(' + Math.round((psyloPhase * 1.7) % 360) + ', 90%, 62%)' : (showSpeedColor ? '#f5d347' : '#7fe0a0');
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
@@ -685,7 +723,43 @@
     const eyeOffX = R * 0.36, eyeOffY = -R * 0.06;
     const lookX = headX * 0.5, lookY = headY * 0.5;
 
-    if (emotion === 'startled') {
+    if (psyloActive) {
+      // PSYLO-Gesicht: wirbelnde Spiralenpupillen + welliger Mund, auf dem Regenbogen-Kopf.
+      const eyeR = R * 0.26;
+      for (const side of [-1, 1]) {
+        const exx = side * eyeOffX, eyy = eyeOffY;
+        ctx.beginPath();
+        ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        // Drehende Spirale als Pupille
+        const pr = eyeR * 0.55;
+        ctx.beginPath();
+        for (let i = 0; i <= 24; i++) {
+          const a = now / 300 + (i / 24) * Math.PI * 5.5;
+          const rr = pr * (1 - i / 24);
+          if (i === 0) ctx.moveTo(exx + Math.cos(a) * rr, eyy + Math.sin(a) * rr);
+          else ctx.lineTo(exx + Math.cos(a) * rr, eyy + Math.sin(a) * rr);
+        }
+        ctx.strokeStyle = '#101414';
+        ctx.lineWidth = Math.max(1.5, R * 0.032);
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+      // Welliger Mund, leicht im Takt der Psylo-Drehung
+      const mw = R * 0.28;
+      ctx.beginPath();
+      let first = true;
+      for (let x = -mw; x <= mw + 1e-6; x += R * 0.012) {
+        const y = R * 0.42 + Math.sin((x / R) * 31 + now / 150) * R * 0.04;
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#101414';
+      ctx.lineWidth = Math.max(1.5, R * 0.042);
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    } else if (emotion === 'startled') {
       for (const side of [-1, 1]) {
         const exx = side * eyeOffX, eyy = eyeOffY - R * 0.05;
         ctx.beginPath();
@@ -792,6 +866,7 @@
     else if (now < slowUntil) activeIcon = 'slow';
     else if (now < swarmUntil) activeIcon = 'swarm';
     else if (now < drunkUntil) activeIcon = 'drunk';
+    else if (now < psyloUntil) activeIcon = 'psylo';
     if (activeIcon) {
       const bobY = Math.sin(now / 260) * R * 0.12;
       const iconY = pcy - R * 1.55 + bobY;
@@ -1065,6 +1140,25 @@
       ctx.restore();
     }
     ctx.restore();
+
+    // PSYLO Double-Vision-Ghosting: komplettes Frame als Ghost-Layer (sinusförmig
+    // oscillierender Offset, ~45% Alpha) über dem Hauptbild. Offscreen-Buffer wird
+    // nur beim ersten aktiven Frame erzeugt und bei Canvas-Größenwechsel neu angelegt.
+    if (psyloActive) {
+      ensurePsyloScreen();
+      if (psyloScreen && psyloScreenCtx) {
+        const ps = psyloScreen, pctx = psyloScreenCtx;
+        pctx.clearRect(0, 0, ps.width, ps.height);
+        pctx.drawImage(boardCanvas, 0, 0);
+        const s = Math.sin(now / 900); // glatter Sinus, Periode ~5.6s
+        const gMax = Math.max(4, (boardCanvas.width + boardCanvas.height) * 0.012);
+        const gx = s * gMax * 0.9, gy = -s * gMax * 0.35;
+        ctx.globalAlpha = Math.max(0.07, 0.45 * (Math.abs(s) + 0.28));
+        ctx.drawImage(ps, gx, gy);
+        ctx.drawImage(ps, -gx, -gy);
+        ctx.globalAlpha = 1;
+      }
+    }
 
     // Nebel-Effekt: nur ein Radius um den Spieler bleibt sichtbar
     if (now < fogUntil) {

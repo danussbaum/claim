@@ -156,7 +156,7 @@
     confuseUntil = 0; fogUntil = 0; alarmUntil = 0;
     trailGuardUntil = 0;
     rapidfireUntil = 0; spikesUntil = 0;
-    slowUntil = 0; swarmUntil = 0; drunkUntil = 0;
+    slowUntil = 0; swarmUntil = 0; drunkUntil = 0; psyloUntil = 0;
     smokeParticles = [];
     hookAnim = null;
     swarmEnemies = [];
@@ -453,6 +453,7 @@
     else if (type === 'slow') slowUntil = now + 4000;
     else if (type === 'swarm') { swarmUntil = now + 6000; spawnSwarmEnemy(); }
     else if (type === 'drunk') drunkUntil = now + 5500;
+    else if (type === 'psylo') psyloUntil = now + 8000;
     updateStats();
     sndPowerDown(type);
   }

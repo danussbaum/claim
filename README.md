@@ -100,6 +100,7 @@ The "Slow burn" perk extends all bonuses by 50 %.
 | 🐢 | Slow | Move 60 % slower | 4 s |
 | 👥 | Swarm | An extra guard ("Reinforcements") appears while the effect lasts | 6 s |
 | 😵‍🤪 | Drunk | The screen wobbles and blurs (visual) | 5.5 s |
+| 🍄 | Psylo | World hue-rotates through the rainbow with boosted saturation; a double-vision ghost layer drifts over the board. Visual only (stacks with Drunk) | 8 s |
 
 ## Perks and level-end shop
 

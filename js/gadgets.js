@@ -77,7 +77,7 @@
   let confuseUntil = 0, fogUntil = 0, alarmUntil = 0;
   let trailGuardUntil = 0;
   let rapidfireUntil = 0, spikesUntil = 0;
-  let slowUntil = 0, swarmUntil = 0, drunkUntil = 0;
+  let slowUntil = 0, swarmUntil = 0, drunkUntil = 0, psyloUntil = 0;
   let swarmEnemies = [];
   let shotCooldownUntil = 0;
   let enemyDeathAnims = [];
@@ -91,14 +91,14 @@
     speed: '⚡', shield: '◆', freeze: '❄', trailguard: '🔗',
     rapidfire: '🔫', spikes: '🦔'
   };
-  const POWERDOWN_TYPES = ['confuse', 'fog', 'alarm', 'slow', 'swarm', 'drunk'];
+  const POWERDOWN_TYPES = ['confuse', 'fog', 'alarm', 'slow', 'swarm', 'drunk', 'psylo'];
   const POWERDOWN_COLORS = {
     confuse: '#8a3fa0', fog: '#5a5a62', alarm: '#c23a2e',
-    slow: '#4a6b8a', swarm: '#8a2f2f', drunk: '#caa14a'
+    slow: '#4a6b8a', swarm: '#8a2f2f', drunk: '#caa14a', psylo: '#b26ee8'
   };
   const POWERDOWN_SYMBOLS = {
     confuse: '🌀', fog: '🌫️', alarm: '🚨',
-    slow: '🐌', swarm: '👥', drunk: '🍺'
+    slow: '🐌', swarm: '👥', drunk: '🍺', psylo: '🍄'
   };
   const ALL_ICON_COLORS = Object.assign({}, POWERUP_COLORS, POWERDOWN_COLORS);
   const ALL_ICON_SYMBOLS = Object.assign({}, POWERUP_SYMBOLS, POWERDOWN_SYMBOLS);
@@ -106,7 +106,7 @@
     speed: 'Speed Boost', shield: 'Shield', freeze: 'Freeze', trailguard: 'Trail Guard',
     rapidfire: 'Rapid Fire', spikes: 'Spikes',
     confuse: 'Confused!', fog: 'Fog', alarm: 'Alarm!',
-    slow: 'Slowed!', swarm: 'Reinforcements!', drunk: 'Drunk!'
+    slow: 'Slowed!', swarm: 'Reinforcements!', drunk: 'Drunk!', psylo: 'PSYLO!'
   };
   const MYSTERY_COLOR = '#c9cdd6';
   const MYSTERY_SYMBOL = '?';

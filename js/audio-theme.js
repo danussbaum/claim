@@ -344,6 +344,13 @@
       tone(330, 0.3, 'sine', 0.09, 0, 260);
       tone(392, 0.35, 'sine', 0.08, 0.12, 300);
       tone(220, 0.4, 'triangle', 0.07, 0.2, 260);
+    } else if (type === 'psylo') {
+      // Psychedischer Anstieg: zwei steigende Töne plus Highpass-Schimmer,
+      // bewusst leise gehalten, um zum restlichen Power-down-Inventory zu passen.
+      tone(260, 1.0, 'sine', 0.08, 0, 523);
+      tone(392, 1.0, 'triangle', 0.06, 0.15, 784);
+      tone(620, 1.1, 'sine', 0.045, 0.5, 1240);
+      playNoise(0.45, 7000, 'highpass', 0.04, 0.12);
     }
   }
   function sndGadgetHook() {

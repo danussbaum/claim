@@ -34,6 +34,9 @@ Run it by opening index.html in a browser.
 - Think briefly and purposefully. Decide, then act.
 - Only reconsider a decision if a tool result contradicts it.
 - There are no automated tests. After a change, tell the user what to check in the browser.
+- Never start servers, watchers, or other background processes.
+- Do not try to run, open, or verify the game yourself (webfetch cannot execute JavaScript).
+- After a change, stop and tell the user what to check in the browser.
 
 # Communication
 - Reply to the user in German (Swiss spelling: use "ss", never "ß").
