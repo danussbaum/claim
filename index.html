@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Claim</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%230d1410'/%3E%3Crect x='10' y='10' width='36' height='36' fill='%232f8f5c'/%3E%3Crect x='54' y='10' width='36' height='36' fill='%232f8f5c'/%3E%3Crect x='10' y='54' width='36' height='36' fill='%232f8f5c'/%3E%3Crect x='58' y='58' width='28' height='28' fill='%23e3574a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/claim.css">
+</head>
+<body>
+<div id="splash">
+  <div id="splashGrid"></div>
+  <div id="splashLogo">CLAIM</div>
+  <div id="splashSub">Draw. Enclose. Survive.</div>
+</div>
+<div id="app">
+  <div class="topbar">
+    <h1>CLAIM<span class="modeBadge" id="modeBadge"></span></h1>
+    <div class="stats">
+      <div class="stat">AREA<span id="pct">14%</span></div>
+      <div class="stat">SCORE<span id="score">0</span><span id="comboBadge" style="display:none;"></span></div>
+      <div class="stat">LEVEL<span id="level">1</span></div>
+      <div class="stat">LIVES<span id="lives">3</span></div>
+    </div>
+    <button class="pausebtn" id="musicBtn" style="background:none;border:none;color:#888;font-size:18px;padding:4px 6px;">🔊</button>
+  </div>
+
+  <div class="main">
+    <div id="board-wrap">
+      <canvas id="board"></canvas>
+      <div id="deathFlash"></div>
+      <div id="achievementBanner">
+        <span id="achEmoji"></span>
+        <span id="achTitle"></span>
+      </div>
+      <div id="overlay">
+        <h2 id="overlayTitle">Claim</h2>
+        <div id="onboarding">
+          <div id="obIcon" class="onboardIcon">✏️</div>
+          <div id="obTitle" class="onboardStepTitle">Claim Territory</div>
+          <div id="obText" class="onboardStepText"></div>
+          <div id="obDots" class="onboardDots"></div>
+        </div>
+        <div id="shop" class="hidden">
+          <div class="selectLabel">Pick one upgrade</div>
+          <div id="shopRow"></div>
+        </div>
+        <div id="modeSelect" class="hidden">
+          <div class="selectLabel">Mode</div>
+          <div class="pillRow" id="modeRow"></div>
+          <div class="selectLabel">Camera</div>
+          <div class="pillRow" id="cameraRow"></div>
+          <div class="selectLabel">Gadget</div>
+          <div class="pillRow" id="gadgetRow"></div>
+          <div class="selectDesc" id="selectDesc"></div>
+        </div>
+        <p id="overlayText" class="hidden"></p>
+        <button class="primary" id="startBtn">Next</button>
+        <button id="skipBtn">Skip - Play now</button>
+        <button id="tutorialBtn" class="hidden">🎓 Play tutorial</button>
+        <button id="modeBtn" class="hidden">Change mode</button>
+        <button id="quitCancelBtn" class="hidden">Keep playing</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tutorialBar" class="hidden">
+    <div id="tutorialStep"></div>
+    <div id="tutorialHint"></div>
+    <button id="tutorialSkipBtn">Skip tutorial</button>
+  </div>
+
+  <div class="controls">
+    <div class="btn pausecell" id="pauseBtn"><span id="pauseGlyph">⏸</span><div class="cashFill" id="cashFill"></div></div>
+    <div class="btn up" id="btnUp">▲</div>
+    <div class="btn info" id="infoCell"><span id="infoGlyph">⚡<span id="boosts">3</span></span><div class="boostFill" id="boostFill"></div></div>
+    <div class="btn left" id="btnLeft">◀</div>
+    <div class="btn down" id="btnDown">▼</div>
+    <div class="btn right" id="btnRight">▶</div>
+    <div class="btn gadget" id="btnGadget">🪝<div class="gadgetSweep" id="gadgetSweep"></div></div>
+    <div class="btn shoot" id="btnShoot">
+      <svg class="crosshairIcon" viewBox="0 0 48 48" width="1em" height="1em">
+        <circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="2.6"/>
+        <circle cx="24" cy="24" r="4.2" fill="currentColor"/>
+        <line x1="24" y1="1.5" x2="24" y2="12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <line x1="24" y1="36" x2="24" y2="46.5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <line x1="1.5" y1="24" x2="12" y2="24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <line x1="36" y1="24" x2="46.5" y2="24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <div class="gadgetSweep" id="shootSweep"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
