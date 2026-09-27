@@ -191,13 +191,14 @@
       const voices = guardVoices();
       e.speechVoice = {
         idx: Math.floor(Math.random() * 1000),
-        pitch: 0.6 + Math.random() * 1.2,
-        rate: 0.8 + Math.random() * 0.6
+        pitch: 0.4 + Math.random() * 0.7,  // eher tief = bedrohlicher
+        rate: 1.3 + Math.random() * 0.5    // schnell und gehetzt
       };
       if (!voices.length) e.speechVoice.idx = -1;
     }
     const sv = e.speechVoice;
-    const u = new SpeechSynthesisUtterance(text);
+    // Ausrufezeichen statt Punkt: klingt bei vielen Stimmen schaerfer
+    const u = new SpeechSynthesisUtterance(text.replace(/\.+$/, '!').replace(/([^!?])$/, '$1!'));
     const voices = guardVoices();
     // Sprache immer Englisch setzen, sonst liest das Handy mit deutscher Stimme vor
     u.lang = 'en-US';
@@ -207,7 +208,7 @@
     }
     u.pitch = sv.pitch;
     u.rate = sv.rate;
-    u.volume = 0.9;
+    u.volume = 1;
     synth.speak(u);
   }
   // Benommen oder in der Pause: sieht nichts
