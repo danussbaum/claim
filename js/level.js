@@ -240,39 +240,121 @@
     return Math.atan2(e.dr0, e.dc0);
   }
 
-  // Saeulen blockieren die Sicht, Gruben nicht.
-  function hasLineOfSight(e) {
-    let x = e.c, y = e.r;
-    const dx = px - e.c, dy = py - e.r;
-    const steps = Math.max(Math.abs(dx), Math.abs(dy));
-    if (steps === 0) return true;
-    for (let i = 1; i <= steps; i++) {
-      const cx = Math.round(e.c + (dx * i) / steps);
-      const cy = Math.round(e.r + (dy * i) / steps);
-      if (cx === px && cy === py) return true;
-      if (!inBounds(cx, cy)) return false;
-      if (grid[cy][cx] === BLOCK) return false;
-    }
-    return true;
-  }
+  // --- Sicht: exakte Geometrie, gemeinsam fuer Logik und Kegel-Darstellung ---
+  // Koordinaten in Zellen, Zellmitte = c + 0.5. Saeulen sind Rechtecke [c, c+1] x [r, r+1].
+  // Gruben blockieren die Sicht nicht.
+  const NEAR_SIGHT = 1.2; // direkt daneben wird man immer bemerkt
 
   function visionRange(e) {
     const v = VISION[e.personality] || VISION.wanderer;
     return Math.max(3, v.range - (perks ? perks.stealth : 0));
   }
 
-  function canSeePlayer(e) {
-    if (performance.now() < smokeUntil) return false; // Rauchbombe: fuer alle unsichtbar
+  // Gezeichnete (interpolierte) Position von Waechter und Spieler
+  function guardSightOrigin(e, now) {
+    const t = Math.min(1, (now - enemyStepTime) / enemyInterval);
+    const pc = e.prevC !== undefined ? e.prevC : e.c, pr = e.prevR !== undefined ? e.prevR : e.r;
+    return [pc + (e.c - pc) * t + 0.5, pr + (e.r - pr) * t + 0.5];
+  }
+  function playerSightPoint(now) {
+    const t = Math.min(1, (now - playerStepTime) / currentPlayerInterval());
+    return [prevPx + (px - prevPx) * t + 0.5, prevPy + (py - prevPy) * t + 0.5];
+  }
+  function guardFacing(e) {
+    return (e.angleDisp !== undefined) ? e.angleDisp : enemyFacing(e);
+  }
+
+  // Alle Saeulen im Umkreis als [x0, y0] (Rechteck bis x0+1, y0+1)
+  function sightBlockers(ox, oy, reach) {
+    const list = [];
+    const r0 = Math.max(0, Math.floor(oy - reach)), r1 = Math.min(ROWS - 1, Math.floor(oy + reach));
+    const c0 = Math.max(0, Math.floor(ox - reach)), c1 = Math.min(COLS - 1, Math.floor(ox + reach));
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (grid[r][c] === BLOCK) list.push([c, r]);
+    return list;
+  }
+
+  // Erster Eintrittsparameter t (in Zellen) eines Strahls in ein Rechteck, sonst Infinity.
+  // Beruehrung zaehlt als Treffer: zwei Saeulen, die sich nur an einer Ecke beruehren, sind dicht.
+  function rayRectEntry(ox, oy, ca, sa, x0, y0) {
+    let tmin = 0, tmax = Infinity;
+    if (Math.abs(ca) < 1e-12) { if (ox < x0 || ox > x0 + 1) return Infinity; }
+    else {
+      let t1 = (x0 - ox) / ca, t2 = (x0 + 1 - ox) / ca;
+      if (t1 > t2) { const k = t1; t1 = t2; t2 = k; }
+      tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2);
+    }
+    if (Math.abs(sa) < 1e-12) { if (oy < y0 || oy > y0 + 1) return Infinity; }
+    else {
+      let t1 = (y0 - oy) / sa, t2 = (y0 + 1 - oy) / sa;
+      if (t1 > t2) { const k = t1; t1 = t2; t2 = k; }
+      tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2);
+    }
+    return tmin <= tmax ? tmin : Infinity;
+  }
+
+  function rayDistance(ox, oy, ca, sa, maxT, blockers) {
+    let t = maxT;
+    for (const [x0, y0] of blockers) {
+      const h = rayRectEntry(ox, oy, ca, sa, x0, y0);
+      if (h < t) t = h;
+    }
+    return t;
+  }
+
+  function inSightCone(e, ang) {
     const v = VISION[e.personality] || VISION.wanderer;
-    const dx = px - e.c, dy = py - e.r;
-    const dist = Math.hypot(dx, dy);
-    if (dist > visionRange(e)) return false;
-    if (dist < 1.2) return true; // direkt daneben wird man immer bemerkt
-    const facing = (e.angleDisp !== undefined) ? e.angleDisp : enemyFacing(e);
-    let diff = Math.atan2(dy, dx) - facing;
+    let diff = ang - guardFacing(e);
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    if (Math.abs(diff) > v.half) return false;
-    return hasLineOfSight(e);
+    return Math.abs(diff) <= v.half;
+  }
+
+  // Sieht der Waechter (von ox, oy aus) den Punkt tx, ty?
+  function canSeePoint(e, ox, oy, tx, ty) {
+    const dx = tx - ox, dy = ty - oy;
+    const dist = Math.hypot(dx, dy);
+    const range = visionRange(e);
+    if (dist > range) return false;
+    if (dist < NEAR_SIGHT) return true;
+    const ang = Math.atan2(dy, dx);
+    if (!inSightCone(e, ang)) return false;
+    return rayDistance(ox, oy, dx / dist, dy / dist, dist, sightBlockers(ox, oy, range + 1)) >= dist;
+  }
+
+  function canSeePlayer(e) {
+    const now = performance.now();
+    if (now < smokeUntil) return false; // Rauchbombe: fuer alle unsichtbar
+    const [ox, oy] = guardSightOrigin(e, now);
+    const [tx, ty] = playerSightPoint(now);
+    return canSeePoint(e, ox, oy, tx, ty);
+  }
+
+  // Sichtbarer Bereich als Polygon (Zellkoordinaten, beginnt am Waechter).
+  // Strahlen gehen auf beide Kegelraender, knapp an jeder Saeulenecke vorbei und in feinen Schritten dazwischen.
+  function visionPolygon(e, ox, oy) {
+    const v = VISION[e.personality] || VISION.wanderer;
+    const range = visionRange(e);
+    const face = guardFacing(e);
+    const blockers = sightBlockers(ox, oy, range + 1);
+    const rel = [-v.half, v.half];
+    const STEP = 0.05;
+    for (let a = -v.half + STEP; a < v.half; a += STEP) rel.push(a);
+    const EPS = 1e-4;
+    for (const [x0, y0] of blockers) {
+      for (const [cx, cy] of [[x0, y0], [x0 + 1, y0], [x0, y0 + 1], [x0 + 1, y0 + 1]]) {
+        let d = Math.atan2(cy - oy, cx - ox) - face;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        for (const dd of [d - EPS, d, d + EPS]) if (Math.abs(dd) <= v.half) rel.push(dd);
+      }
+    }
+    rel.sort((p, q) => p - q);
+    const pts = [[ox, oy]];
+    for (const r of rel) {
+      const ca = Math.cos(face + r), sa = Math.sin(face + r);
+      const t = rayDistance(ox, oy, ca, sa, range, blockers);
+      pts.push([ox + ca * t, oy + sa * t]);
+    }
+    return pts;
   }
 

@@ -25,6 +25,15 @@
     }
   }
 
+  // Sicht jeden Frame pruefen, nicht nur beim Waechterzug: sonst liesse sich durch den
+  // sichtbaren Kegel huschen, solange der Waechter zwischen zwei Schritten ist.
+  function updateGuardSight(now) {
+    if (now < alarmUntil) return;
+    for (const e of enemies) {
+      if (canSeePlayer(e)) { e.huntingActive = true; e.lastSeenAt = now; }
+    }
+  }
+
   function moveEnemies() {
     enemyStepTime = performance.now();
     // Ueber eine Kopie laufen: killEnemyByShot() kann waehrend der Schleife

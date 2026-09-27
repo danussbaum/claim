@@ -24,6 +24,7 @@
         if (guardsFrozen) {
           // Waechter eingefroren (Power-up, Zen-Modus oder Sichtkegel-Etappe)
         } else {
+          updateGuardSight(performance.now());
           enemyTimer += delta;
           if (enemyTimer > enemyInterval) {
             enemyTimer = Math.min(enemyTimer - enemyInterval, enemyInterval);

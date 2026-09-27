@@ -106,6 +106,7 @@
     }
 
     const drunkActive = now < drunkUntil;
+    let sceneFilter = '';
 
     if (drunkActive || psyloActive) {
       if (drunkActive) {
@@ -120,12 +121,11 @@
         ctx.translate(-pivotX + dx, -pivotY + dy);
       }
       // PSYLO: Hue-Rotation + Sättigung. Drunk-Blur wird kombiniert (keine
-      // Rotation bei PSYLO — siehe note_lsd.md). Reset durch die scene-restore
-      // am Ende der Szene.
-      let sceneFilter = '';
+      // Rotation bei PSYLO — siehe note_lsd.md). Der Filter wird NICHT hier auf
+      // ctx gesetzt (sonst filtert der Browser jeden einzelnen Zeichenaufruf),
+      // sondern einmal auf das fertige Bild nach der Szene.
       if (psyloActive) sceneFilter = 'hue-rotate(' + Math.round(psyloPhase) + 'deg) saturate(1.35)';
       if (drunkActive) sceneFilter += ' blur(2.4px)';
-      ctx.filter = sceneFilter;
     }
 
     ctx.strokeStyle = 'rgba(' + gr + ',' + gg + ',' + gb + ',' + gridAlpha.toFixed(3) + ')';
@@ -928,9 +928,14 @@
       }
       ctx.save();
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, radius, ang - v.half, ang + v.half);
+      // Exakter Sichtbereich (dieselbe Geometrie wie canSeePlayer) plus Nahbereich
+      const [sox, soy] = guardSightOrigin(e, now);
+      const poly = visionPolygon(e, sox, soy);
+      ctx.moveTo(poly[0][0] * CELL, poly[0][1] * CELL);
+      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0] * CELL, poly[i][1] * CELL);
       ctx.closePath();
+      ctx.moveTo(cx + NEAR_SIGHT * CELL, cy);
+      ctx.arc(cx, cy, NEAR_SIGHT * CELL, 0, Math.PI * 2);
       ctx.fillStyle = g;
       ctx.fill();
       ctx.strokeStyle = alerted ? 'rgba(255,110,90,0.45)' : 'rgba(255,225,150,0.20)';
@@ -1140,6 +1145,21 @@
       ctx.restore();
     }
     ctx.restore();
+
+    // Szenenfilter (Drunk/PSYLO) in einem einzigen Durchgang aufs fertige Bild
+    if (sceneFilter) {
+      ensurePsyloScreen();
+      if (psyloScreen && psyloScreenCtx) {
+        psyloScreenCtx.clearRect(0, 0, psyloScreen.width, psyloScreen.height);
+        psyloScreenCtx.drawImage(boardCanvas, 0, 0);
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+        ctx.filter = sceneFilter;
+        ctx.drawImage(psyloScreen, 0, 0);
+        ctx.restore();
+      }
+    }
 
     // PSYLO Double-Vision-Ghosting: komplettes Frame als Ghost-Layer (sinusförmig
     // oscillierender Offset, ~45% Alpha) über dem Hauptbild. Offscreen-Buffer wird
