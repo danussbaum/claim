@@ -494,6 +494,16 @@
   // Einfache Schleifen: vom eigenen Land ein Stueck hinaus, einmal abbiegen,
   // auf kuerzestem Weg zurueck. Bei Gefahr sofort heim; schiesst, wenn etwas in der Linie steht.
   let vsCpuPlan = { phase: 'home', count: 0, len: 0 };
+  let vsCpuGuardSeenAt = -1e9;
+
+  // Die CPU sieht wie ein Waechter (Kegel in Fahrtrichtung, dieselbe Geometrie wie canSeePoint)
+  function vsCpuView(pl) {
+    const [dx, dy] = vsDelta(pl.dir || pl.lastDir);
+    return { personality: 'wanderer', dc0: dx, dr0: dy, c: pl.x, r: pl.y };
+  }
+  function vsCpuSees(pl, x, y) {
+    return canSeePoint(vsCpuView(pl), pl.x + 0.5, pl.y + 0.5, x + 0.5, y + 0.5);
+  }
 
   function vsCpuSafeDirs(s, pl, p) {
     const back = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -536,8 +546,14 @@
     const safe = vsCpuSafeDirs(s, pl, p);
     if (!safe.length) return;
     const pick = list => list[Math.floor(Math.random() * list.length)];
-    const guardDist = Math.min(99, ...s.guards.filter(g => !g.deadUntil)
-      .map(g => Math.abs(g.x - pl.x) + Math.abs(g.y - pl.y)));
+    // Gefahr nur, wenn sie den Waechter sieht (oder ihn eben noch gesehen hat)
+    let guardDist = 99;
+    s.guards.forEach(g => {
+      if (g.deadUntil || !vsCpuSees(pl, g.x, g.y)) return;
+      vsCpuGuardSeenAt = now;
+      guardDist = Math.min(guardDist, Math.abs(g.x - pl.x) + Math.abs(g.y - pl.y));
+    });
+    if (guardDist === 99 && now - vsCpuGuardSeenAt < VISION_MEMORY) guardDist = 3;
     const onLand = s.land[vsIdx(pl.x, pl.y)] === p + 1;
     let dir = pl.dir;
 
@@ -581,6 +597,7 @@
     for (let k = 1; k <= VS_SHOT_RANGE; k++) {
       const x = pl.x + dx * k, y = pl.y + dy * k;
       if (!vsInBounds(x, y)) break;
+      if (!vsCpuSees({ x: pl.x, y: pl.y, dir }, x, y)) break; // ausserhalb der Sicht
       const hit = (opp.x === x && opp.y === y) || s.trail[vsIdx(x, y)] === 1 ||
         s.guards.some(g => !g.deadUntil && g.x === x && g.y === y);
       if (hit) { pl.dir = dir; vsShoot(s, p, now); break; }
@@ -591,6 +608,7 @@
     vsState = vsNewState();
     vsPlayed = 0;
     vsCpuPlan = { phase: 'home', count: 0, len: 0 };
+    vsCpuGuardSeenAt = -1e9;
     if (!vsCpu) Net.send({ t: 'start' });
     vsBeginLoop();
   }
@@ -929,6 +947,8 @@
     const bounce = Math.sin(t * Math.PI);
     const h = rv.headingDisp;
 
+    if (vsCpu) vsDrawCpuCone(cx, cy, h);
+
     if (rv.inv) {
       ctx.beginPath();
       ctx.arc(cx, cy, CELL * 0.52, 0, Math.PI * 2);
@@ -967,6 +987,30 @@
     ctx.strokeText('YOU', mx, my - CELL * 0.7);
     ctx.fillStyle = '#7fe0a0';
     ctx.fillText('YOU', mx, my - CELL * 0.7);
+    ctx.restore();
+  }
+
+  // Sichtkegel der CPU, gleiche Geometrie wie bei den Waechtern, aber blau
+  function vsDrawCpuCone(cx, cy, heading) {
+    const ox = cx / CELL, oy = cy / CELL;
+    const view = { personality: 'wanderer', angleDisp: heading, c: Math.floor(ox), r: Math.floor(oy) };
+    const radius = visionRange(view) * CELL;
+    const g = ctx.createRadialGradient(cx, cy, CELL * 0.3, cx, cy, radius);
+    g.addColorStop(0, 'rgba(120,180,255,0.20)');
+    g.addColorStop(1, 'rgba(120,180,255,0)');
+    const poly = visionPolygon(view, ox, oy);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(poly[0][0] * CELL, poly[0][1] * CELL);
+    for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0] * CELL, poly[i][1] * CELL);
+    ctx.closePath();
+    ctx.moveTo(cx + NEAR_SIGHT * CELL, cy);
+    ctx.arc(cx, cy, NEAR_SIGHT * CELL, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(140,196,255,0.25)';
+    ctx.lineWidth = Math.max(1, CELL * 0.035);
+    ctx.stroke();
     ctx.restore();
   }
 
