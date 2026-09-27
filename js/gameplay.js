@@ -86,14 +86,18 @@
     }
 
     return {
-      r, c, prevR: r, prevC: c, personality: personality || 'wanderer',
+      r, c, prevR: r, prevC: c, personality: personality || 'wanderer', name: guardName(personality || 'wanderer'),
       dc0: [1,-1,0,0][Math.floor(Math.random()*4)], dr0: 0, angleDisp: undefined,
       wasHunting: false, huntingActive: false, huntCooldownUntil: 0, lastSeenAt: -99999
     };
   }
 
-  // kind: 'shot' (weggeschleudert in dx/dy), 'spikes' (plattgewalzt), 'sealed' (versteinert)
-  function killEnemyByShot(e, kind, dx, dy) {
+  // kind: 'shot' (weggeschleudert in dx/dy), 'spikes' (plattgewalzt), 'sealed' (versteinert),
+  // 'pit' (in die Grube gefallen), 'crushed' (von beweglicher Saeule zerquetscht, dx/dy = Schubrichtung)
+  const MULTIKILL_WINDOW = 2000;
+  const MULTIKILL_NAMES = ['', '', 'DOUBLE KILL!', 'TRIPLE KILL!', 'MULTI KILL!', 'MONSTER KILL!'];
+  let lastKillAt = 0, killStreak = 0;
+  function killEnemyByShot(e, kind, dx, dy, trick) {
     const idx = enemies.indexOf(e);
     if (idx >= 0) enemies.splice(idx, 1);
     enemyDeathAnims.push({
@@ -103,11 +107,32 @@
     });
     sndEnemyDeath();
     guardScream(e);
+    guardReactToDeath(e);
     statKills++;
     triggerShake(6, 220);
     triggerSlowMo(110);
     vibrate([25]);
     score += 50;
+
+    const nowK = performance.now();
+    killStreak = nowK - lastKillAt < MULTIKILL_WINDOW ? killStreak + 1 : 1;
+    lastKillAt = nowK;
+    let special = false;
+    if (killStreak >= 2) {
+      const label = MULTIKILL_NAMES[Math.min(killStreak, MULTIKILL_NAMES.length - 1)];
+      const bonus = 50 * killStreak;
+      score += bonus;
+      milestonePopups.push({ x: e.c, y: e.r - 1, text: '💀 ' + label + ' +' + bonus, startTime: nowK });
+      announce(label);
+      special = true;
+    }
+    if (trick) {
+      score += 75;
+      milestonePopups.push({ x: e.c, y: e.r + 1, text: '🪓 TRICK SHOT +75', startTime: nowK });
+      if (!special) announce('Trick shot!');
+      special = true;
+    }
+    if (special) triggerKillCam(e.c, e.r);
     updateStats();
 
     tutorialFlag('killed');
@@ -135,29 +160,57 @@
     const [ddx, ddy] = dirDelta(dir);
     let hitEnemy = null;
     let hitTrail = null;
-    let endCx = px, endCy = py;
-
-    for (let step = 1; step <= SHOT_RANGE; step++) {
-      const cx = px + ddx * step, cy = py + ddy * step;
-      if (!inBounds(cx, cy)) break;
-      if (grid[cy][cx] === TERRITORY || grid[cy][cx] === BLOCK) { endCx = cx - ddx; endCy = cy - ddy; break; }
-      endCx = cx; endCy = cy;
+    // Die Axt fliegt geradeaus und prallt einmal um 90 Grad von Wand, Saeule oder Flaeche ab
+    let sdx = ddx, sdy = ddy, cx = px, cy = py, bounced = false;
+    const path = [[px, py]];
+    const shotBlocked = (x, y) => !inBounds(x, y) || grid[y][x] === TERRITORY || grid[y][x] === BLOCK;
+    for (let step = 0; step < SHOT_RANGE; ) {
+      const nx = cx + sdx, ny = cy + sdy;
+      if (shotBlocked(nx, ny)) {
+        if (bounced || step === 0) break;
+        // Seite waehlen: bevorzugt die, auf der ein Waechter in Reichweite steht
+        const sides = [[sdy, sdx], [-sdy, -sdx]].filter(([bx, by]) => !shotBlocked(cx + bx, cy + by));
+        if (!sides.length) break;
+        const rest = SHOT_RANGE - step;
+        const seesGuard = ([bx, by]) => enemies.some(en => {
+          for (let k = 1; k <= rest; k++) {
+            const tx = cx + bx * k, ty = cy + by * k;
+            if (shotBlocked(tx, ty)) return false;
+            if (en.c === tx && en.r === ty) return true;
+          }
+          return false;
+        });
+        const pick = sides.find(seesGuard) || sides[Math.floor(Math.random() * sides.length)];
+        path.push([cx, cy]);
+        sdx = pick[0]; sdy = pick[1];
+        bounced = true;
+        sndGuardJam();
+        continue;
+      }
+      cx = nx; cy = ny; step++;
       const hit = enemies.find(e => e.c === cx && e.r === cy);
       if (hit) { hitEnemy = hit; break; }
       // Eigene Linie freischiessen: der Schuss bleibt in ihr stecken
       if (grid[cy][cx] === TRAIL) { hitTrail = [cx, cy]; break; }
     }
+    path.push([cx, cy]);
 
     shotProjectiles.push({
-      x0: px * CELL + CELL / 2, y0: py * CELL + CELL / 2,
-      x1: endCx * CELL + CELL / 2, y1: endCy * CELL + CELL / 2,
-      startTime: now, life: 260
+      pts: path.map(([x, y]) => [x * CELL + CELL / 2, y * CELL + CELL / 2]),
+      startTime: now, life: 220 + (path.length > 2 ? 140 : 0)
     });
     addRipple(px, py, 2.6, 380, '255,138,110', 0.55);
     sndShoot();
 
-    if (hitEnemy) {
-      killEnemyByShot(hitEnemy, 'shot', ddx, ddy);
+    if (hitEnemy && hitEnemy.personality === 'shield' && sdx === -hitEnemy.dc0 && sdy === -hitEnemy.dr0) {
+      // Schildwaechter: von vorne prallt die Axt ab, nur von hinten oder der Seite verwundbar
+      spawnEmote('🛡️', hitEnemy.c, hitEnemy.r);
+      milestonePopups.push({ x: hitEnemy.c, y: hitEnemy.r - 1, text: '🛡️ CLANG!', startTime: now });
+      guardShout(hitEnemy, 'Ha! Nice try!');
+      sndGuardJam();
+      triggerShake(3, 140);
+    } else if (hitEnemy) {
+      killEnemyByShot(hitEnemy, 'shot', sdx, sdy, bounced);
     } else if (hitTrail) {
       shootOutTrailCell(hitTrail[0], hitTrail[1]);
     }
@@ -179,7 +232,7 @@
     milestonePopups = [];
     gamblerStreak = 0;
     enemyDeathAnims = [];
-    shotProjectiles = [];
+    shotProjectiles = []; killCam = null; killStreak = 0;
     celebrating = false;
     resetRunStats();
     perks = defaultPerks();
@@ -538,6 +591,7 @@
       if (stuck) {
         guardSay(e, 'stuck', true);
         enemies.splice(i, 1);
+        guardReactToDeath(e);
         enemyDeathAnims.push({
           r: e.r, c: e.c, kind: 'sealed',
           color: PERSONALITY_COLORS[e.personality] || '#e3574a',

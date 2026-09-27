@@ -175,7 +175,12 @@
 
   const BASE_PERSONALITIES = ['wanderer', 'hunter', 'guardian', 'nervous'];
   function personalityPool() {
-    return level >= 3 ? BASE_PERSONALITIES.concat(['cutter']) : BASE_PERSONALITIES;
+    const pool = BASE_PERSONALITIES.slice();
+    if (level >= 2) pool.push('dog');
+    if (level >= 3) pool.push('cutter');
+    if (level >= 4) pool.push('shield');
+    if (level >= 5) pool.push('sniper');
+    return pool;
   }
   function randomPersonality() {
     const pool = personalityPool();
@@ -183,7 +188,7 @@
   }
   const PERSONALITY_COLORS = {
     wanderer: '#e3574a', hunter: '#ff4d3d', guardian: '#9b4fd6', nervous: '#e8935c',
-    cutter: '#2fb8c9'
+    cutter: '#2fb8c9', dog: '#b07a45', shield: '#7b8794', sniper: '#4f9a5a'
   };
   // --- Sichtkegel ---
   const VISION = {
@@ -191,7 +196,10 @@
     hunter:   { range: 7, half: 0.62 },
     guardian: { range: 5, half: 0.85 },
     nervous:  { range: 5, half: 1.00 },
-    cutter:   { range: 6, half: 0.70 }
+    cutter:   { range: 6, half: 0.70 },
+    dog:      { range: 4, half: 0.90 },  // schnueffelt, sieht wenig
+    shield:   { range: 6, half: 0.70 },
+    sniper:   { range: 12, half: 0.22 }  // sehr weit, sehr schmal
   };
   const VISION_MEMORY = 1200; // ms, so lange wird nach Sichtverlust noch verfolgt
 
