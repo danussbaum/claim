@@ -128,7 +128,20 @@
   function vsInBounds(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS; }
 
   function vsSpawnCorner(p) {
-    return p === 0 ? { x: 1, y: 1 } : { x: COLS - 2, y: ROWS - 2 };
+    return p === 0 ? { x: 0, y: 0 } : { x: COLS - 1, y: ROWS - 1 };
+  }
+
+  // Startland wie im 1-Spieler-Modus als Randlinie: Spieler 0 obere und linke Kante,
+  // Spieler 1 untere und rechte Kante (inklusive der beiden Ecken, wo sie sich treffen).
+  function vsClaimStartEdges(s, p) {
+    for (let x = 0; x < COLS; x++) {
+      if (p === 0 && x < COLS - 1) s.land[vsIdx(x, 0)] = 1;
+      if (p === 1) s.land[vsIdx(x, ROWS - 1)] = 2;
+    }
+    for (let y = 0; y < ROWS; y++) {
+      if (p === 0 && y < ROWS - 1) s.land[vsIdx(0, y)] = 1;
+      if (p === 1) s.land[vsIdx(COLS - 1, y)] = 2;
+    }
   }
 
   function vsNewState() {
@@ -146,7 +159,7 @@
     };
     for (let p = 0; p < 2; p++) {
       const c = vsSpawnCorner(p);
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s.land[vsIdx(c.x + dx, c.y + dy)] = p + 1;
+      vsClaimStartEdges(s, p);
       s.players.push({ x: c.x, y: c.y, dir: null, next: null, lastDir: p === 0 ? 'down' : 'up',
         trail: [], lives: VS_LIVES, inv: 0, shotReady: 0, stepT: 0,
         speedUntil: 0, slowUntil: 0, shieldUntil: 0, rapidUntil: 0 });
@@ -204,8 +217,12 @@
       if (d < bestD) { bestD = d; best = { x, y }; }
     }
     if (!best) {
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s.land[vsIdx(c.x + dx, c.y + dy)] = p + 1;
+      // Alles verloren: Startkante zurueck (nur freie Zellen, fremdes Land bleibt)
+      const before = s.land.slice();
+      vsClaimStartEdges(s, p);
+      for (let i = 0; i < s.land.length; i++) if (before[i] && before[i] !== p + 1) s.land[i] = before[i];
       best = c;
+      s.land[vsIdx(c.x, c.y)] = p + 1;
     }
     pl.x = best.x; pl.y = best.y;
     pl.dir = pl.next = null;
