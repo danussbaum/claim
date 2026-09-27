@@ -151,7 +151,7 @@
     shotProjectiles.push({
       x0: px * CELL + CELL / 2, y0: py * CELL + CELL / 2,
       x1: endCx * CELL + CELL / 2, y1: endCy * CELL + CELL / 2,
-      startTime: now, life: 160
+      startTime: now, life: 260
     });
     addRipple(px, py, 2.6, 380, '255,138,110', 0.55);
     sndShoot();

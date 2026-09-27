@@ -600,19 +600,28 @@ function draw(now) {
       if (t >= 1) { shotProjectiles.splice(i, 1); continue; }
       const tx = sp.x0 + (sp.x1 - sp.x0) * t;
       const ty = sp.y0 + (sp.y1 - sp.y0) * t;
+      // Rotierende Axt
+      const L = CELL * 0.42;
       ctx.save();
-      ctx.globalAlpha = 1 - t * 0.3;
-      ctx.strokeStyle = '#fff2b8';
-      ctx.lineWidth = Math.max(2, CELL * 0.1);
+      ctx.translate(tx, ty);
+      ctx.rotate((now - sp.startTime) / 28);
+      ctx.strokeStyle = '#8b5a2b';
+      ctx.lineWidth = Math.max(2, CELL * 0.09);
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(sp.x0 + (sp.x1 - sp.x0) * Math.max(0, t - 0.35), sp.y0 + (sp.y1 - sp.y0) * Math.max(0, t - 0.35));
-      ctx.lineTo(tx, ty);
+      ctx.moveTo(0, L * 0.6); ctx.lineTo(0, -L * 0.6);
       ctx.stroke();
+      ctx.fillStyle = '#c9d1d6';
+      ctx.strokeStyle = '#5c6368';
+      ctx.lineWidth = Math.max(1, CELL * 0.03);
       ctx.beginPath();
-      ctx.fillStyle = '#ffe27a';
-      ctx.arc(tx, ty, CELL * 0.11, 0, Math.PI * 2);
+      ctx.moveTo(0, -L * 0.6);
+      ctx.lineTo(L * 0.55, -L * 0.85);
+      ctx.quadraticCurveTo(L * 0.75, -L * 0.45, L * 0.55, -L * 0.05);
+      ctx.lineTo(0, -L * 0.25);
+      ctx.closePath();
       ctx.fill();
+      ctx.stroke();
       ctx.restore();
     }
 
