@@ -745,6 +745,7 @@
     }
 
     if (smokeActive) ctx.globalAlpha = 0.38;
+    else if (playerHidden(now)) ctx.globalAlpha = 0.55; // versteckt in der eigenen Flaeche
     if (now < duckUntil) {
       // Ente statt Kopf
       ctx.rotate(-playerLeanDisp);
@@ -955,6 +956,10 @@
     freezeWasActive = frozen;
     const justThawed = now < thawFlashUntil;
 
+    // Verstecke (tiefe eigene Flaeche) werden aus den Kegeln ausgespart - dort sieht kein Waechter hin
+    const hidingCells = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (isHidingCell(c, r)) hidingCells.push([c, r]);
+
     // Sichtkegel unter den Waechtern
     for (const e of enemies) {
       const v = VISION[e.personality] || VISION.wanderer;
@@ -981,6 +986,12 @@
         g.addColorStop(1, 'hsla(' + hue + ',100%,65%,0)');
       }
       ctx.save();
+      if (hidingCells.length) {
+        ctx.beginPath();
+        ctx.rect(-CELL, -CELL, (COLS + 2) * CELL, (ROWS + 2) * CELL);
+        for (const [hc, hr] of hidingCells) ctx.rect(hc * CELL, hr * CELL, CELL, CELL);
+        ctx.clip('evenodd');
+      }
       ctx.beginPath();
       // Exakter Sichtbereich (dieselbe Geometrie wie canSeePlayer) plus Nahbereich
       const [sox, soy] = guardSightOrigin(e, now);

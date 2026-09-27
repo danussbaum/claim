@@ -14,7 +14,7 @@
 
 ## The Guards
 
-Guards patrol with vision cones whose width and range depend on the type (range 5–7 cells; "Low profile" shortens it, minimum 3) and only chase what they can see — pillars block both their movement and line of sight. They remember your last known position for 1.2 s. Level 1 starts with one guard, one more every two levels (max 4). A killed guard (+50 points) is replaced by a new one. Types are color-coded:
+Guards patrol with vision cones whose width and range depend on the type (range 5–7 cells; "Low profile" shortens it, minimum 3) and only chase what they can see — pillars block both their movement and line of sight. Deep inside your own territory (all four neighbouring cells are yours too) you are hidden: guards cannot see you there, the cones leave those cells out and your head turns semi-transparent. On the edge of your territory you stay visible. They remember your last known position for 1.2 s. Level 1 starts with one guard, one more every two levels (max 4). A killed guard (+50 points) is replaced by a new one. Types are color-coded:
 
 | Type | Color | Behavior |
 |---|---|---|

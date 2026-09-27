@@ -326,8 +326,25 @@
     return rayDistance(ox, oy, dx / dist, dy / dist, dist, sightBlockers(ox, oy, range + 1)) >= dist;
   }
 
+  // Versteck: eigene Flaeche, deren vier Nachbarn ebenfalls eigene Flaeche (oder Spielfeldrand) sind.
+  // Am Rand der Flaeche bleibt man sichtbar.
+  function isHidingCell(c, r) {
+    if (!inBounds(c, r) || grid[r][c] !== TERRITORY) return false;
+    for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nc = c + dc, nr = r + dr;
+      if (inBounds(nc, nr) && grid[nr][nc] !== TERRITORY) return false;
+    }
+    return true;
+  }
+  // Massgeblich ist die Zelle, in der der gezeichnete Mittelpunkt des Spielers liegt
+  function playerHidden(now) {
+    const [tx, ty] = playerSightPoint(now);
+    return isHidingCell(Math.floor(tx), Math.floor(ty));
+  }
+
   function canSeePlayer(e) {
     const now = performance.now();
+    if (playerHidden(now)) return false; // tief in der eigenen Flaeche versteckt
     if (now < smokeUntil) return false; // Rauchbombe: fuer alle unsichtbar
     if (guardBlind(e, now)) return false;
     if (now < duckUntil) return false; // Ente: wird fuer ein Tier gehalten
