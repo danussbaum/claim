@@ -158,6 +158,7 @@
       trail: new Array(COLS * ROWS).fill(0),  // 0 keine, 1/2 Linie von Spieler 0/1
       players: [],
       guards: [],
+      shots: [],              // fliegende Aexte (Treffer erst bei Ankunft)
       powerUps: [],
       events: [],             // Schuesse, Sprueche usw. fuer die Darstellung, reisen mit dem Zustand
       timeLeft: VS_MATCH_MS,
@@ -423,7 +424,11 @@
     });
   }
 
-  // Wie im 1-Spieler-Modus trifft der Schuss sofort; die Axt fliegt nur als Animation.
+  // Flugzeit der Axt wie im 1-Spieler-Modus (shotProjectiles in shoot())
+  function vsShotLife(pathLen) { return 220 + (pathLen > 2 ? 140 : 0); }
+
+  // Die Axt fliegt bis zum ersten Ziel in der Linie (oder bis zur Reichweite).
+  // Getroffen wird erst, wenn sie eine Zelle erreicht - wer ausweicht, entkommt.
   function vsShoot(s, p, now) {
     const pl = s.players[p];
     if (now < pl.shotReady || s.countdown > 0 || s.over) return;
@@ -436,16 +441,32 @@
       x += dx; y += dy;
       if (!vsInBounds(x, y)) break;
       path.push([x, y]);
-      const g = s.guards.find(g => !g.deadUntil && g.x === x && g.y === y);
-      if (g) {
-        g.deadUntil = now + VS_GUARD_RESPAWN;
-        s.events.push({ t: 'guardDown', x, y, dx, dy, i: s.guards.indexOf(g), pers: g.pers });
-        break;
-      }
-      if (op.x === x && op.y === y) { vsShotDown(s, opp, now); break; }
-      if (s.trail[vsIdx(x, y)] === opp + 1) { vsCutTrail(s, opp, vsIdx(x, y)); break; }
+      if (s.guards.some(g => !g.deadUntil && g.x === x && g.y === y)) break;
+      if ((op.x === x && op.y === y) || s.trail[vsIdx(x, y)] === opp + 1) break;
     }
     s.events.push({ t: 'shot', path });
+    if (path.length > 1) s.shots.push({ owner: p, path, dx, dy, start: now, life: vsShotLife(path.length), checked: 0 });
+  }
+
+  // Fliegende Aexte: jede neu erreichte Zelle pruefen, beim ersten Treffer ist Schluss
+  function vsStepShots(s, now) {
+    s.shots = s.shots.filter(sh => {
+      const reached = Math.min(sh.path.length - 1, Math.floor((now - sh.start) / sh.life * (sh.path.length - 1)));
+      const opp = 1 - sh.owner, op = s.players[opp];
+      for (let k = sh.checked + 1; k <= reached; k++) {
+        const [x, y] = sh.path[k];
+        const g = s.guards.find(g => !g.deadUntil && g.x === x && g.y === y);
+        if (g) {
+          g.deadUntil = now + VS_GUARD_RESPAWN;
+          s.events.push({ t: 'guardDown', x, y, dx: sh.dx, dy: sh.dy, i: s.guards.indexOf(g), pers: g.pers });
+          return false;
+        }
+        if (op.x === x && op.y === y) { vsShotDown(s, opp, now); return false; }
+        if (s.trail[vsIdx(x, y)] === opp + 1) { vsCutTrail(s, opp, vsIdx(x, y)); return false; }
+      }
+      sh.checked = reached;
+      return reached < sh.path.length - 1;
+    });
   }
 
   // Treffer auf die unfertige Linie: wie im 1-Spieler-Modus (cutTrailAt) faellt das Stueck
@@ -487,6 +508,7 @@
     if (s.over) return;
     if (s.countdown > 0) { s.countdown -= delta; return; }
     s.timeLeft -= delta;
+    vsStepShots(s, now);
     for (let p = 0; p < 2; p++) {
       const pl = s.players[p], iv = vsPlayerInterval(pl, now);
       pl.stepT += delta;
@@ -945,7 +967,7 @@
     if (ev.t === 'shot') {
       shotProjectiles.push({
         pts: ev.path.map(([x, y]) => [x * CELL + CELL / 2, y * CELL + CELL / 2]),
-        startTime: now, life: 220 + (ev.path.length > 2 ? 140 : 0)
+        startTime: now, life: vsShotLife(ev.path.length)
       });
       sndShoot();
     } else if (ev.t === 'guardDown') {
