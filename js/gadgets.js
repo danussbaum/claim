@@ -170,10 +170,15 @@
     const now = performance.now();
     e.lastBubbleAt = now;
     guardBubbles = guardBubbles.filter(b => b.e !== e);
-    guardBubbles.push({ e, x: e.c, y: e.r, text: (e.name ? e.name + ': ' : '') + text, start: now });
+    const prefix = e.name ? e.name + ': ' : '';
+    const bubble = { e, x: e.c, y: e.r, text: prefix + text, start: now };
+    guardBubbles.push(bubble);
     if (e.voiceShift === undefined) e.voiceShift = 0.8 + Math.random() * 0.45; // jeder Waechter hat seine eigene Stimmlage
     if (voiceMode === 'gibberish') sndGibberish(text, e.personality, e.voiceShift);
-    else if (voiceMode === 'speech') guardSpeak(e, text);
+    else if (voiceMode === 'speech') {
+      const u = guardSpeak(e, text);
+      if (u) attachBubbleToSpeech(bubble, u, prefix);
+    }
   }
 
   // Stimmen der Waechter: Kauderwelsch, Sprachausgabe oder nichts
@@ -269,7 +274,6 @@
       if (!voices.length) e.speechVoice.idx = -1;
     }
     const sv = e.speechVoice;
-    // Ausrufezeichen statt Punkt: klingt bei vielen Stimmen schaerfer
     // Ausrufezeichen statt Punkt und ab und zu ein Knurren davor: klingt schaerfer
     let spoken = text.replace(/\.+$/, '!').replace(/([^!?])$/, '$1!').replace(/!+$/, '!!!');
     if (!scream && Math.random() < 0.4) {
@@ -288,6 +292,33 @@
     if (scream) { u.pitch = Math.min(2, sv.pitch + 0.8); u.rate = 1.1; }
     u.volume = 1;
     synth.speak(u);
+    return u;
+  }
+  // Sprechblase waechst Wort fuer Wort mit der Stimme (onboundary) und bleibt, solange gesprochen wird
+  const BUBBLE_SPEECH_MAX_MS = 8000;
+  function attachBubbleToSpeech(b, u, prefix) {
+    const spoken = u.text;
+    b.text = prefix + spoken;
+    b.shown = prefix;
+    b.live = true;
+    u.onboundary = ev => {
+      if (ev.name && ev.name !== 'word') return;
+      b.gotBoundary = true;
+      let end = ev.charIndex + (ev.charLength || 0);
+      if (!ev.charLength) {
+        const sp = spoken.indexOf(' ', ev.charIndex);
+        end = sp === -1 ? spoken.length : sp;
+      }
+      b.shown = prefix + spoken.slice(0, end);
+    };
+    const done = () => {
+      if (!b.live) return;
+      b.live = false;
+      b.shown = null;
+      b.start = performance.now() - BUBBLE_MS * 0.5; // danach noch kurz stehen lassen
+    };
+    u.onend = done;
+    u.onerror = done;
   }
   // Benommen oder in der Pause: sieht nichts
   function guardBlind(e, now) {

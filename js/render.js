@@ -1524,18 +1524,20 @@ function draw(now) {
         ctx.globalAlpha = 1;
       }
     }
-    guardBubbles = guardBubbles.filter(b => now - b.start < BUBBLE_MS);
+    guardBubbles = guardBubbles.filter(b => b.live ? now - b.start < BUBBLE_SPEECH_MAX_MS : now - b.start < BUBBLE_MS);
     for (const b of guardBubbles) {
       if (enemies.includes(b.e)) {
         b.x = b.e.prevC + (b.e.c - b.e.prevC) * enemyT;
         b.y = b.e.prevR + (b.e.r - b.e.prevR) * enemyT;
       }
-      const t = (now - b.start) / BUBBLE_MS;
+      // Waehrend gesprochen wird: nicht ausblenden; ohne Wortgrenzen-Events (manche Browser) ganzen Text zeigen
+      const t = b.live ? Math.min(0.5, (now - b.start) / BUBBLE_MS) : (now - b.start) / BUBBLE_MS;
+      const label = (b.live && b.shown != null && (b.gotBoundary || now - b.start < 700)) ? b.shown : b.text;
       const pop = t < 0.1 ? 0.6 + t * 4 : 1;
       ctx.save();
       ctx.globalAlpha = t > 0.8 ? (1 - t) / 0.2 : 1;
       ctx.font = '700 ' + Math.max(10, Math.floor(CELL * 0.42)) + 'px -apple-system, sans-serif';
-      const w = ctx.measureText(b.text).width + CELL * 0.4, h = CELL * 0.62;
+      const w = ctx.measureText(label).width + CELL * 0.4, h = CELL * 0.62;
       let bx = b.x * CELL + CELL / 2;
       bx = Math.max(w / 2, Math.min(COLS * CELL - w / 2, bx));
       const by = Math.max(h / 2, b.y * CELL - CELL * 0.35);
@@ -1548,7 +1550,7 @@ function draw(now) {
       ctx.roundRect(-w / 2, -h / 2, w, h, h / 2);
       ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillText(b.text, 0, 1);
+      ctx.fillText(label, 0, 1);
       ctx.restore();
     }
     ctx.restore();
