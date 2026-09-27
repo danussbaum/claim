@@ -136,7 +136,7 @@
       if (voice) u.voice = voice;
       u.lang = voice ? voice.lang : 'en-US';
       u.rate = 1.1;
-      u.pitch = 1;
+      u.pitch = 0.5; // tiefe Stimme
       u.volume = 1;
       speechSynthesis.speak(u);
     }, i * COUNTDOWN_STEP_MS));
