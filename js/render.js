@@ -1625,9 +1625,9 @@ function draw(now) {
     drawVignette(vw, vh);
 
     if (countdownActive) {
-      const elapsed = now - countdownStartTime;
+      const elapsed = Math.max(0, now - countdownStartTime); // vor dem Start (Sprachvorlauf) steht die 3
       const totalDur = COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS;
-      if (elapsed >= totalDur) {
+      if (now - countdownStartTime >= totalDur) {
         countdownActive = false;
       } else {
         ctx.fillStyle = 'rgba(5,8,6,0.5)';

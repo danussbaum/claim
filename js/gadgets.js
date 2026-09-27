@@ -509,6 +509,7 @@
   let countdownActive = false, countdownStartTime = 0;
   const COUNTDOWN_STEPS = ['3', '2', '1', 'GO!'];
   const COUNTDOWN_STEP_MS = 700; // lang genug, dass die Ansage jedes Wort ganz ausspricht
+  const COUNTDOWN_SPEECH_LEAD_MS = 200; // Sprachausgabe braucht einen Moment: sie startet so viel vor der Anzeige
 
   function isObstacle(v) { return v === BLOCK || v === PIT; }
 

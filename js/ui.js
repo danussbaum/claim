@@ -102,9 +102,11 @@
 
   function triggerStartCountdown() {
     countdownActive = true;
-    countdownStartTime = performance.now();
+    // Anzeige und Piepser starten etwas spaeter als die Sprache, damit alles gleichzeitig ankommt
+    countdownStartTime = performance.now() + COUNTDOWN_SPEECH_LEAD_MS;
     for (let i = 0; i < COUNTDOWN_STEPS.length; i++) {
-      setTimeout(() => sndCountdownBeep(i === COUNTDOWN_STEPS.length - 1), i * COUNTDOWN_STEP_MS);
+      setTimeout(() => sndCountdownBeep(i === COUNTDOWN_STEPS.length - 1),
+        COUNTDOWN_SPEECH_LEAD_MS + i * COUNTDOWN_STEP_MS);
     }
     speakCountdown();
   }

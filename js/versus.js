@@ -14,7 +14,7 @@
   const VS_SHOT_STUN_MS = 800;   // nach einem Abschuss: kurz stehen, dann weiter
   const VS_MATCH_MS = 120000;
   const VS_WIN_PCT = 50;
-  const VS_COUNTDOWN_MS = COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
+  const VS_COUNTDOWN_MS = COUNTDOWN_SPEECH_LEAD_MS + COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
   const VS_SEND_MS = 33;
 
   let vsActive = false;      // Versus-Bildschirm aktiv (Lobby oder Match)
