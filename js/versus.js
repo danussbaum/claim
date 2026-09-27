@@ -134,6 +134,8 @@
   // Power-ups, Sicht, Schrittwahl und Sprueche stammen aus dem 1-Spieler-Modus
   // (POWER_MS, canSeePoint, chooseGuardStep, GUARD_LINES), angepasst auf zwei Spieler.
   const VS_POWERUP_TYPES = ['speed', 'shield', 'freeze', 'rapidfire'];
+  // Power-downs treffen im Versus den Gegner, nicht den, der sie einsammelt
+  const VS_CURSE_TYPES = ['slow', 'confuse', 'drunk', 'duck'];
   const VS_PU_INTERVAL = 7000, VS_PU_MAX = 2;
   const VS_RAPID_COOLDOWN = 300;
   const VS_DIRS4 = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -159,6 +161,32 @@
     }
   }
 
+  // Bonuszone in der Mitte: wer sie zuerst ganz besitzt, bekommt die freien Felder rundherum
+  const VS_BONUS_RADIUS = 2;
+  function vsBonusCells() {
+    const c0 = Math.floor(COLS / 2) - 1, r0 = Math.floor(ROWS / 2) - 1;
+    return [[c0, r0], [c0 + 1, r0], [c0, r0 + 1], [c0 + 1, r0 + 1]];
+  }
+
+  function vsCheckBonus(s, p) {
+    if (s.bonusClaimed) return;
+    const own = p + 1, zone = vsBonusCells();
+    if (!zone.every(([c, r]) => s.land[vsIdx(c, r)] === own)) return;
+    s.bonusClaimed = true;
+    const cells = [];
+    const c0 = zone[0][0] - VS_BONUS_RADIUS, c1 = zone[3][0] + VS_BONUS_RADIUS;
+    const r0 = zone[0][1] - VS_BONUS_RADIUS, r1 = zone[3][1] + VS_BONUS_RADIUS;
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      if (!vsInBounds(c, r)) continue;
+      const i = vsIdx(c, r);
+      if (s.land[i] || s.trail[i]) continue;
+      s.land[i] = own;
+      cells.push(i);
+    }
+    s.powerUps = s.powerUps.filter(u => s.land[vsIdx(u.x, u.y)] === 0);
+    s.events.push({ t: 'bonus', p, cells, x: zone[0][0], y: zone[0][1] });
+  }
+
   function vsNewState() {
     const s = {
       land: new Array(COLS * ROWS).fill(0),   // 0 frei, 1 Spieler 0, 2 Spieler 1
@@ -171,7 +199,7 @@
       timeLeft: VS_MATCH_MS,
       countdown: VS_COUNTDOWN_MS,
       over: null,
-      guardT: 0, puT: 0, freezeUntil: 0,
+      guardT: 0, puT: 0, freezeUntil: 0, bonusClaimed: false,
     };
     for (let p = 0; p < 2; p++) {
       const c = vsSpawnCorner(p);
@@ -179,7 +207,8 @@
       s.players.push({ x: c.x, y: c.y, dir: null, next: null, lastDir: p === 0 ? 'down' : 'up',
         trail: [], inv: 0, shotReady: 0, stepT: 0,
         speedUntil: 0, slowUntil: 0, shieldUntil: 0, rapidUntil: 0,
-        gadget: vsGadgets[p], gadgetReadyAt: 0, smokeUntil: 0, boosts: VS_BOOSTS });
+        gadget: vsGadgets[p], gadgetReadyAt: 0, smokeUntil: 0, boosts: VS_BOOSTS,
+        confuseUntil: 0, drunkUntil: 0, duckUntil: 0 });
     }
     for (let i = 0; i < VS_GUARDS; i++) s.guards.push(vsNewGuard(s));
     return s;
@@ -236,7 +265,12 @@
     s.events.push({ t: 'hit', p });
     s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
   }
-  function vsShotDown(s, p, now) { vsSendHome(s, p, now, VS_SHOT_STUN_MS); }
+  function vsShotDown(s, p, now) {
+    const pl = s.players[p];
+    if (now < pl.inv || now < pl.shieldUntil || s.over) return;
+    s.events.push({ t: 'killcam', x: pl.x, y: pl.y }); // Zoom und Zeitlupe auf die Trefferstelle
+    vsSendHome(s, p, now, VS_SHOT_STUN_MS);
+  }
   function vsKill(s, p, now) { vsSendHome(s, p, now, VS_CRASH_STUN_MS); }
 
   function vsCapture(s, p) {
@@ -296,6 +330,7 @@
     if (cells.length) {
       pl.combo = (pl.combo || 0) + 1;
       s.events.push({ t: 'capture', p, cells, stolen, combo: pl.combo, x: pl.x, y: pl.y });
+      vsCheckBonus(s, p);
     }
   }
 
@@ -374,22 +409,27 @@
     for (let tries = 0; tries < 200; tries++) {
       const x = Math.floor(Math.random() * COLS), y = Math.floor(Math.random() * ROWS);
       if (!vsCellFree(s, x, y) || s.powerUps.some(u => u.x === x && u.y === y)) continue;
-      const down = Math.random() < 0.3;
-      const type = down ? 'slow' : VS_POWERUP_TYPES[Math.floor(Math.random() * VS_POWERUP_TYPES.length)];
+      const down = Math.random() < 0.4;
+      const pool = down ? VS_CURSE_TYPES : VS_POWERUP_TYPES;
+      const type = pool[Math.floor(Math.random() * pool.length)];
       s.powerUps.push({ x, y, type, kind: down ? 'down' : 'up' });
       return;
     }
   }
 
   function vsPickup(s, p, u, now) {
-    const pl = s.players[p];
+    const target = u.kind === 'down' ? 1 - p : p;
+    const pl = s.players[target];
     const until = now + POWER_MS[u.type];
     if (u.type === 'speed') pl.speedUntil = until;
     else if (u.type === 'shield') pl.shieldUntil = until;
     else if (u.type === 'freeze') s.freezeUntil = until;
     else if (u.type === 'rapidfire') pl.rapidUntil = until;
     else if (u.type === 'slow') pl.slowUntil = until;
-    s.events.push({ t: 'pick', x: u.x, y: u.y, type: u.type, kind: u.kind, p });
+    else if (u.type === 'confuse') pl.confuseUntil = until;
+    else if (u.type === 'drunk') pl.drunkUntil = until;
+    else if (u.type === 'duck') pl.duckUntil = until;
+    s.events.push({ t: 'pick', x: u.x, y: u.y, type: u.type, kind: u.kind, p, target });
   }
 
   // --- Waechter: Sichtkegel, Jagd, Sprueche ---
@@ -408,7 +448,9 @@
   }
 
   function vsGuardSees(s, g, p) {
-    if (vsHidden(s, p) || performance.now() < s.players[p].smokeUntil) return false;
+    const pl0 = s.players[p], t0 = performance.now();
+    // Versteckt, im Rauch oder als Ente (wird fuer ein Tier gehalten): unsichtbar
+    if (vsHidden(s, p) || t0 < pl0.smokeUntil || t0 < pl0.duckUntil) return false;
     const pl = s.players[p];
     const view = { personality: BASE_PERSONALITIES[g.pers], dc0: g.dc0, dr0: g.dr0, c: g.x, r: g.y };
     return canSeePoint(view, g.x + 0.5, g.y + 0.5, pl.x + 0.5, pl.y + 0.5);
@@ -597,11 +639,12 @@
       players: s.players.map(pl => ({ x: pl.x, y: pl.y, inv: now < pl.inv,
         speed: left(pl.speedUntil), slow: left(pl.slowUntil), shield: left(pl.shieldUntil), rapid: left(pl.rapidUntil),
         stun: left(pl.stunUntil || 0), stunMs: pl.stunMs || 1,
-        gadgetCd: left(pl.gadgetReadyAt), smoke: left(pl.smokeUntil), shotCd: left(pl.shotReady), boosts: pl.boosts })),
+        gadgetCd: left(pl.gadgetReadyAt), smoke: left(pl.smokeUntil), shotCd: left(pl.shotReady), boosts: pl.boosts,
+        confuse: left(pl.confuseUntil), drunk: left(pl.drunkUntil), duck: left(pl.duckUntil) })),
       guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0, g.hunting ? 1 : 0,
         now < g.stunUntil ? 1 : 0, now < g.breakUntil ? 1 : 0, g.pers, g.name]),
       powerUps: s.powerUps.map(u => [u.x, u.y, u.type, u.kind]),
-      freeze: left(s.freezeUntil),
+      freeze: left(s.freezeUntil), bonusClaimed: s.bonusClaimed,
       events: s.events,
       timeLeft: s.timeLeft, countdown: s.countdown, over: s.over, series: vsSeries,
       pct: [vsPct(s, 0), vsPct(s, 1)],
@@ -706,6 +749,8 @@
       }
       if (!dir || !safe.includes(dir)) dir = pick(safe);
     }
+    // Verwirrt: stolpert ab und zu in eine zufaellige Richtung
+    if (now < pl.confuseUntil && Math.random() < 0.4) dir = pick(safe);
     pl.next = dir;
     pl.lastDir = dir;
 
@@ -763,11 +808,12 @@
       players: msg.players.map(pl => ({ x: pl.x, y: pl.y, inv: pl.inv,
         speedUntil: now + pl.speed, slowUntil: now + pl.slow, shieldUntil: now + pl.shield, rapidUntil: now + pl.rapid,
         stunUntil: now + pl.stun, stunMs: pl.stunMs,
-        gadgetReadyAt: now + pl.gadgetCd, smokeUntil: now + pl.smoke, shotReady: now + pl.shotCd, boosts: pl.boosts })),
+        gadgetReadyAt: now + pl.gadgetCd, smokeUntil: now + pl.smoke, shotReady: now + pl.shotCd, boosts: pl.boosts,
+        confuseUntil: now + pl.confuse, drunkUntil: now + pl.drunk, duckUntil: now + pl.duck })),
       guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2], hunting: !!g[3],
         stunUntil: g[4] ? now + 300 : 0, breakUntil: g[5] ? now + 300 : 0, pers: g[6], name: g[7] })),
       powerUps: msg.powerUps.map(u => ({ x: u[0], y: u[1], type: u[2], kind: u[3] })),
-      freezeUntil: now + msg.freeze,
+      freezeUntil: now + msg.freeze, bonusClaimed: msg.bonusClaimed,
       events: [],
       timeLeft: msg.timeLeft, countdown: msg.countdown, over: msg.over, pct: msg.pct, series: msg.series,
     };
@@ -775,6 +821,7 @@
 
   function vsApplyDir(pl, d) {
     if (!['up', 'down', 'left', 'right'].includes(d)) return;
+    if (performance.now() < pl.confuseUntil) d = INVERTED_DIR[d]; // Confuse: Steuerung vertauscht
     if (pl.trail.length && pl.dir === INVERTED_DIR[d]) return; // nicht in die eigene Linie umdrehen
     pl.next = d;
     pl.lastDir = d;
@@ -832,7 +879,8 @@
   function vsLoop(time) {
     if (!vsPlaying) return;
     if (!vsLastTime) vsLastTime = time;
-    const delta = Math.min(time - vsLastTime, MAX_FRAME_DELTA);
+    let delta = Math.min(time - vsLastTime, MAX_FRAME_DELTA);
+    if (time < slowMoUntil) delta *= 0.25; // Zeitlupe der Kill-Cam (beim Host, der Gast folgt dem Zustand)
     vsLastTime = time;
     if (vsIsHost && vsState) {
       vsHostTick(delta, performance.now());
@@ -930,6 +978,8 @@
     resetMenuThemeTiming();
     shieldUntil = speedUntil = slowUntil = rapidfireUntil = freezeUntil = 0;
     gadgetCooldownUntil = shotCooldownUntil = smokeUntil = 0; hookAnim = null;
+    confuseUntil = drunkUntil = duckUntil = slowMoUntil = 0; killCam = null;
+    bonusCells = []; bonusClaimed = false;
     enemies = []; powerUps = []; revealPopups = []; guardBubbles = [];
     shotProjectiles = []; enemyDeathAnims = []; trail = [];
     initGrid();
@@ -964,6 +1014,7 @@
       prevPx = jump ? mp.x : px; prevPy = jump ? mp.y : py;
       px = mp.x; py = mp.y;
       playerStepTime = now;
+      if (!jump && now < duckUntil) sndQuack(); // Ente quakt bei jedem Schritt
     }
     // Schildring waehrend der Schonzeit oder mit Schild-Power-up
     shieldUntil = Math.max(vsInvul(mp, now) ? now + 1000 : 0, mp.shieldUntil);
@@ -974,6 +1025,8 @@
     speedUntil = mp.speedUntil; slowUntil = mp.slowUntil; rapidfireUntil = mp.rapidUntil;
     // Knoepfe: Gadget- und Schuss-Abklingzeit, Boost-Vorrat, Rauch
     gadgetCooldownUntil = mp.gadgetReadyAt; shotCooldownUntil = mp.shotReady; smokeUntil = mp.smokeUntil;
+    confuseUntil = mp.confuseUntil; drunkUntil = mp.drunkUntil; duckUntil = mp.duckUntil;
+    bonusCells = vsBonusCells().map(([c, r]) => ({ c, r })); bonusClaimed = s.bonusClaimed;
     decoyCharges = 0;
     if (boostsRemaining !== mp.boosts || boostsMax !== VS_BOOSTS) {
       boostsRemaining = mp.boosts; boostsMax = VS_BOOSTS;
@@ -998,6 +1051,8 @@
     vsRival.iv = vsPlayerInterval(rp, now);
     vsRival.fast = now < rp.speedUntil;
     vsRival.smoke = now < rp.smokeUntil;
+    vsRival.duck = now < rp.duckUntil;
+    vsRival.curse = now < rp.drunkUntil ? 'drunk' : now < rp.confuseUntil ? 'confuse' : now < rp.slowUntil ? 'slow' : null;
     vsRival.trailLen = rivalTrail;
 
     // Waechter: feste Objekte je Index, damit sie gleiten statt springen
@@ -1090,7 +1145,22 @@
     } else if (ev.t === 'pick') {
       revealPopups.push({ x: ev.x, y: ev.y, type: ev.type, kind: ev.kind,
         startTime: now, resolveAt: now + ROULETTE_MS, applied: true, lastTickIdx: -1 });
-      if (ev.p === vsMe) { if (ev.kind === 'down') sndPowerDown(ev.type); else sndPowerUp(ev.type); }
+      if (ev.kind === 'down') {
+        // Power-down fuer den Gegner
+        milestonePopups.push({ x: ev.x, y: ev.y - 1,
+          text: '😈 ' + ALL_ICON_NAMES[ev.type].replace(/!$/, '') + (ev.target === vsMe ? ' - you!' : ' - rival!'), startTime: now });
+        if (ev.target === vsMe) { sndPowerDown(ev.type); vibrate([50, 30, 50]); }
+        else sndPowerUp('speed');
+      } else if (ev.p === vsMe) sndPowerUp(ev.type);
+    } else if (ev.t === 'killcam') {
+      triggerKillCam(ev.x, ev.y);
+    } else if (ev.t === 'bonus') {
+      const mine = ev.p === vsMe;
+      ev.cells.forEach(i => flashCells.push({ r: Math.floor(i / COLS), c: i % COLS, time: now }));
+      spawnFireworkBurst((ev.x + 1) * CELL, (ev.y + 1) * CELL, ['#ffd23f', '#ffb03a', '#fff2b0']);
+      milestonePopups.push({ x: ev.x, y: ev.y - 1, text: mine ? '⭐ Bonus!' : '⭐ Rival bonus!', startTime: now });
+      sndPowerUp('speed');
+      triggerShake(4, 200);
     } else if (ev.t === 'hit') {
       const k = vsSpawnCorner(ev.p);
       milestonePopups.push({ x: k.x, y: k.y + (ev.p === 0 ? 1 : -1), text: '🏠 Back home!', startTime: now });
@@ -1156,13 +1226,29 @@
     ctx.scale(1 + bounce * 0.18, 1 - bounce * 0.13);
     ctx.rotate(-h);
     if (rv.smoke) ctx.globalAlpha = 0.38; // Rauchbombe: halb durchsichtig
-    ctx.fillStyle = rv.fast ? '#f5d347' : '#8cc4ff';
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
-    // Gesicht wie beim Spieler: entschlossen mit Linie, sonst entspannt
-    drawPlayerFace(R, rv.trailLen > 0 ? 'determined' : 'relaxed', Math.cos(h) * 0.5, Math.sin(h) * 0.5);
+    if (rv.duck) {
+      // Power-down Ente: dieselbe Ente wie beim Spieler, eigene Blickrichtung
+      if (Math.abs(Math.cos(h)) > 0.3) rv.duckLeft = Math.cos(h) < 0;
+      if (rv.duckLeft) ctx.scale(-1, 1);
+      drawDuck(R * 0.95, now, t < 1);
+    } else {
+      ctx.fillStyle = rv.fast ? '#f5d347' : '#8cc4ff';
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.fill();
+      // Gesicht wie beim Spieler: entschlossen mit Linie, sonst entspannt
+      drawPlayerFace(R, rv.trailLen > 0 ? 'determined' : 'relaxed', Math.cos(h) * 0.5, Math.sin(h) * 0.5);
+    }
     ctx.restore();
+    if (rv.curse) {
+      // Symbol des Power-downs ueber dem Kopf
+      ctx.save();
+      ctx.font = Math.floor(CELL * 0.45) + 'px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ALL_ICON_SYMBOLS[rv.curse], cx + CELL * 0.45, cy - CELL * 0.45);
+      ctx.restore();
+    }
 
     // Namensschilder
     const pt = Math.min(1, (now - playerStepTime) / currentPlayerInterval());

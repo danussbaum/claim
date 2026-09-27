@@ -724,7 +724,7 @@ function draw(now) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(255,226,120,' + (0.5 + pulse * 0.5) + ')';
-      ctx.fillText('×' + BONUS_MULT, first.c*CELL + CELL/2, first.r*CELL + CELL/2 + 1);
+      ctx.fillText(versusRender ? '⭐' : '×' + BONUS_MULT, first.c*CELL + CELL/2, first.r*CELL + CELL/2 + 1);
     }
 
     for (let i = revealPopups.length - 1; i >= 0; i--) {

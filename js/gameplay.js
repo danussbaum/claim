@@ -414,14 +414,14 @@
 
   function activatePowerDown(type) {
     const now = performance.now();
-    if (type === 'confuse') confuseUntil = now + 4000;
+    if (type === 'confuse') confuseUntil = now + POWER_MS.confuse;
     else if (type === 'fog') fogUntil = now + 5000;
     else if (type === 'alarm') { alarmUntil = now + 3500; triggerShake(4, 250); vibrate([50, 30, 50]); }
     else if (type === 'slow') slowUntil = now + POWER_MS.slow;
     else if (type === 'swarm') { swarmUntil = now + 6000; spawnSwarmEnemy(); }
-    else if (type === 'drunk') drunkUntil = now + 5500;
+    else if (type === 'drunk') drunkUntil = now + POWER_MS.drunk;
     else if (type === 'psylo') psyloUntil = now + 8000;
-    else if (type === 'duck') duckUntil = now + DUCK_MS;
+    else if (type === 'duck') duckUntil = now + POWER_MS.duck;
     else if (type === 'helium') heliumUntil = now + HELIUM_MS;
     else if (type === 'disco') discoUntil = now + DISCO_MS;
     else if (type === 'banana') {

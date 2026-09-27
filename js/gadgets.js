@@ -298,7 +298,8 @@
   let shotProjectiles = [];
   const POWERUP_TYPES = ['speed', 'shield', 'freeze', 'trailguard', 'rapidfire', 'spikes', 'decoy'];
   // Grunddauer der Effekte in ms (1-Spieler und Versus)
-  const POWER_MS = { speed: 4000, shield: 4000, freeze: 3000, trailguard: 5000, rapidfire: 5000, spikes: 5000, slow: 4000 };
+  const POWER_MS = { speed: 4000, shield: 4000, freeze: 3000, trailguard: 5000, rapidfire: 5000, spikes: 5000,
+    slow: 4000, confuse: 4000, drunk: 5500, duck: DUCK_MS };
   const POWERUP_COLORS = {
     speed: '#f5d347', shield: '#4f7ee5', freeze: '#7fdcff', trailguard: '#3fd6b0',
     rapidfire: '#ff7a3d', spikes: '#c9752e', decoy: '#a89f8c'
