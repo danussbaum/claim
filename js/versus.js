@@ -675,9 +675,8 @@
     vsHidePanel();
     document.getElementById('overlay').classList.add('hidden');
     vsEnterRender();
-    // Countdown des 1-Spieler-Modus (Anzeige in draw(), Piepser) plus Sprachausgabe
+    // Countdown des 1-Spieler-Modus (Anzeige in draw(), Piepser, Sprachausgabe)
     triggerStartCountdown();
-    vsSpeakCountdown();
     vsShownOver = false;
     vsLastTime = 0;
     cancelAnimationFrame(vsRaf);
@@ -773,6 +772,7 @@
     document.querySelectorAll('.topbar .stat').forEach((el, i) => { el.firstChild.nodeValue = vsSaved.labels[i]; });
     vsSaved = null;
     hasStarted = false; // zurueck im Menue: Titelmelodie wieder an
+    countdownActive = false; // bricht auch die Countdown-Ansage ab
     resetMenuThemeTiming();
     shieldUntil = speedUntil = slowUntil = rapidfireUntil = freezeUntil = 0;
     enemies = []; powerUps = []; revealPopups = []; guardBubbles = [];
@@ -1012,20 +1012,6 @@
     ctx.lineWidth = Math.max(1, CELL * 0.035);
     ctx.stroke();
     ctx.restore();
-  }
-
-  const VS_COUNTDOWN_WORDS = ['Three', 'Two', 'One', 'Go!'];
-  function vsSpeakCountdown() {
-    if (voiceMode === 'off' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
-    speechSynthesis.cancel();
-    VS_COUNTDOWN_WORDS.forEach((word, i) => setTimeout(() => {
-      if (!vsPlaying) return;
-      const u = new SpeechSynthesisUtterance(word);
-      u.lang = 'en-US';
-      u.rate = 1.3;
-      u.pitch = i === VS_COUNTDOWN_WORDS.length - 1 ? 1.3 : 1;
-      speechSynthesis.speak(u);
-    }, i * COUNTDOWN_STEP_MS));
   }
 
   // --- Einhaengen in das bestehende Spiel ---

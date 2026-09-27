@@ -106,6 +106,22 @@
     for (let i = 0; i < COUNTDOWN_STEPS.length; i++) {
       setTimeout(() => sndCountdownBeep(i === COUNTDOWN_STEPS.length - 1), i * COUNTDOWN_STEP_MS);
     }
+    speakCountdown();
+  }
+
+  // Sprachausgabe zum Countdown (1-Spieler und Versus), aus bei "Guard voices: Off"
+  const COUNTDOWN_WORDS = ['Three', 'Two', 'One', 'Go!'];
+  function speakCountdown() {
+    if (voiceMode === 'off' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+    speechSynthesis.cancel();
+    COUNTDOWN_WORDS.forEach((word, i) => setTimeout(() => {
+      if (!countdownActive) return; // Spiel inzwischen verlassen
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = 'en-US';
+      u.rate = 1.3;
+      u.pitch = i === COUNTDOWN_WORDS.length - 1 ? 1.3 : 1;
+      speechSynthesis.speak(u);
+    }, i * COUNTDOWN_STEP_MS));
   }
 
   function startGame() {
