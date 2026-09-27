@@ -11,6 +11,7 @@
   const VS_GUARD_RESPAWN = 3000;
   const VS_LIVES = 3;
   const VS_INVULN_MS = 1500;
+  const VS_SHOT_STUN_MS = 800;   // nach einem Abschuss: kurz stehen, dann weiter
   const VS_MATCH_MS = 120000;
   const VS_WIN_PCT = 50;
   const VS_COUNTDOWN_MS = COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
@@ -201,6 +202,22 @@
     return s.land[vsIdx(pl.x, pl.y)] === p + 1;
   }
 
+  // Abgeschossen: kostet kein Leben, aber Linie weg und zurueck aufs Startfeld,
+  // dort kurz eingefroren.
+  function vsShotDown(s, p, now) {
+    const pl = s.players[p];
+    if (now < pl.inv || now < pl.shieldUntil || s.over) return;
+    pl.trail.forEach(i => { s.trail[i] = 0; });
+    pl.trail = [];
+    const c = vsSpawnCorner(p);
+    pl.x = c.x; pl.y = c.y;
+    pl.dir = pl.next = null;
+    pl.stunUntil = now + VS_SHOT_STUN_MS;
+    pl.inv = now + VS_SHOT_STUN_MS + VS_INVULN_MS;
+    s.events.push({ t: 'hit', p });
+    s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
+  }
+
   function vsKill(s, p, now) {
     const pl = s.players[p];
     if (now < pl.inv || now < pl.shieldUntil || s.over) return;
@@ -264,6 +281,7 @@
 
   function vsStepPlayer(s, p, now) {
     const pl = s.players[p];
+    if (now < (pl.stunUntil || 0)) { pl.next = null; return; } // nach Abschuss kurz eingefroren
     if (pl.next) { pl.dir = pl.next; pl.next = null; }
     if (!pl.dir) return;
     const [dx, dy] = vsDelta(pl.dir);
@@ -409,7 +427,7 @@
         s.events.push({ t: 'guardDown', x, y, dx, dy, i: s.guards.indexOf(g), pers: g.pers });
         break;
       }
-      if (op.x === x && op.y === y) { vsKill(s, opp, now); break; }
+      if (op.x === x && op.y === y) { vsShotDown(s, opp, now); break; }
       if (s.trail[vsIdx(x, y)] === opp + 1) { vsCutTrail(s, opp, vsIdx(x, y)); break; }
     }
     s.events.push({ t: 'shot', path });
