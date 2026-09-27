@@ -199,7 +199,12 @@
     const sv = e.speechVoice;
     const u = new SpeechSynthesisUtterance(text);
     const voices = guardVoices();
-    if (voices.length) u.voice = voices[Math.abs(sv.idx) % voices.length];
+    // Sprache immer Englisch setzen, sonst liest das Handy mit deutscher Stimme vor
+    u.lang = 'en-US';
+    if (voices.length) {
+      u.voice = voices[Math.abs(sv.idx) % voices.length];
+      if (/^en/i.test(u.voice.lang)) u.lang = u.voice.lang;
+    }
     u.pitch = sv.pitch;
     u.rate = sv.rate;
     u.volume = 0.9;
