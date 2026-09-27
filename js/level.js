@@ -188,7 +188,7 @@
   // --- Sichtkegel ---
   const VISION = {
     wanderer: { range: 6, half: 0.70 },
-    hunter:   { range: 9, half: 0.62 },
+    hunter:   { range: 7, half: 0.62 },
     guardian: { range: 5, half: 0.85 },
     nervous:  { range: 5, half: 1.00 },
     cutter:   { range: 6, half: 0.70 }
@@ -247,7 +247,8 @@
 
   function visionRange(e) {
     const v = VISION[e.personality] || VISION.wanderer;
-    return Math.max(3, v.range - (perks ? perks.stealth : 0));
+    const helium = performance.now() < heliumUntil ? HELIUM_EXTRA_RANGE : 0; // grosser Kopf faellt auf
+    return Math.max(3, v.range - (perks ? perks.stealth : 0)) + helium;
   }
 
   // Gezeichnete (interpolierte) Position von Waechter und Spieler
@@ -261,7 +262,11 @@
     return [prevPx + (px - prevPx) * t + 0.5, prevPy + (py - prevPy) * t + 0.5];
   }
   function guardFacing(e) {
-    return (e.angleDisp !== undefined) ? e.angleDisp : enemyFacing(e);
+    const base = (e.angleDisp !== undefined) ? e.angleDisp : enemyFacing(e);
+    const now = performance.now();
+    // Disco: Kegel schwenken wie Scheinwerfer im Takt
+    if (now < discoUntil) return base + Math.sin(now / 230 + e.c * 1.3 + e.r) * 0.9;
+    return base;
   }
 
   // Alle Saeulen im Umkreis als [x0, y0] (Rechteck bis x0+1, y0+1)
@@ -324,6 +329,8 @@
   function canSeePlayer(e) {
     const now = performance.now();
     if (now < smokeUntil) return false; // Rauchbombe: fuer alle unsichtbar
+    if (guardBlind(e, now)) return false;
+    if (now < duckUntil) return false; // Ente: wird fuer ein Tier gehalten
     const [ox, oy] = guardSightOrigin(e, now);
     const [tx, ty] = playerSightPoint(now);
     return canSeePoint(e, ox, oy, tx, ty);

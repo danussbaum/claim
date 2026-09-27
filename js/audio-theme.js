@@ -316,6 +316,7 @@
     else if (type === 'rapidfire') {
       for (let i = 0; i < 4; i++) tone(950 - i * 40, 0.05, 'square', 0.08, i * 0.05);
     }
+    else if (type === 'decoy') { playNoise(0.06, 900, 'lowpass', 0.1, 0); playNoise(0.06, 900, 'lowpass', 0.1, 0.1); tone(660, 0.1, 'triangle', 0.06, 0.18); }
     else if (type === 'spikes') {
       tone(200, 0.1, 'sawtooth', 0.12, 0, 140);
       tone(140, 0.18, 'square', 0.09, 0.08, 90);
@@ -351,7 +352,63 @@
       tone(392, 1.0, 'triangle', 0.06, 0.15, 784);
       tone(620, 1.1, 'sine', 0.045, 0.5, 1240);
       playNoise(0.45, 7000, 'highpass', 0.04, 0.12);
+    } else if (type === 'duck') {
+      sndQuack(); sndQuack(0.22);
+    } else if (type === 'helium') {
+      // Ballon wird aufgeblasen: Rauschen plus steil steigender Pfeifton
+      playNoise(0.35, 2500, 'bandpass', 0.05, 0);
+      tone(300, 0.45, 'sine', 0.07, 0.05, 1400);
+      tone(1400, 0.12, 'triangle', 0.05, 0.5, 1700);
+    } else if (type === 'disco') {
+      // Kurzer Disco-Groove: Bass, Hi-Hat, Akkord
+      for (let i = 0; i < 4; i++) {
+        tone(i % 2 ? 110 : 82, 0.12, 'square', 0.08, i * 0.14, undefined);
+        playNoise(0.04, 8000, 'highpass', 0.04, i * 0.14 + 0.07);
+      }
+      tone(523, 0.3, 'triangle', 0.05, 0.56); tone(659, 0.3, 'triangle', 0.05, 0.56); tone(784, 0.3, 'triangle', 0.05, 0.56);
+    } else if (type === 'banana') {
+      // Ausrutschen: Quietschen nach oben, dann Plumps
+      tone(400, 0.25, 'sawtooth', 0.07, 0, 1500);
+      tone(160, 0.18, 'sine', 0.12, 0.3, 60);
     }
+  }
+  // --- Chaos- und Waechter-Sounds ---
+  function sndQuack(delay) {
+    tone(620, 0.08, 'square', 0.07, delay || 0, 380);
+    tone(560, 0.09, 'square', 0.06, (delay || 0) + 0.09, 320);
+  }
+  function sndHeliumSqueak() {
+    tone(1300 + Math.random() * 400, 0.05, 'sine', 0.035, 0, 1900);
+  }
+  function sndDiscoBeat() {
+    tone(70, 0.1, 'sine', 0.1, 0, 45);
+    playNoise(0.03, 9000, 'highpass', 0.03, 0.05);
+  }
+  function sndDecoyThrow() {
+    tone(900, 0.15, 'sine', 0.04, 0, 400);       // Wurf
+    playNoise(0.08, 900, 'lowpass', 0.12, 0.16); // Aufschlag
+    tone(120, 0.1, 'triangle', 0.08, 0.16, 70);
+  }
+  function sndGuardTrip() {
+    tone(500, 0.12, 'triangle', 0.06, 0, 200);
+    playNoise(0.1, 700, 'lowpass', 0.12, 0.12);
+    tone(90, 0.14, 'sine', 0.1, 0.12, 50);
+  }
+  function sndGuardSlip() {
+    tone(350, 0.3, 'sawtooth', 0.06, 0, 1600);
+    tone(1600, 0.2, 'sine', 0.04, 0.3, 300);
+    playNoise(0.12, 600, 'lowpass', 0.12, 0.5);
+  }
+  function sndCoffeeBreak() {
+    playNoise(0.25, 1800, 'bandpass', 0.03, 0); // Schluerfen
+    tone(260, 0.3, 'sine', 0.05, 0.3, 200);     // "Ahh"
+  }
+  function sndGuardJam() {
+    tone(140, 0.15, 'sawtooth', 0.06, 0, 110);
+    tone(120, 0.15, 'sawtooth', 0.06, 0.16, 95);
+  }
+  function sndBubble() {
+    tone(700 + Math.random() * 300, 0.05, 'triangle', 0.035, 0);
   }
   function sndGadgetHook() {
     tone(260, 0.1, 'square', 0.11, 0, 520);

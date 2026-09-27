@@ -66,7 +66,10 @@
     const el = document.getElementById('btnGadget');
     const sweep = document.getElementById('gadgetSweep');
     if (el && sweep) {
-      const frac = gadgetCooldownFrac();
+      // Mit Decoy-Wuerfen zeigt der Knopf den Stein samt Anzahl und ist sofort bereit
+      const icon = decoyCharges > 0 ? '🪨' + decoyCharges : GADGETS[gadgetChoice].icon;
+      if (el.firstChild && el.firstChild.nodeType === 3 && el.firstChild.nodeValue !== icon) el.firstChild.nodeValue = icon;
+      const frac = decoyCharges > 0 ? 0 : gadgetCooldownFrac();
       sweep.style.setProperty('--cd', (frac * 100) + '%');
       el.classList.toggle('oncooldown', frac > 0);
       flashWhenReady(el, 'gadget', frac === 0 && running && !gameOver);

@@ -451,6 +451,33 @@
       ctx.restore();
     }
 
+    // Bananenschalen
+    ctx.font = Math.floor(CELL * 0.6) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const b of bananaPeels) ctx.fillText('🍌', b.c * CELL + CELL / 2, b.r * CELL + CELL / 2 + 1);
+
+    // Decoy-Steine: Aufschlagstelle mit pulsierendem Ring, verblasst am Ende
+    decoys = decoys.filter(d => now < d.until);
+    for (const d of decoys) {
+      const cx = d.c*CELL + CELL/2, cy = d.r*CELL + CELL/2;
+      const left = (d.until - now) / (d.until - d.start);
+      const ring = ((now - d.start) % 900) / 900;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, left * 3) * (1 - ring) * 0.7;
+      ctx.strokeStyle = '#e8dcc0';
+      ctx.lineWidth = Math.max(1, CELL * 0.06);
+      ctx.beginPath();
+      ctx.arc(cx, cy, CELL * (0.35 + ring * 1.1), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = Math.min(1, left * 3);
+      ctx.font = Math.floor(CELL * 0.6) + 'px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🪨', cx, cy + 1);
+      ctx.restore();
+    }
+
     const blinkOnGlobal = Math.floor(now / 110) % 2 === 0;
 
     const shieldRemaining = shieldUntil - now;
@@ -710,8 +737,23 @@
     ctx.rotate(-playerHeadingDisp);
     // Kopf lehnt sich leicht in die Kurve und richtet sich wieder auf
     ctx.rotate(playerLeanDisp);
+    if (now < heliumUntil) {
+      // Heliumkopf: aufgeblasen und leicht schwebend
+      const puff = 1.7 + Math.sin(now / 160) * 0.06;
+      ctx.translate(0, -CELL * 0.12);
+      ctx.scale(puff, puff);
+    }
 
     if (smokeActive) ctx.globalAlpha = 0.38;
+    if (now < duckUntil) {
+      // Ente statt Kopf
+      ctx.rotate(-playerLeanDisp);
+      ctx.scale(Math.cos(playerHeadingDisp) < 0 ? 1 : -1, 1);
+      ctx.font = Math.floor(CELL * 0.85) + 'px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🦆', 0, 2);
+    } else {
     // PSYLO-Kopf: Regenbogen-Pulsung, der zur Szenenfilter-Drehung phasenversetzt
     // läuft (innerhalb des gefilterten Blocks also noch schneller als die Bühne).
     ctx.fillStyle = psyloActive ? 'hsl(' + Math.round((psyloPhase * 1.7) % 360) + ', 90%, 62%)' : (showSpeedColor ? '#f5d347' : '#7fe0a0');
@@ -849,6 +891,7 @@
       ctx.arc(0, R * 0.28, R * 0.22, 0.1 * Math.PI, 0.9 * Math.PI);
       ctx.stroke();
     }
+    } // Ende Kopf (else-Zweig der Ente)
 
     ctx.restore();
 
@@ -867,6 +910,9 @@
     else if (now < swarmUntil) activeIcon = 'swarm';
     else if (now < drunkUntil) activeIcon = 'drunk';
     else if (now < psyloUntil) activeIcon = 'psylo';
+    else if (now < duckUntil) activeIcon = 'duck';
+    else if (now < heliumUntil) activeIcon = 'helium';
+    else if (now < discoUntil) activeIcon = 'disco';
     if (activeIcon) {
       const bobY = Math.sin(now / 260) * R * 0.12;
       const iconY = pcy - R * 1.55 + bobY;
@@ -916,15 +962,23 @@
       const dr = e.prevR + (e.r - e.prevR) * enemyT;
       const cx = dc*CELL + CELL/2, cy = dr*CELL + CELL/2;
       const ang = (e.angleDisp !== undefined) ? e.angleDisp : enemyFacing(e);
+      if (guardBlind(e, now)) continue; // benommen oder in der Pause: kein Kegel
       const alerted = e.huntingActive || now < alarmUntil;
       const radius = visionRange(e) * CELL;
-      const g = ctx.createRadialGradient(cx, cy, CELL * 0.3, cx, cy, radius);
+      let g = ctx.createRadialGradient(cx, cy, CELL * 0.3, cx, cy, radius);
       if (alerted) {
         g.addColorStop(0, 'rgba(255,80,60,0.30)');
         g.addColorStop(1, 'rgba(255,80,60,0)');
       } else {
         g.addColorStop(0, 'rgba(255,220,120,0.16)');
         g.addColorStop(1, 'rgba(255,220,120,0)');
+      }
+      if (now < discoUntil) {
+        // Disco: Kegel als bunte Scheinwerfer
+        const hue = Math.round((now / 6 + e.c * 47 + e.r * 23) % 360);
+        g = ctx.createRadialGradient(cx, cy, CELL * 0.3, cx, cy, radius);
+        g.addColorStop(0, 'hsla(' + hue + ',100%,65%,0.45)');
+        g.addColorStop(1, 'hsla(' + hue + ',100%,65%,0)');
       }
       ctx.save();
       ctx.beginPath();
@@ -1142,6 +1196,56 @@
         ctx.stroke();
       }
 
+      ctx.restore();
+    }
+
+    // Waechter-Zustand (Sterne / Kaffee) und Sprechblasen
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const e of enemies) {
+      const stunned = now < (e.stunnedUntil || 0), onBreak = now < (e.breakUntil || 0);
+      if (!stunned && !onBreak) continue;
+      const ex = (e.prevC + (e.c - e.prevC) * enemyT) * CELL + CELL / 2;
+      const ey = (e.prevR + (e.r - e.prevR) * enemyT) * CELL + CELL / 2;
+      ctx.font = Math.floor(CELL * 0.42) + 'px -apple-system, sans-serif';
+      if (stunned) {
+        for (let k = 0; k < 3; k++) {
+          const a = now / 180 + k * Math.PI * 2 / 3;
+          ctx.fillText('⭐', ex + Math.cos(a) * CELL * 0.4, ey - CELL * 0.45 + Math.sin(a) * CELL * 0.12);
+        }
+      } else {
+        ctx.fillText('☕', ex + CELL * 0.35, ey + CELL * 0.1);
+        const z = ((now / 700) % 1);
+        ctx.globalAlpha = 1 - z;
+        ctx.fillText('z', ex + CELL * (0.2 + z * 0.3), ey - CELL * (0.5 + z * 0.5));
+        ctx.globalAlpha = 1;
+      }
+    }
+    guardBubbles = guardBubbles.filter(b => now - b.start < BUBBLE_MS);
+    for (const b of guardBubbles) {
+      if (enemies.includes(b.e)) {
+        b.x = b.e.prevC + (b.e.c - b.e.prevC) * enemyT;
+        b.y = b.e.prevR + (b.e.r - b.e.prevR) * enemyT;
+      }
+      const t = (now - b.start) / BUBBLE_MS;
+      const pop = t < 0.1 ? 0.6 + t * 4 : 1;
+      ctx.save();
+      ctx.globalAlpha = t > 0.8 ? (1 - t) / 0.2 : 1;
+      ctx.font = '700 ' + Math.max(10, Math.floor(CELL * 0.42)) + 'px -apple-system, sans-serif';
+      const w = ctx.measureText(b.text).width + CELL * 0.4, h = CELL * 0.62;
+      let bx = b.x * CELL + CELL / 2;
+      bx = Math.max(w / 2, Math.min(COLS * CELL - w / 2, bx));
+      const by = Math.max(h / 2, b.y * CELL - CELL * 0.35);
+      ctx.translate(bx, by);
+      ctx.scale(pop, pop);
+      ctx.fillStyle = 'rgba(250,248,240,0.95)';
+      ctx.strokeStyle = 'rgba(20,20,20,0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, h / 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillText(b.text, 0, 1);
       ctx.restore();
     }
     ctx.restore();

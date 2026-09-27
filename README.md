@@ -14,12 +14,12 @@
 
 ## The Guards
 
-Guards patrol with vision cones whose width and range depend on the type (range 5–9 cells; "Low profile" shortens it, minimum 3) and only chase what they can see — pillars block both their movement and line of sight. They remember your last known position for 1.2 s. Level 1 starts with one guard, one more every two levels (max 4). A killed guard (+50 points) is replaced by a new one. Types are color-coded:
+Guards patrol with vision cones whose width and range depend on the type (range 5–7 cells; "Low profile" shortens it, minimum 3) and only chase what they can see — pillars block both their movement and line of sight. They remember your last known position for 1.2 s. Level 1 starts with one guard, one more every two levels (max 4). A killed guard (+50 points) is replaced by a new one. Types are color-coded:
 
 | Type | Color | Behavior |
 |---|---|---|
 | Wanderer | red (#e3574a) | Roams randomly, range 6 |
-| Hunter | bright red (#ff4d3d) | Chases you the moment it sees you, narrow cone, range 9 |
+| Hunter | bright red (#ff4d3d) | Chases you the moment it sees you, narrow cone, range 7 |
 | Guardian | purple (#9b4fd6) | Lurks in the open, range 5 |
 | Nervous | orange (#e8935c) | Erratic, sometimes stands still briefly, wide cone, range 5 |
 | Cutter | teal (#2fb8c9), level 3+ | Hunts your line, not you |
@@ -87,6 +87,7 @@ Power-up orbs appear on the field (a mystery symbol briefly "spins" before the e
 | 🔗 | Trail Guard | Guards may not step onto your line | 5 s |
 | 🔫 | Rapid Fire | No shot cooldown | 5 s |
 | 🦔 | Spikes | Stepping onto a guard kills it | 5 s |
+| 🪨 | Decoy | +2 throws (max 3). The gadget button/Shift throws a stone up to 4 cells ahead; guards within 5 cells that are not hunting you walk there and wait | 3 s per throw |
 
 The "Slow burn" perk extends all bonuses by 50 %.
 
@@ -101,6 +102,17 @@ The "Slow burn" perk extends all bonuses by 50 %.
 | 👥 | Swarm | An extra guard ("Reinforcements") appears while the effect lasts | 6 s |
 | 🍺 | Drunk | The screen wobbles and blurs (visual) | 5.5 s |
 | 🍄 | Psylo | World hue-rotates through the rainbow with boosted saturation; a double-vision ghost layer drifts over the board. Visual only (stacks with Drunk) | 8 s |
+
+**Chaos mode only** (extra bad effects in the pool):
+
+| Icon | Name | Effect | Duration |
+|---|---|---|---|
+| 🦆 | Duck | You turn into a duck. Guards cannot spot you, but every step quacks and lures guards within 4 cells to you | 5 s |
+| 🎈 | Helium head | Your head inflates; guards see you from 3 cells further | 6 s |
+| 🪩 | Disco | Guards dance: they move only every other beat, and their cones sweep around like disco lights | 4 s |
+| 🍌 | Banana | You slide 3 cells without control. The peel stays behind; a guard stepping on it slips and is stunned for 1.5 s | instant |
+
+**Guard personality:** guards comment on what happens in speech bubbles, can trip into pits while chasing you (stunned 1 s), occasionally take a coffee break (blind for 3 s; sneaking past within 2 cells pays +25) and block each other in narrow corridors.
 
 ## Perks and level-end shop
 
@@ -120,6 +132,7 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 ## Scoring and milestones
 
 - **+5 per claimed cell**, ×(1 + 0.25 per Payday level), plus the combo bonus (×1.1 from the 2nd consecutive loop, max ×1.9). The combo resets when you lose your line.
+- **Ghost bonus:** closing a loop without any guard seeing you since the line started pays +50 % of the cell points ("👻 Ghost").
 - **Golden bonus zone:** fully claimed in one loop pays ×3 for its cells.
 - **Killing a guard:** +50 points.
 - **Milestones:** Popups with fanfare when 25 % ("🎉 25 %!") and 50 % ("🔥 Halfway!") of the board is claimed.

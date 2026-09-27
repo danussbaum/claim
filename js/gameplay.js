@@ -32,6 +32,8 @@
     smokeParticles = [];
     hookAnim = null;
     swarmEnemies = [];
+    decoyCharges = 0; decoys = []; trailSpotted = false; guardBubbles = [];
+    duckUntil = 0; heliumUntil = 0; discoUntil = 0; bananaSlide = 0; bananaPeels = [];
     shotCooldownUntil = 0;
     boostsRemaining = 3 + perks.boosts * 2;
     boostsMax = boostsRemaining;
@@ -207,6 +209,7 @@
     let mirrored = performance.now() < confuseUntil;
     if (cameraMode === 'push') mirrored = !mirrored;
     if (mirrored) d = INVERTED_DIR[d];
+    if (bananaSlide > 0) return; // rutscht: keine Kontrolle
     if (d === dir) useBoost();
     nextDir = d;
   }
@@ -230,8 +233,9 @@
     if (!ok) return;
     const isDown = Math.random() < 0.35;
     const kind = isDown ? 'down' : 'up';
+    const downPool = gameMode === 'chaos' ? POWERDOWN_TYPES.concat(CHAOS_POWERDOWN_TYPES) : POWERDOWN_TYPES;
     const type = isDown
-      ? POWERDOWN_TYPES[Math.floor(Math.random() * POWERDOWN_TYPES.length)]
+      ? downPool[Math.floor(Math.random() * downPool.length)]
       : POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
     powerUps.push({ r, c, type, kind, spawnTime: performance.now() });
   }
@@ -245,6 +249,7 @@
     else if (type === 'trailguard') trailGuardUntil = now + 5000 * f;
     else if (type === 'rapidfire') rapidfireUntil = now + 5000 * f;
     else if (type === 'spikes') spikesUntil = now + 5000 * f;
+    else if (type === 'decoy') decoyCharges = Math.min(DECOY_MAX, decoyCharges + DECOY_CHARGES);
     score += 15;
     updateStats();
     sndPowerUp(type);
@@ -259,6 +264,7 @@
 
   function useGadget() {
     if (gameOver || paused || celebrating || countdownActive || dying) return;
+    if (decoyCharges > 0) { throwDecoy(); return; } // Decoy-Wuerfe haben Vorrang vor dem Gadget
     if (!gadgetReady()) return;
     const now = performance.now();
     gadgetCooldownUntil = now + GADGETS[gadgetChoice].cooldown;
@@ -299,6 +305,40 @@
     }
   }
 
+  // Stein in Blickrichtung werfen (bis DECOY_RANGE Zellen, stoppt vor Saeulen).
+  // Waechter im Umkreis, die dich gerade nicht jagen, laufen zur Aufschlagstelle.
+  function throwDecoy() {
+    const now = performance.now();
+    const [dx, dy] = dirDelta(dir);
+    let c = px, r = py;
+    for (let i = 0; i < DECOY_RANGE; i++) {
+      const nc = c + dx, nr = r + dy;
+      if (!inBounds(nc, nr) || grid[nr][nc] === BLOCK) break;
+      c = nc; r = nr;
+    }
+    if (c === px && r === py) return; // direkt vor einer Wand: kein Wurf, keine Ladung verbraucht
+    decoyCharges--;
+    decoys.push({ c, r, start: now, until: now + DECOY_MS });
+    addRipple(c, r, DECOY_LURE_RADIUS, 700, '232,220,192', 0.6);
+    sndDecoyThrow();
+    for (const e of enemies) {
+      if (e.huntingActive || Math.hypot(e.c - c, e.r - r) > DECOY_LURE_RADIUS) continue;
+      e.distractC = c; e.distractR = r; e.distractedUntil = now + DECOY_MS;
+      spawnEmote('❓', e.c, e.r);
+      guardSay(e, 'decoy');
+    }
+  }
+
+  // Ente: jeder Schritt quakt und lockt Waechter im Umkreis zur aktuellen Position
+  function duckQuack() {
+    const now = performance.now();
+    sndQuack();
+    for (const e of enemies) {
+      if (Math.hypot(e.c - px, e.r - py) > DUCK_QUACK_RADIUS) continue;
+      e.distractC = px; e.distractR = py; e.distractedUntil = now + 1200;
+    }
+  }
+
   function spawnSwarmEnemy() {
     const personality = randomPersonality();
     const e = spawnEnemy(personality);
@@ -326,12 +366,21 @@
     else if (type === 'swarm') { swarmUntil = now + 6000; spawnSwarmEnemy(); }
     else if (type === 'drunk') drunkUntil = now + 5500;
     else if (type === 'psylo') psyloUntil = now + 8000;
+    else if (type === 'duck') duckUntil = now + DUCK_MS;
+    else if (type === 'helium') heliumUntil = now + HELIUM_MS;
+    else if (type === 'disco') discoUntil = now + DISCO_MS;
+    else if (type === 'banana') {
+      bananaSlide = BANANA_SLIDE;
+      bananaPeels.push({ c: px, r: py });
+      spawnEmote('😱', px, py);
+    }
     updateStats();
     sndPowerDown(type);
   }
 
   function currentPlayerInterval() {
     const now = performance.now();
+    if (bananaSlide > 0) return playerInterval * 0.45;
     if (now < speedUntil) return playerInterval * 0.55;
     if (now < slowUntil) return playerInterval * 1.6;
     return playerInterval;
@@ -392,6 +441,7 @@
       if (trail.length > 0) finalizeCapture();
       px = nx; py = ny;
     } else {
+      if (trail.length === 0) trailSpotted = false; // neue Linie beginnt ungesehen
       trail.push([nx, ny]);
       if (trail.length > statLongestTrail) statLongestTrail = trail.length;
       grid[ny][nx] = TRAIL;
@@ -403,9 +453,14 @@
   function stepPlayer() {
     prevPx = px; prevPy = py;
     playerStepTime = performance.now();
-    dir = nextDir;
+    if (bananaSlide > 0) bananaSlide--; else dir = nextDir;
     const [dx, dy] = dirDelta(dir);
-    advancePlayerToCell(px + dx, py + dy);
+    const nx = px + dx, ny = py + dy;
+    // Rutschen endet an Saeulen und Gruben statt hineinzufallen
+    if (bananaSlide > 0 && (!inBounds(nx, ny) || isObstacle(grid[ny][nx]))) bananaSlide = 0;
+    const res = advancePlayerToCell(nx, ny);
+    if (res === 'moved' && performance.now() < duckUntil) duckQuack();
+    else if (res === 'moved' && performance.now() < heliumUntil) sndHeliumSqueak();
   }
 
   function finalizeCapture() {
@@ -479,6 +534,7 @@
       const stuck = [[e.r+1,e.c],[e.r-1,e.c],[e.r,e.c+1],[e.r,e.c-1]].every(([nr, nc]) =>
         nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || grid[nr][nc] === TERRITORY || grid[nr][nc] === BLOCK);
       if (stuck) {
+        guardSay(e, 'stuck', true);
         enemies.splice(i, 1);
         const si = swarmEnemies.indexOf(e);
         if (si >= 0) swarmEnemies.splice(si, 1);
@@ -494,6 +550,12 @@
       const mult = comboMultiplier();
       const bonus = Math.round(gained * 5 * (mult - 1));
       score += bonus;
+      if (!trailSpotted && !tutorialActive) {
+        // Stealth: Linie ungesehen geschlossen
+        const ghost = Math.round(gained * 5 * (STEALTH_MULT - 1));
+        score += ghost;
+        milestonePopups.push({ x: px, y: py - 1, text: '👻 Ghost +' + ghost, startTime: performance.now() });
+      }
       sndCapture(gained, comboCount);
       if (gained > 12) {
         triggerShake(Math.min(7, 2 + gained * 0.08), 220);

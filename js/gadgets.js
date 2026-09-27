@@ -78,39 +78,88 @@
   let trailGuardUntil = 0;
   let rapidfireUntil = 0, spikesUntil = 0;
   let slowUntil = 0, swarmUntil = 0, drunkUntil = 0, psyloUntil = 0;
+  // Chaos-Power-downs (nur im Chaos-Modus im Pool)
+  let duckUntil = 0, heliumUntil = 0, discoUntil = 0;
+  let bananaSlide = 0;      // verbleibende Rutsch-Schritte
+  let bananaPeels = [];     // { c, r } liegengebliebene Schalen, Waechter rutschen darauf aus
+  const DUCK_MS = 5000, HELIUM_MS = 6000, DISCO_MS = 4000;
+  const BANANA_SLIDE = 3, DUCK_QUACK_RADIUS = 4, HELIUM_EXTRA_RANGE = 3;
   let swarmEnemies = [];
+  // Ablenkung: Power-up gibt Wuerfe, Waechter in der Naehe laufen zur Aufschlagstelle
+  const DECOY_CHARGES = 2, DECOY_MAX = 3, DECOY_RANGE = 4, DECOY_LURE_RADIUS = 5, DECOY_MS = 3000;
+  let decoyCharges = 0;
+  let decoys = []; // { c, r, start, until }
+  // Stealth: wurde die aktuelle Linie von einem Waechter gesehen?
+  const STEALTH_MULT = 1.5;
+  let trailSpotted = false;
+
+  // --- Waechter-Persoenlichkeit: Sprechblasen, Stolpern, Kaffeepause, Stau ---
+  const GUARD_LINES = {
+    spotted: ['Hey!', 'There!', 'Gotcha!', 'Stop right there!', 'I see you!', 'Intruder!'],
+    lost:    ['...must be the wind.', 'Huh?', 'Where did it go?', 'Nothing here.', 'Weird.'],
+    decoy:   ['A rock?!', 'Who throws rocks?!', 'What was that?', 'Ooh, shiny!'],
+    stuck:   ['Uh... help?', 'Not again!', 'Let me out!', 'Mommy?'],
+    trip:    ['Whoa!', 'Oof!', 'My ankle!', 'Who put that there?!'],
+    break:   ['Coffee time.', 'Five minutes...', 'zzz', 'Union break!'],
+    jam:     ['Move!', 'You move!', 'After you.', 'Hey, my spot!']
+  };
+  const BUBBLE_MS = 1600;
+  const GUARD_TRIP_CHANCE = 0.25;   // jagender Waechter tritt auf eine Grube
+  const GUARD_TRIP_MS = 1000;
+  const GUARD_BREAK_CHANCE = 0.004; // pro Waechterschritt, nur wenn ruhig
+  const GUARD_BREAK_MS = 3000;
+  const BREAK_SNEAK_BONUS = 25;
+  let guardBubbles = []; // { e, x, y, text, start }
+  function guardSay(e, kind, force) {
+    const now = performance.now();
+    if (!force && now - (e.lastBubbleAt || 0) < 2500) return;
+    if (!force && guardBubbles.length >= 3) return;
+    const pool = GUARD_LINES[kind];
+    e.lastBubbleAt = now;
+    guardBubbles = guardBubbles.filter(b => b.e !== e);
+    guardBubbles.push({ e, x: e.c, y: e.r, text: pool[Math.floor(Math.random() * pool.length)], start: now });
+    if (kind === 'lost' || kind === 'stuck') sndBubble(); // die anderen Anlaesse haben eigene Sounds
+  }
+  // Benommen oder in der Pause: sieht nichts
+  function guardBlind(e, now) {
+    return now < (e.stunnedUntil || 0) || now < (e.breakUntil || 0);
+  }
   let shotCooldownUntil = 0;
   let enemyDeathAnims = [];
   let shotProjectiles = [];
-  const POWERUP_TYPES = ['speed', 'shield', 'freeze', 'trailguard', 'rapidfire', 'spikes'];
+  const POWERUP_TYPES = ['speed', 'shield', 'freeze', 'trailguard', 'rapidfire', 'spikes', 'decoy'];
   const POWERUP_COLORS = {
     speed: '#f5d347', shield: '#4f7ee5', freeze: '#7fdcff', trailguard: '#3fd6b0',
-    rapidfire: '#ff7a3d', spikes: '#c9752e'
+    rapidfire: '#ff7a3d', spikes: '#c9752e', decoy: '#a89f8c'
   };
   const POWERUP_SYMBOLS = {
     speed: '⚡', shield: '◆', freeze: '❄', trailguard: '🔗',
-    rapidfire: '🔫', spikes: '🦔'
+    rapidfire: '🔫', spikes: '🦔', decoy: '🪨'
   };
   const POWERDOWN_TYPES = ['confuse', 'fog', 'alarm', 'slow', 'swarm', 'drunk', 'psylo'];
+  const CHAOS_POWERDOWN_TYPES = ['duck', 'helium', 'disco', 'banana'];
   const POWERDOWN_COLORS = {
     confuse: '#8a3fa0', fog: '#5a5a62', alarm: '#c23a2e',
-    slow: '#4a6b8a', swarm: '#8a2f2f', drunk: '#caa14a', psylo: '#b26ee8'
+    slow: '#4a6b8a', swarm: '#8a2f2f', drunk: '#caa14a', psylo: '#b26ee8',
+    duck: '#f2c230', helium: '#f07bb5', disco: '#c86bff', banana: '#f5dd4a'
   };
   const POWERDOWN_SYMBOLS = {
     confuse: '🌀', fog: '🌫️', alarm: '🚨',
-    slow: '🐌', swarm: '👥', drunk: '🍺', psylo: '🍄'
+    slow: '🐌', swarm: '👥', drunk: '🍺', psylo: '🍄',
+    duck: '🦆', helium: '🎈', disco: '🪩', banana: '🍌'
   };
   const ALL_ICON_COLORS = Object.assign({}, POWERUP_COLORS, POWERDOWN_COLORS);
   const ALL_ICON_SYMBOLS = Object.assign({}, POWERUP_SYMBOLS, POWERDOWN_SYMBOLS);
   const ALL_ICON_NAMES = {
     speed: 'Speed Boost', shield: 'Shield', freeze: 'Freeze', trailguard: 'Trail Guard',
-    rapidfire: 'Rapid Fire', spikes: 'Spikes',
+    rapidfire: 'Rapid Fire', spikes: 'Spikes', decoy: 'Decoy x2',
     confuse: 'Confused!', fog: 'Fog', alarm: 'Alarm!',
-    slow: 'Slowed!', swarm: 'Reinforcements!', drunk: 'Drunk!', psylo: 'PSYLO!'
+    slow: 'Slowed!', swarm: 'Reinforcements!', drunk: 'Drunk!', psylo: 'PSYLO!',
+    duck: 'Quack!', helium: 'Helium head!', disco: 'Disco!', banana: 'Banana!'
   };
   const MYSTERY_COLOR = '#c9cdd6';
   const MYSTERY_SYMBOL = '?';
-  const ALL_MYSTERY_TYPES = POWERUP_TYPES.concat(POWERDOWN_TYPES);
+  const ALL_MYSTERY_TYPES = POWERUP_TYPES.concat(POWERDOWN_TYPES, CHAOS_POWERDOWN_TYPES);
   const ROULETTE_MS = 500;
   const ROULETTE_STEP_MS = 55;
   const REVEAL_HOLD_MS = 700;

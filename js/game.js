@@ -30,12 +30,13 @@
   function updateGuardSight(now) {
     if (now < alarmUntil) return;
     for (const e of enemies) {
-      if (canSeePlayer(e)) { e.huntingActive = true; e.lastSeenAt = now; }
+      if (canSeePlayer(e)) { e.huntingActive = true; e.lastSeenAt = now; if (trail.length) trailSpotted = true; }
     }
   }
 
   function moveEnemies() {
     enemyStepTime = performance.now();
+    if (enemyStepTime < discoUntil) sndDiscoBeat();
     // Ueber eine Kopie laufen: killEnemyByShot() kann waehrend der Schleife
     // Waechter entfernen und neue anhaengen.
     for (const e of enemies.slice()) {
@@ -51,6 +52,32 @@
       });
       if (opts.length === 0) continue;
 
+      const nowP = performance.now();
+      // Disco: getanzt wird nur auf jeden zweiten Takt
+      if (nowP < discoUntil) {
+        e.discoBeat = !e.discoBeat;
+        if (!e.discoBeat) { e.prevR = e.r; e.prevC = e.c; continue; }
+      }
+      // Benommen nach Stolpern oder in der Kaffeepause: bleibt stehen
+      if (nowP < (e.stunnedUntil || 0)) continue;
+      if (nowP < (e.breakUntil || 0)) {
+        if (!e.breakSneaked && Math.abs(e.c - px) + Math.abs(e.r - py) <= 2) {
+          e.breakSneaked = true;
+          score += BREAK_SNEAK_BONUS;
+          updateStats();
+          milestonePopups.push({ x: e.c, y: e.r - 1, text: '☕ Sneaky +' + BREAK_SNEAK_BONUS, startTime: nowP });
+        }
+        continue;
+      }
+      if (!e.huntingActive && nowP >= alarmUntil && nowP >= (e.distractedUntil || 0) &&
+          !tutorialActive && Math.random() < GUARD_BREAK_CHANCE) {
+        e.breakUntil = nowP + GUARD_BREAK_MS;
+        e.breakSneaked = false;
+        guardSay(e, 'break', true);
+        sndCoffeeBreak();
+        continue;
+      }
+
       if (e.personality === 'nervous' && Math.random() < 0.28) {
         continue; // stockt kurz, wirkt unruhig
       }
@@ -61,11 +88,11 @@
 
       // Waechter jagen nur, was sie sehen - und merken es sich kurz.
       const seesPlayer = canSeePlayer(e);
-      if (seesPlayer) { e.huntingActive = true; e.lastSeenAt = now; }
-      else if (e.huntingActive && now - e.lastSeenAt > VISION_MEMORY) e.huntingActive = false;
+      if (seesPlayer) { e.huntingActive = true; e.lastSeenAt = now; if (trail.length) trailSpotted = true; }
+      else if (e.huntingActive && now - e.lastSeenAt > VISION_MEMORY) { e.huntingActive = false; guardSay(e, 'lost'); }
 
       const isHuntingNow = alarmActive || e.huntingActive;
-      if (isHuntingNow && !e.wasHunting) sndHunterAlert();
+      if (isHuntingNow && !e.wasHunting) { sndHunterAlert(); if (!alarmActive) guardSay(e, 'spotted'); }
       e.wasHunting = isHuntingNow;
 
       if (isHuntingNow) {
@@ -73,6 +100,28 @@
         for (const [dx, dy] of opts) {
           const nx = e.c + dx, ny = e.r + dy;
           const d = Math.abs(nx - px) + Math.abs(ny - py);
+          if (d < bestDist) { bestDist = d; best = [dx, dy]; }
+        }
+        choice = best;
+        // Stau: ein anderer jagender Waechter steht im Weg - beide blockieren sich
+        const blocker = enemies.find(o => o !== e && o.c === e.c + best[0] && o.r === e.r + best[1] &&
+                                          (o.huntingActive || alarmActive));
+        if (blocker) {
+          if (now - (e.lastJamAt || 0) > 3000) {
+            e.lastJamAt = now; blocker.lastJamAt = now;
+            spawnEmote('😤', e.c, e.r);
+            spawnEmote('😤', blocker.c, blocker.r);
+            guardSay(e, 'jam', true);
+            sndGuardJam();
+          }
+          continue;
+        }
+      } else if (now < (e.distractedUntil || 0)) {
+        // Abgelenkt: zur Aufschlagstelle laufen und dort stehen bleiben
+        if (e.c === e.distractC && e.r === e.distractR) continue;
+        let best = null, bestDist = Infinity;
+        for (const [dx, dy] of opts) {
+          const d = Math.abs(e.c + dx - e.distractC) + Math.abs(e.r + dy - e.distractR);
           if (d < bestDist) { bestDist = d; best = [dx, dy]; }
         }
         choice = best;
@@ -117,6 +166,29 @@
 
       e.dc0 = choice[0]; e.dr0 = choice[1];
       e.c += choice[0]; e.r += choice[1];
+
+      // Bananenschale: Waechter rutscht aus und fliegt
+      const peel = bananaPeels.findIndex(b => b.c === e.c && b.r === e.r);
+      if (peel >= 0) {
+        bananaPeels.splice(peel, 1);
+        e.stunnedUntil = now + 1500;
+        e.huntingActive = false;
+        spawnEmote('🍌', e.c, e.r);
+        guardSay(e, 'trip', true);
+        sndGuardSlip();
+        triggerShake(3, 160);
+        addRipple(e.c, e.r, 2, 400, '245,221,74', 0.6);
+      }
+
+      // Stolpern: wer blind hinterherjagt, faellt schon mal in eine Grube
+      if (isHuntingNow && grid[e.r][e.c] === PIT && Math.random() < GUARD_TRIP_CHANCE) {
+        e.stunnedUntil = now + GUARD_TRIP_MS;
+        e.huntingActive = false;
+        spawnEmote('💫', e.c, e.r);
+        guardSay(e, 'trip', true);
+        sndGuardTrip();
+        triggerShake(2, 120);
+      }
 
       if (e.c === px && e.r === py) {
         const nowT = performance.now();
