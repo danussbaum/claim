@@ -175,13 +175,24 @@
     try { localStorage.setItem('claim_voice', v); } catch (e) { /* ignore */ }
     if (v !== 'speech' && window.speechSynthesis) speechSynthesis.cancel();
   }
+  // Todesschrei beim Abschuss: unterbricht einen laufenden Spruch
+  const GUARD_SCREAMS = ['Aaaaargh!', 'Noooooo!', 'Aaaaah!', 'Argh!', 'Waaaah!', 'Uaaaargh!'];
+  function guardScream(e) {
+    const text = GUARD_SCREAMS[Math.floor(Math.random() * GUARD_SCREAMS.length)];
+    if (voiceMode === 'gibberish') {
+      sndGibberish(text, e.personality, (e.voiceShift || 1) * 1.3);
+    } else if (voiceMode === 'speech' && window.speechSynthesis) {
+      speechSynthesis.cancel();
+      guardSpeak(e, text, true);
+    }
+  }
   function guardVoices() {
     if (!window.speechSynthesis) return [];
     const all = speechSynthesis.getVoices();
     const en = all.filter(v => /^en/i.test(v.lang));
     return en.length ? en : all;
   }
-  function guardSpeak(e, text) {
+  function guardSpeak(e, text, scream) {
     const synth = window.speechSynthesis;
     if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
     // Laeuft schon ein Spruch, wird der neue unterdrueckt
@@ -208,6 +219,7 @@
     }
     u.pitch = sv.pitch;
     u.rate = sv.rate;
+    if (scream) { u.pitch = Math.min(2, sv.pitch + 0.8); u.rate = 1.1; }
     u.volume = 1;
     synth.speak(u);
   }
