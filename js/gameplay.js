@@ -298,12 +298,12 @@
   function activatePowerUp(type) {
     const now = performance.now();
     const f = powerDurationFactor();
-    if (type === 'speed') speedUntil = now + 4000 * f;
-    else if (type === 'shield') shieldUntil = now + 4000 * f;
-    else if (type === 'freeze') freezeUntil = now + 3000 * f;
-    else if (type === 'trailguard') trailGuardUntil = now + 5000 * f;
-    else if (type === 'rapidfire') rapidfireUntil = now + 5000 * f;
-    else if (type === 'spikes') spikesUntil = now + 5000 * f;
+    if (type === 'speed') speedUntil = now + POWER_MS.speed * f;
+    else if (type === 'shield') shieldUntil = now + POWER_MS.shield * f;
+    else if (type === 'freeze') freezeUntil = now + POWER_MS.freeze * f;
+    else if (type === 'trailguard') trailGuardUntil = now + POWER_MS.trailguard * f;
+    else if (type === 'rapidfire') rapidfireUntil = now + POWER_MS.rapidfire * f;
+    else if (type === 'spikes') spikesUntil = now + POWER_MS.spikes * f;
     else if (type === 'decoy') decoyCharges = Math.min(DECOY_MAX, decoyCharges + DECOY_CHARGES);
     score += 15;
     updateStats();
@@ -417,7 +417,7 @@
     if (type === 'confuse') confuseUntil = now + 4000;
     else if (type === 'fog') fogUntil = now + 5000;
     else if (type === 'alarm') { alarmUntil = now + 3500; triggerShake(4, 250); vibrate([50, 30, 50]); }
-    else if (type === 'slow') slowUntil = now + 4000;
+    else if (type === 'slow') slowUntil = now + POWER_MS.slow;
     else if (type === 'swarm') { swarmUntil = now + 6000; spawnSwarmEnemy(); }
     else if (type === 'drunk') drunkUntil = now + 5500;
     else if (type === 'psylo') psyloUntil = now + 8000;

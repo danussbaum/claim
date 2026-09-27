@@ -270,6 +270,102 @@ function drawDeadEyes(R) {
   }
 }
 
+// Gesicht des Spielers (ohne PSYLO), um (0,0) mit Kopfradius R.
+// Wird auch fuer den Gegner im 2-Spieler-Modus verwendet (js/versus.js).
+function drawPlayerFace(R, emotion, lookX, lookY) {
+  const eyeOffX = R * 0.36, eyeOffY = -R * 0.06;
+  if (emotion === 'startled') {
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY - R * 0.05;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, R * 0.28, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx, eyy, R * 0.11, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(0, R * 0.42, R * 0.16, 0, Math.PI * 2);
+    ctx.fillStyle = '#101414';
+    ctx.fill();
+  } else if (emotion === 'worried') {
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, R * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx + lookX * R * 0.1, eyy + lookY * R * 0.1, R * 0.11, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#101414';
+    ctx.lineWidth = Math.max(1.3, R * 0.09);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-eyeOffX - R*0.15, eyeOffY - R*0.42);
+    ctx.lineTo(-eyeOffX + R*0.2, eyeOffY - R*0.28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(eyeOffX + R*0.15, eyeOffY - R*0.42);
+    ctx.lineTo(eyeOffX - R*0.2, eyeOffY - R*0.28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, R * 0.42, R * 0.14, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  } else if (emotion === 'determined') {
+    const eyeR = R * 0.2;
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx + lookX * eyeR * 0.5, eyy + lookY * eyeR * 0.5, eyeR * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#101414';
+    ctx.lineWidth = Math.max(1.3, R * 0.1);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-eyeOffX - R*0.18, eyeOffY - R*0.32);
+    ctx.lineTo(-eyeOffX + R*0.15, eyeOffY - R*0.22);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(eyeOffX + R*0.18, eyeOffY - R*0.32);
+    ctx.lineTo(eyeOffX - R*0.15, eyeOffY - R*0.22);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.16, R * 0.4);
+    ctx.lineTo(R * 0.16, R * 0.4);
+    ctx.stroke();
+  } else {
+    const eyeR = R * 0.22;
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx + lookX * eyeR * 0.4, eyy + lookY * eyeR * 0.4, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#101414';
+    ctx.lineWidth = Math.max(1.3, R * 0.09);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, R * 0.28, R * 0.22, 0.1 * Math.PI, 0.9 * Math.PI);
+    ctx.stroke();
+  }
+}
+
 function draw(now) {
     const dtMs = Math.min(120, Math.max(0, now - (lastDrawTime || now)));
     lastDrawTime = now;
@@ -1099,95 +1195,8 @@ function draw(now) {
       ctx.lineWidth = Math.max(1.5, R * 0.042);
       ctx.lineCap = 'round';
       ctx.stroke();
-    } else if (emotion === 'startled') {
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY - R * 0.05;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, R * 0.28, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx, eyy, R * 0.11, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.beginPath();
-      ctx.arc(0, R * 0.42, R * 0.16, 0, Math.PI * 2);
-      ctx.fillStyle = '#101414';
-      ctx.fill();
-    } else if (emotion === 'worried') {
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, R * 0.25, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx + lookX * R * 0.1, eyy + lookY * R * 0.1, R * 0.11, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#101414';
-      ctx.lineWidth = Math.max(1.3, R * 0.09);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-eyeOffX - R*0.15, eyeOffY - R*0.42);
-      ctx.lineTo(-eyeOffX + R*0.2, eyeOffY - R*0.28);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(eyeOffX + R*0.15, eyeOffY - R*0.42);
-      ctx.lineTo(eyeOffX - R*0.2, eyeOffY - R*0.28);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, R * 0.42, R * 0.14, 0.15 * Math.PI, 0.85 * Math.PI);
-      ctx.stroke();
-    } else if (emotion === 'determined') {
-      const eyeR = R * 0.2;
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx + lookX * eyeR * 0.5, eyy + lookY * eyeR * 0.5, eyeR * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#101414';
-      ctx.lineWidth = Math.max(1.3, R * 0.1);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-eyeOffX - R*0.18, eyeOffY - R*0.32);
-      ctx.lineTo(-eyeOffX + R*0.15, eyeOffY - R*0.22);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(eyeOffX + R*0.18, eyeOffY - R*0.32);
-      ctx.lineTo(eyeOffX - R*0.15, eyeOffY - R*0.22);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-R * 0.16, R * 0.4);
-      ctx.lineTo(R * 0.16, R * 0.4);
-      ctx.stroke();
     } else {
-      const eyeR = R * 0.22;
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx + lookX * eyeR * 0.4, eyy + lookY * eyeR * 0.4, eyeR * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#101414';
-      ctx.lineWidth = Math.max(1.3, R * 0.09);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(0, R * 0.28, R * 0.22, 0.1 * Math.PI, 0.9 * Math.PI);
-      ctx.stroke();
+      drawPlayerFace(R, emotion, lookX, lookY);
     }
     } // Ende Kopf (else-Zweig der Ente)
 
