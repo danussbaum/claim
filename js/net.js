@@ -131,6 +131,23 @@ const Net = (() => {
     _pc: null, _dc: null, _signal: null,
   };
 
+  // Summarises which ICE candidate types an SDP contains (for diagnostics)
+  function candidateSummary(sdp) {
+    const counts = {};
+    (sdp.match(/a=candidate:.*/g) || []).forEach(line => {
+      const m = line.match(/ typ (\w+)/);
+      const addr = line.split(' ')[4] || '';
+      const key = (m ? m[1] : '?') + (addr.endsWith('.local') ? '(mdns)' : '');
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    const parts = Object.keys(counts).map(k => k + ':' + counts[k]);
+    return parts.length ? parts.join(', ') : 'none';
+  }
+
+  function watchPc(pc) {
+    pc.addEventListener('iceconnectionstatechange', () => api.onStatus('ICE: ' + pc.iceConnectionState));
+  }
+
   function setupChannel(dc) {
     api._dc = dc;
     dc.onopen = () => {
@@ -159,11 +176,15 @@ const Net = (() => {
       api.onStatus('Player found, connecting...');
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       api._pc = pc;
+      watchPc(pc);
+      api.onStatus('Guest candidates: ' + candidateSummary(msg.sdp));
       pc.ondatachannel = ev => setupChannel(ev.channel);
       await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
       await pc.setLocalDescription(await pc.createAnswer());
       await waitForIce(pc);
+      api.onStatus('Own candidates: ' + candidateSummary(pc.localDescription.sdp));
       api._signal.send({ type: 'answer', sdp: pc.localDescription.sdp });
+      api.onStatus('Answer sent, waiting for connection...');
     }, brokerStatus);
     return api.room;
   };
@@ -175,6 +196,7 @@ const Net = (() => {
     api.onStatus('Connecting to signaling servers...');
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     api._pc = pc;
+    watchPc(pc);
     setupChannel(pc.createDataChannel('game'));
     let answered = false, offerSdp = null, sentTo = 0;
     const sendOffer = () => {
@@ -188,13 +210,14 @@ const Net = (() => {
     api._signal = makeSignal(room, 'guest', async msg => {
       if (msg.type !== 'answer' || answered) return;
       answered = true;
-      api.onStatus('Host answered, connecting...');
+      api.onStatus('Host answered, connecting... Host candidates: ' + candidateSummary(msg.sdp));
       await pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
     }, (url, state) => { brokerStatus(url, state); sendOffer(); });
     (async () => {
       await pc.setLocalDescription(await pc.createOffer());
       await waitForIce(pc);
       offerSdp = pc.localDescription.sdp;
+      api.onStatus('Own candidates: ' + candidateSummary(offerSdp));
       sendOffer();
     })();
   };
