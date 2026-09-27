@@ -111,15 +111,31 @@
 
   // Sprachausgabe zum Countdown (1-Spieler und Versus), aus bei "Guard voices: Off"
   const COUNTDOWN_WORDS = ['Three', 'Two', 'One', 'Go!'];
+
+  // Klare englische Stimme: bekannte gute Stimmen zuerst, dann lokale en-US, dann irgendeine englische
+  function countdownVoice() {
+    const en = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
+    const preferred = /Google US English|Samantha|Daniel|Karen|Serena|Moira|Aaron|Microsoft (Aria|Jenny|Guy)/i;
+    return en.find(v => preferred.test(v.name)) ||
+      en.find(v => /en[-_]US/i.test(v.lang) && v.localService) ||
+      en.find(v => /en[-_]US/i.test(v.lang)) || en[0] || null;
+  }
+  // Die Stimmenliste laedt der Browser verzoegert: frueh anstossen
+  if (window.speechSynthesis) speechSynthesis.getVoices();
+
   function speakCountdown() {
     if (voiceMode === 'off' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
-    speechSynthesis.cancel();
+    const voice = countdownVoice();
     COUNTDOWN_WORDS.forEach((word, i) => setTimeout(() => {
       if (!countdownActive) return; // Spiel inzwischen verlassen
+      // Jedes Wort genau zu seiner Zahl: nichts in die Warteschlange, Reste abbrechen
+      speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(word);
-      u.lang = 'en-US';
-      u.rate = 1.3;
-      u.pitch = i === COUNTDOWN_WORDS.length - 1 ? 1.3 : 1;
+      if (voice) u.voice = voice;
+      u.lang = voice ? voice.lang : 'en-US';
+      u.rate = 1.1;
+      u.pitch = 1;
+      u.volume = 1;
       speechSynthesis.speak(u);
     }, i * COUNTDOWN_STEP_MS));
   }
