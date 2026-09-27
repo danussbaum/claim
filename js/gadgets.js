@@ -196,7 +196,7 @@
     const synth = window.speechSynthesis;
     if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
     // Laeuft schon ein Spruch, wird der neue unterdrueckt
-    if (synth.speaking || synth.pending) return;
+    if (!scream && (synth.speaking || synth.pending)) return;
     // Jeder Waechter bekommt einmalig eigene Stimme, Tonhoehe und Tempo
     if (!e.speechVoice) {
       const voices = guardVoices();
