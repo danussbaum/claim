@@ -374,8 +374,11 @@
     if (!audioUnlocked) {
       audioUnlocked = true;
       ensureAudio();
-      document.getElementById('startBtn').textContent = '▶ Let\'s go!';
-      return;
+      // Im Hauptmenue startet der Knopf direkt, sonst erst Ton freischalten
+      if (!modeSelectOpen) {
+        document.getElementById('startBtn').textContent = '▶ Let\'s go!';
+        return;
+      }
     }
     ensureAudio();
     if (modeSelectOpen) {

@@ -109,6 +109,13 @@
   }
 
   // --- Simulation (nur Host) ---
+  // Hindernisse, Power-ups, Sicht und Sprueche stammen aus dem 1-Spieler-Modus
+  // (placeObstacles, canSeePoint, GUARD_LINES), angepasst auf zwei Spieler.
+  const VS_POWERUP_TYPES = ['speed', 'shield', 'freeze', 'rapidfire'];
+  const VS_PU_INTERVAL = 7000, VS_PU_MAX = 2;
+  const VS_RAPID_COOLDOWN = 300;
+  const VS_DIRS4 = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
   function vsIdx(x, y) { return y * COLS + x; }
   function vsInBounds(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS; }
 
@@ -116,37 +123,71 @@
     return p === 0 ? { x: 1, y: 1 } : { x: COLS - 2, y: ROWS - 2 };
   }
 
+  // Layout wie im 1-Spieler-Level 5 (Saeulen und Gruben), Startecken frei
+  function vsMakeObstacles() {
+    placeObstacles(5);
+    const obst = new Array(COLS * ROWS).fill(0);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      if (grid[r][c] === BLOCK || grid[r][c] === PIT) obst[vsIdx(c, r)] = grid[r][c];
+    }
+    for (let p = 0; p < 2; p++) {
+      const k = vsSpawnCorner(p);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        if (vsInBounds(k.x + dx, k.y + dy)) obst[vsIdx(k.x + dx, k.y + dy)] = 0;
+      }
+    }
+    movingBlocks = []; bonusCells = [];
+    return obst;
+  }
+
   function vsNewState() {
+    const obst = vsMakeObstacles();
     const s = {
       land: new Array(COLS * ROWS).fill(0),   // 0 frei, 1 Spieler 0, 2 Spieler 1
       trail: new Array(COLS * ROWS).fill(0),  // 0 keine, 1/2 Linie von Spieler 0/1
+      obst,                                   // 0 frei, BLOCK oder PIT
+      freeCells: obst.filter(v => !v).length,
       players: [],
       guards: [],
-      events: [],             // Schuesse usw. fuer die Darstellung, werden mit dem Zustand verschickt
+      powerUps: [],
+      events: [],             // Schuesse, Sprueche usw. fuer die Darstellung, reisen mit dem Zustand
       timeLeft: VS_MATCH_MS,
       countdown: VS_COUNTDOWN_MS,
       over: null,
-      stepT: 0, guardT: 0,
+      guardT: 0, puT: 0, freezeUntil: 0,
     };
     for (let p = 0; p < 2; p++) {
       const c = vsSpawnCorner(p);
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s.land[vsIdx(c.x + dx, c.y + dy)] = p + 1;
       s.players.push({ x: c.x, y: c.y, dir: null, next: null, lastDir: p === 0 ? 'down' : 'up',
-        trail: [], lives: VS_LIVES, inv: 0, shotReady: 0 });
+        trail: [], lives: VS_LIVES, inv: 0, shotReady: 0, stepT: 0,
+        speedUntil: 0, slowUntil: 0, shieldUntil: 0, rapidUntil: 0 });
     }
     for (let i = 0; i < VS_GUARDS; i++) s.guards.push(vsNewGuard(s));
     return s;
   }
 
+  function vsCellFree(s, x, y) {
+    const i = vsIdx(x, y);
+    return !s.land[i] && !s.obst[i] && !s.trail[i] &&
+      !s.guards.some(g => !g.deadUntil && g.x === x && g.y === y) &&
+      !s.players.some(p => p.x === x && p.y === y);
+  }
+
   function vsNewGuard(s) {
-    for (let tries = 0; tries < 200; tries++) {
-      const x = 2 + Math.floor(Math.random() * (COLS - 4));
-      const y = 4 + Math.floor(Math.random() * (ROWS - 8));
-      if (s.land[vsIdx(x, y)] || s.trail[vsIdx(x, y)]) continue;
-      if (s.players.some(p => Math.abs(p.x - x) + Math.abs(p.y - y) < 4)) continue;
-      return { x, y, dx: Math.random() < 0.5 ? 1 : -1, dy: Math.random() < 0.5 ? 1 : -1, deadUntil: 0 };
+    const usedNames = s.guards.filter(g => !g.deadUntil).map(g => g.name);
+    for (let tries = 0; tries < 300; tries++) {
+      const x = 1 + Math.floor(Math.random() * (COLS - 2));
+      const y = 3 + Math.floor(Math.random() * (ROWS - 6));
+      if (!vsCellFree(s, x, y)) continue;
+      if (s.players.some(p => Math.abs(p.x - x) + Math.abs(p.y - y) < 5)) continue;
+      let name = Math.floor(Math.random() * GUARD_NAMES.length);
+      while (usedNames.includes(name)) name = (name + 1) % GUARD_NAMES.length;
+      return { x, y, dc0: 1, dr0: 0, pers: Math.floor(Math.random() * BASE_PERSONALITIES.length), name,
+        deadUntil: 0, hunting: false, target: -1, lastSeen: -1e9, stunUntil: 0, breakUntil: 0, lastBubbleAt: 0 };
     }
-    return { x: 0, y: 0, dx: 1, dy: 1, deadUntil: performance.now() + VS_GUARD_RESPAWN };
+    return { x: 0, y: 0, dc0: 1, dr0: 0, pers: 0, name: 0, deadUntil: performance.now() + VS_GUARD_RESPAWN,
+      hunting: false, target: -1, lastSeen: -1e9, stunUntil: 0, breakUntil: 0, lastBubbleAt: 0 };
   }
 
   function vsDelta(d) {
@@ -160,7 +201,7 @@
 
   function vsKill(s, p, now) {
     const pl = s.players[p];
-    if (now < pl.inv || s.over) return;
+    if (now < pl.inv || now < pl.shieldUntil || s.over) return;
     pl.trail.forEach(i => { s.trail[i] = 0; });
     pl.trail = [];
     pl.lives--;
@@ -181,6 +222,7 @@
     pl.x = best.x; pl.y = best.y;
     pl.dir = pl.next = null;
     pl.inv = now + VS_INVULN_MS;
+    s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
   }
 
   function vsCapture(s, p) {
@@ -188,12 +230,12 @@
     pl.trail.forEach(i => { s.trail[i] = 0; s.land[i] = own; });
     pl.trail = [];
     // Alles, was weder Waechter noch Gegner erreichen koennen, gehoert jetzt mir
-    // (auch Land des Gegners).
+    // (auch Land des Gegners). Hindernisse bleiben Hindernisse.
     const seen = new Uint8Array(COLS * ROWS);
     const stack = [];
     const seed = (x, y) => {
       const i = vsIdx(x, y);
-      if (s.land[i] !== own && !seen[i]) { seen[i] = 1; stack.push(i); }
+      if (s.land[i] !== own && !s.obst[i] && !seen[i]) { seen[i] = 1; stack.push(i); }
     };
     s.guards.forEach(g => { if (!g.deadUntil) seed(g.x, g.y); });
     seed(opp.x, opp.y);
@@ -205,8 +247,13 @@
       if (y < ROWS - 1) seed(x, y + 1);
     }
     for (let i = 0; i < COLS * ROWS; i++) {
-      if (!seen[i] && s.land[i] !== own) { s.land[i] = own; s.trail[i] = 0; }
+      if (!seen[i] && !s.obst[i] && s.land[i] !== own) { s.land[i] = own; s.trail[i] = 0; }
     }
+    s.powerUps = s.powerUps.filter(u => s.land[vsIdx(u.x, u.y)] === 0);
+  }
+
+  function vsPlayerInterval(pl, now) {
+    return VS_STEP_MS * (now < pl.speedUntil ? 0.55 : now < pl.slowUntil ? 1.6 : 1);
   }
 
   function vsStepPlayer(s, p, now) {
@@ -217,12 +264,15 @@
     const nx = pl.x + dx, ny = pl.y + dy;
     if (!vsInBounds(nx, ny)) { pl.dir = null; return; }
     const i = vsIdx(nx, ny);
+    if (s.obst[i]) { pl.dir = null; return; }                         // Saeule oder Grube
     if (s.trail[i] === p + 1) { vsKill(s, p, now); return; }       // eigene Linie gekreuzt
     if (s.trail[i] === 2 - p) vsKill(s, 1 - p, now);                // Linie des Gegners gekappt
     if (s.over) return;
     pl.x = nx; pl.y = ny;
     if (s.land[i] !== p + 1) { s.trail[i] = p + 1; pl.trail.push(i); }
     else if (pl.trail.length) vsCapture(s, p);
+    const pu = s.powerUps.findIndex(u => u.x === nx && u.y === ny);
+    if (pu >= 0) vsPickup(s, p, s.powerUps.splice(pu, 1)[0], now);
     const opp = s.players[1 - p];
     if (opp.x === pl.x && opp.y === pl.y) {
       if (!vsOnOwnLand(s, 1 - p)) vsKill(s, 1 - p, now);
@@ -231,7 +281,56 @@
     vsCheckGuardHits(s, now);
   }
 
-  function vsGuardBlocked(s, x, y) { return !vsInBounds(x, y) || s.land[vsIdx(x, y)] !== 0; }
+  // --- Power-ups ---
+  function vsSpawnPowerUp(s) {
+    for (let tries = 0; tries < 200; tries++) {
+      const x = Math.floor(Math.random() * COLS), y = Math.floor(Math.random() * ROWS);
+      if (!vsCellFree(s, x, y) || s.powerUps.some(u => u.x === x && u.y === y)) continue;
+      const down = Math.random() < 0.3;
+      const type = down ? 'slow' : VS_POWERUP_TYPES[Math.floor(Math.random() * VS_POWERUP_TYPES.length)];
+      s.powerUps.push({ x, y, type, kind: down ? 'down' : 'up' });
+      return;
+    }
+  }
+
+  function vsPickup(s, p, u, now) {
+    const pl = s.players[p];
+    if (u.type === 'speed') pl.speedUntil = now + 4000;
+    else if (u.type === 'shield') pl.shieldUntil = now + 4000;
+    else if (u.type === 'freeze') s.freezeUntil = now + 3000;
+    else if (u.type === 'rapidfire') pl.rapidUntil = now + 5000;
+    else if (u.type === 'slow') pl.slowUntil = now + 4000;
+    s.events.push({ t: 'pick', x: u.x, y: u.y, type: u.type, kind: u.kind, p });
+  }
+
+  // --- Waechter: Sichtkegel, Jagd, Sprueche ---
+  function vsSay(s, gi, kind, force, now) {
+    const g = s.guards[gi];
+    if (!force && now - g.lastBubbleAt < 2500) return;
+    g.lastBubbleAt = now;
+    const pool = GUARD_LINES[kind];
+    s.events.push({ t: 'say', i: gi, text: pool[Math.floor(Math.random() * pool.length)] });
+  }
+
+  // Versteckt: eigene Flaeche, deren vier Nachbarn auch eigene Flaeche (oder Rand) sind
+  function vsHidden(s, p) {
+    const pl = s.players[p];
+    if (s.land[vsIdx(pl.x, pl.y)] !== p + 1) return false;
+    return VS_DIRS4.every(([dx, dy]) => !vsInBounds(pl.x + dx, pl.y + dy) || s.land[vsIdx(pl.x + dx, pl.y + dy)] === p + 1);
+  }
+
+  function vsGuardSees(s, g, p) {
+    if (vsHidden(s, p)) return false;
+    const pl = s.players[p];
+    const view = { personality: BASE_PERSONALITIES[g.pers], dc0: g.dc0, dr0: g.dr0, c: g.x, r: g.y };
+    return canSeePoint(view, g.x + 0.5, g.y + 0.5, pl.x + 0.5, pl.y + 0.5);
+  }
+
+  function vsGuardBlocked(s, x, y) {
+    if (!vsInBounds(x, y)) return true;
+    const i = vsIdx(x, y);
+    return s.land[i] !== 0 || s.obst[i] === BLOCK; // Gruben duerfen Waechter betreten
+  }
 
   function vsStepGuards(s, now) {
     s.guards.forEach((g, gi) => {
@@ -239,10 +338,77 @@
         if (now >= g.deadUntil) s.guards[gi] = vsNewGuard(s);
         return;
       }
-      if (vsGuardBlocked(s, g.x + g.dx, g.y)) g.dx = -g.dx;
-      if (vsGuardBlocked(s, g.x, g.y + g.dy)) g.dy = -g.dy;
-      if (vsGuardBlocked(s, g.x + g.dx, g.y + g.dy)) { g.dx = -g.dx; g.dy = -g.dy; }
-      if (!vsGuardBlocked(s, g.x + g.dx, g.y + g.dy)) { g.x += g.dx; g.y += g.dy; }
+      if (now < g.stunUntil || now < g.breakUntil) return;
+
+      // Sieht er einen Spieler? Bei beiden jagt er den naeheren.
+      let seen = -1, bestD = Infinity;
+      for (let p = 0; p < 2; p++) {
+        if (!vsGuardSees(s, g, p)) continue;
+        const pl = s.players[p], d = Math.abs(pl.x - g.x) + Math.abs(pl.y - g.y);
+        if (d < bestD) { bestD = d; seen = p; }
+      }
+      if (seen >= 0) {
+        if (!g.hunting) { vsSay(s, gi, 'spotted', true, now); s.events.push({ t: 'alert' }); }
+        g.hunting = true; g.target = seen; g.lastSeen = now;
+      } else if (g.hunting && now - g.lastSeen > VISION_MEMORY) {
+        g.hunting = false;
+        vsSay(s, gi, 'lost', false, now);
+      }
+
+      if (!g.hunting && Math.random() < GUARD_BREAK_CHANCE) {
+        g.breakUntil = now + GUARD_BREAK_MS;
+        vsSay(s, gi, 'break', true, now);
+        s.events.push({ t: 'break' });
+        return;
+      }
+
+      const opts = VS_DIRS4.filter(([dx, dy]) => !vsGuardBlocked(s, g.x + dx, g.y + dy) &&
+        !s.guards.some(o => o !== g && !o.deadUntil && o.x === g.x + dx && o.y === g.y + dy));
+      if (!opts.length) return;
+      const pers = BASE_PERSONALITIES[g.pers];
+      if (pers === 'nervous' && !g.hunting && Math.random() < 0.28) return; // stockt kurz
+
+      let choice;
+      const closest = (tx, ty) => {
+        let best = opts[0], bd = Infinity;
+        for (const o of opts) {
+          const d = Math.abs(g.x + o[0] - tx) + Math.abs(g.y + o[1] - ty);
+          if (d < bd) { bd = d; best = o; }
+        }
+        return best;
+      };
+      if (g.hunting) {
+        const t = s.players[g.target];
+        choice = closest(t.x, t.y);
+      } else if (pers === 'nervous') {
+        choice = opts[Math.floor(Math.random() * opts.length)];
+      } else if (pers === 'guardian') {
+        // Haelt Abstand zu eroberter Flaeche
+        let bestScore = -Infinity;
+        for (const o of opts) {
+          const nx = g.x + o[0], ny = g.y + o[1];
+          let near = 0;
+          for (const [ddx, ddy] of VS_DIRS4) {
+            if (vsInBounds(nx + ddx, ny + ddy) && s.land[vsIdx(nx + ddx, ny + ddy)]) near++;
+          }
+          const score = -near + Math.random() * 0.5;
+          if (score > bestScore) { bestScore = score; choice = o; }
+        }
+      } else {
+        const keep = opts.find(([dx, dy]) => dx === g.dc0 && dy === g.dr0);
+        choice = (keep && Math.random() < 0.65) ? keep : opts[Math.floor(Math.random() * opts.length)];
+      }
+
+      g.dc0 = choice[0]; g.dr0 = choice[1];
+      g.x += choice[0]; g.y += choice[1];
+
+      // Wer blind hinterherjagt, stolpert schon mal in eine Grube
+      if (g.hunting && s.obst[vsIdx(g.x, g.y)] === PIT && Math.random() < GUARD_TRIP_CHANCE) {
+        g.stunUntil = now + GUARD_TRIP_MS;
+        g.hunting = false;
+        vsSay(s, gi, 'trip', true, now);
+        s.events.push({ t: 'trip', x: g.x, y: g.y });
+      }
     });
     vsCheckGuardHits(s, now);
   }
@@ -262,7 +428,7 @@
   function vsShoot(s, p, now) {
     const pl = s.players[p];
     if (now < pl.shotReady || s.countdown > 0 || s.over) return;
-    pl.shotReady = now + VS_SHOT_COOLDOWN;
+    pl.shotReady = now + (now < pl.rapidUntil ? VS_RAPID_COOLDOWN : VS_SHOT_COOLDOWN);
     const [dx, dy] = vsDelta(pl.dir || pl.lastDir);
     const opp = 1 - p, op = s.players[opp];
     const path = [[pl.x, pl.y]];
@@ -271,10 +437,11 @@
       x += dx; y += dy;
       if (!vsInBounds(x, y)) break;
       path.push([x, y]);
+      if (s.obst[vsIdx(x, y)] === BLOCK) break; // prallt an der Saeule ab
       const g = s.guards.find(g => !g.deadUntil && g.x === x && g.y === y);
       if (g) {
         g.deadUntil = now + VS_GUARD_RESPAWN;
-        s.events.push({ t: 'guardDown', x, y, dx, dy, i: s.guards.indexOf(g) });
+        s.events.push({ t: 'guardDown', x, y, dx, dy, i: s.guards.indexOf(g), pers: g.pers });
         break;
       }
       if ((op.x === x && op.y === y) || s.trail[vsIdx(x, y)] === opp + 1) {
@@ -288,7 +455,7 @@
   function vsPct(s, p) {
     let n = 0;
     for (let i = 0; i < s.land.length; i++) if (s.land[i] === p + 1) n++;
-    return Math.round(n * 100 / s.land.length);
+    return Math.round(n * 100 / (s.freeCells || s.land.length));
   }
 
   function vsEndMatch(s, winner, reason) {
@@ -301,15 +468,26 @@
     if (s.over) return;
     if (s.countdown > 0) { s.countdown -= delta; return; }
     s.timeLeft -= delta;
-    s.stepT += delta; s.guardT += delta;
-    if (s.stepT >= VS_STEP_MS) {
-      s.stepT = Math.min(s.stepT - VS_STEP_MS, VS_STEP_MS);
-      vsStepPlayer(s, 0, now);
-      vsStepPlayer(s, 1, now);
+    for (let p = 0; p < 2; p++) {
+      const pl = s.players[p], iv = vsPlayerInterval(pl, now);
+      pl.stepT += delta;
+      if (pl.stepT >= iv) {
+        pl.stepT = Math.min(pl.stepT - iv, iv);
+        vsStepPlayer(s, p, now);
+        if (s.over) return;
+      }
     }
-    if (s.guardT >= VS_GUARD_MS) {
-      s.guardT = Math.min(s.guardT - VS_GUARD_MS, VS_GUARD_MS);
-      vsStepGuards(s, now);
+    if (now >= s.freezeUntil) {
+      s.guardT += delta;
+      if (s.guardT >= VS_GUARD_MS) {
+        s.guardT = Math.min(s.guardT - VS_GUARD_MS, VS_GUARD_MS);
+        vsStepGuards(s, now);
+      }
+    }
+    s.puT += delta;
+    if (s.puT >= VS_PU_INTERVAL) {
+      s.puT = 0;
+      if (s.powerUps.length < VS_PU_MAX) vsSpawnPowerUp(s);
     }
     if (s.over) return;
     const a = vsPct(s, 0), b = vsPct(s, 1);
@@ -317,16 +495,21 @@
     else if (s.timeLeft <= 0) vsEndMatch(s, a === b ? -1 : (a > b ? 0 : 1), 'time is up');
   }
 
-  // Kompakter Zustand fuer den Gast
+  // Kompakter Zustand fuer den Gast (Restzeiten statt Zeitstempel, die Uhren sind verschieden)
   function vsSnapshot(s) {
     const now = performance.now();
+    const left = t => Math.max(0, Math.round(t - now));
     return {
       t: 'state',
       land: s.land.join(''),
       trail: s.trail.join(''),
+      obst: s.obst.join(''),
       players: s.players.map(pl => ({ x: pl.x, y: pl.y, lives: pl.lives, inv: now < pl.inv,
-        cd: Math.max(0, pl.shotReady - now) })),
-      guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0]),
+        speed: left(pl.speedUntil), slow: left(pl.slowUntil), shield: left(pl.shieldUntil), rapid: left(pl.rapidUntil) })),
+      guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0, g.hunting ? 1 : 0,
+        now < g.stunUntil ? 1 : 0, now < g.breakUntil ? 1 : 0, g.pers, g.name]),
+      powerUps: s.powerUps.map(u => [u.x, u.y, u.type, u.kind]),
+      freeze: left(s.freezeUntil),
       events: s.events,
       timeLeft: s.timeLeft, countdown: s.countdown, over: s.over,
       pct: [vsPct(s, 0), vsPct(s, 1)],
@@ -357,10 +540,17 @@
     }
   }
 
+  // Beim Gast: Restzeiten wieder in lokale Zeitstempel umrechnen
   function vsUnpack(msg) {
+    const now = performance.now();
     return {
-      land: Array.from(msg.land, Number), trail: Array.from(msg.trail, Number),
-      players: msg.players, guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2] })),
+      land: Array.from(msg.land, Number), trail: Array.from(msg.trail, Number), obst: Array.from(msg.obst, Number),
+      players: msg.players.map(pl => ({ x: pl.x, y: pl.y, lives: pl.lives, inv: pl.inv,
+        speedUntil: now + pl.speed, slowUntil: now + pl.slow, shieldUntil: now + pl.shield, rapidUntil: now + pl.rapid })),
+      guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2], hunting: !!g[3],
+        stunUntil: g[4] ? now + 300 : 0, breakUntil: g[5] ? now + 300 : 0, pers: g[6], name: g[7] })),
+      powerUps: msg.powerUps.map(u => ({ x: u[0], y: u[1], type: u[2], kind: u[3] })),
+      freezeUntil: now + msg.freeze,
       events: [],
       timeLeft: msg.timeLeft, countdown: msg.countdown, over: msg.over, pct: msg.pct,
     };
@@ -462,8 +652,8 @@
       stats.forEach((el, i) => { el.firstChild.nodeValue = VS_STAT_LABELS[i]; });
     }
     cameraMode = 'standard';
-    if (!perks) perks = defaultPerks();
     // Reste eines 1-Spieler-Laufs abschalten
+    perks = defaultPerks();
     shieldUntil = speedUntil = freezeUntil = confuseUntil = fogUntil = alarmUntil = 0;
     trailGuardUntil = rapidfireUntil = spikesUntil = slowUntil = swarmUntil = 0;
     drunkUntil = psyloUntil = duckUntil = heliumUntil = discoUntil = smokeUntil = 0;
@@ -485,7 +675,9 @@
     cameraMode = vsSaved.cameraMode;
     document.querySelectorAll('.topbar .stat').forEach((el, i) => { el.firstChild.nodeValue = vsSaved.labels[i]; });
     vsSaved = null;
-    shieldUntil = 0; enemies = []; shotProjectiles = []; enemyDeathAnims = []; trail = [];
+    shieldUntil = speedUntil = slowUntil = rapidfireUntil = freezeUntil = 0;
+    enemies = []; powerUps = []; revealPopups = []; guardBubbles = [];
+    shotProjectiles = []; enemyDeathAnims = []; trail = [];
     initGrid();
     px = Math.floor(COLS / 2); py = 0; prevPx = px; prevPy = py;
     draw(performance.now());
@@ -501,7 +693,8 @@
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const i = vsIdx(c, r), t = s.trail[i], l = s.land[i];
       if (t === me + 1) myTrail++; else if (t) rivalTrail++;
-      grid[r][c] = t ? (t === me + 1 ? TRAIL : RIVAL_TRAIL) : l ? (l === me + 1 ? TERRITORY : RIVAL_TERRITORY) : EMPTY;
+      grid[r][c] = s.obst[i] ? s.obst[i] : t ? (t === me + 1 ? TRAIL : RIVAL_TRAIL) :
+        l ? (l === me + 1 ? TERRITORY : RIVAL_TERRITORY) : EMPTY;
     }
     trail = new Array(myTrail);
 
@@ -516,7 +709,10 @@
       px = mp.x; py = mp.y;
       playerStepTime = now;
     }
-    shieldUntil = vsInvul(mp, now) ? now + 1000 : 0; // Schildring waehrend der Schonzeit
+    // Schildring waehrend der Schonzeit oder mit Schild-Power-up
+    shieldUntil = Math.max(vsInvul(mp, now) ? now + 1000 : 0, mp.shieldUntil);
+    speedUntil = mp.speedUntil; slowUntil = mp.slowUntil; rapidfireUntil = mp.rapidUntil;
+    freezeUntil = s.freezeUntil;
 
     // Gegner
     const rp = s.players[1 - me];
@@ -531,7 +727,9 @@
       vsRival.x = rp.x; vsRival.y = rp.y;
       vsRival.stepTime = now;
     }
-    vsRival.inv = vsInvul(rp, now);
+    vsRival.inv = vsInvul(rp, now) || now < rp.shieldUntil;
+    vsRival.iv = vsPlayerInterval(rp, now);
+    vsRival.fast = now < rp.speedUntil;
     vsRival.trailLen = rivalTrail;
 
     // Waechter: feste Objekte je Index, damit sie gleiten statt springen
@@ -539,9 +737,10 @@
     s.guards.forEach((g, i) => {
       if (g.deadUntil) { vsGuardObjs[i] = null; return; }
       let e = vsGuardObjs[i];
+      const pers = BASE_PERSONALITIES[g.pers] || 'wanderer', name = GUARD_NAMES[g.name] || 'Bob';
+      if (e && (e.personality !== pers || e.name !== name)) e = null; // neu gespawnt
       if (!e) {
-        const pers = BASE_PERSONALITIES[i % BASE_PERSONALITIES.length];
-        e = { r: g.y, c: g.x, prevR: g.y, prevC: g.x, personality: pers, name: guardName(pers),
+        e = { r: g.y, c: g.x, prevR: g.y, prevC: g.x, personality: pers, name,
           dc0: 1, dr0: 0, angleDisp: undefined, wasHunting: false, huntingActive: false,
           huntCooldownUntil: 0, lastSeenAt: -99999 };
         vsGuardObjs[i] = e;
@@ -550,6 +749,9 @@
         e.prevC = e.c; e.prevR = e.r; e.c = g.x; e.r = g.y;
         movedNow.push(e);
       }
+      e.huntingActive = g.hunting;
+      e.stunnedUntil = g.stunUntil;
+      e.breakUntil = g.breakUntil;
       alive.push(e);
     });
     if (movedNow.length) {
@@ -557,6 +759,10 @@
       alive.forEach(e => { if (!movedNow.includes(e)) { e.prevC = e.c; e.prevR = e.r; } });
     }
     enemies = alive;
+
+    // Power-ups: bestehende Objekte behalten, damit die Einblend-Animation nicht neu startet
+    powerUps = s.powerUps.map(u => powerUps.find(o => o.c === u.x && o.r === u.y && o.type === u.type) ||
+      { r: u.y, c: u.x, type: u.type, kind: u.kind, spawnTime: now });
 
     // Anzeige oben
     const pct = s.pct || [vsPct(s, 0), vsPct(s, 1)];
@@ -582,11 +788,26 @@
       });
       sndShoot();
     } else if (ev.t === 'guardDown') {
-      const pers = BASE_PERSONALITIES[ev.i % BASE_PERSONALITIES.length];
+      const pers = BASE_PERSONALITIES[ev.pers] || 'wanderer';
       enemyDeathAnims.push({ r: ev.y, c: ev.x, kind: 'shot', dx: ev.dx, dy: ev.dy,
         color: PERSONALITY_COLORS[pers] || '#e3574a', startTime: now });
       sndEnemyDeath();
       triggerShake(6, 220);
+    } else if (ev.t === 'say') {
+      const e = vsGuardObjs[ev.i];
+      if (e) guardShout(e, ev.text);
+    } else if (ev.t === 'alert') {
+      sndHunterAlert();
+    } else if (ev.t === 'break') {
+      sndCoffeeBreak();
+    } else if (ev.t === 'trip') {
+      spawnEmote('💫', ev.x, ev.y);
+      sndGuardTrip();
+      triggerShake(2, 120);
+    } else if (ev.t === 'pick') {
+      revealPopups.push({ x: ev.x, y: ev.y, type: ev.type, kind: ev.kind,
+        startTime: now, resolveAt: now + ROULETTE_MS, applied: true, lastTickIdx: -1 });
+      if (ev.p === vsMe) { if (ev.kind === 'down') sndPowerDown(ev.type); else sndPowerUp(ev.type); }
     } else if (ev.t === 'hit') {
       triggerShake(8, 300);
       if (ev.p === vsMe) { triggerDeathFlash(); vibrate(150); }
@@ -619,7 +840,7 @@
     const dt = Math.min(120, Math.max(0, now - rv.lastDraw));
     rv.lastDraw = now;
     rv.headingDisp = easeAngle(rv.headingDisp, rv.heading, dt, 52);
-    const t = Math.min(1, (now - rv.stepTime) / VS_STEP_MS);
+    const t = Math.min(1, (now - rv.stepTime) / (rv.iv || VS_STEP_MS));
     const cx = (rv.prevX + (rv.x - rv.prevX) * t) * CELL + CELL / 2;
     const cy = (rv.prevY + (rv.y - rv.prevY) * t) * CELL + CELL / 2;
     const R = CELL * 0.38;
@@ -639,7 +860,7 @@
     ctx.rotate(h);
     ctx.scale(1 + bounce * 0.18, 1 - bounce * 0.13);
     ctx.rotate(-h);
-    ctx.fillStyle = '#8cc4ff';
+    ctx.fillStyle = rv.fast ? '#f5d347' : '#8cc4ff';
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
@@ -683,7 +904,7 @@
     ctx.restore();
 
     // Namensschilder
-    const pt = Math.min(1, (now - playerStepTime) / VS_STEP_MS);
+    const pt = Math.min(1, (now - playerStepTime) / currentPlayerInterval());
     const mx = (prevPx + (px - prevPx) * pt) * CELL + CELL / 2;
     const my = (prevPy + (py - prevPy) * pt) * CELL + CELL / 2;
     ctx.save();

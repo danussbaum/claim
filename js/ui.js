@@ -211,6 +211,9 @@
       b.addEventListener('click', () => { setVoiceMode(key); refreshModeSelect(); });
       voiceRow.appendChild(b);
     });
+    document.getElementById('optionsToggle').addEventListener('click', () => {
+      document.getElementById('runOptions').classList.toggle('hidden');
+    });
     modeSelectBuilt = true;
   }
 
@@ -239,6 +242,8 @@
     document.querySelectorAll('#voiceRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.voice === voiceMode);
     });
+    document.getElementById('optionsSummary').textContent = [MODES[gameMode].label, CAMERAS[cameraMode].label,
+      GADGETS[gadgetChoice].icon + ' ' + GADGETS[gadgetChoice].label, VOICE_MODES[voiceMode].label].join(' · ');
     document.getElementById('selectDesc').textContent =
       MODES[gameMode].desc + ' ' + CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
     updateGadgetButtonIcon();
@@ -321,12 +326,13 @@
     document.getElementById('skipBtn').classList.add('hidden');
     document.getElementById('modeBtn').classList.add('hidden');
     document.getElementById('modeSelect').classList.remove('hidden');
-    document.getElementById('overlayTitle').textContent = 'Choose your run';
+    document.getElementById('overlayTitle').textContent = 'Claim';
+    document.getElementById('runOptions').classList.add('hidden'); // Einstellungen eingeklappt starten
     const firstTime = !tutorialDone();
     const tutBtn = document.getElementById('tutorialBtn');
     tutBtn.classList.remove('hidden');
     tutBtn.textContent = firstTime ? '🎓 Play the tutorial first' : '🎓 Replay tutorial';
-    document.getElementById('startBtn').textContent = firstTime ? '▶ Skip - straight into the game' : "▶ Let's go!";
+    document.getElementById('startBtn').textContent = '▶ 1 Player';
     refreshModeSelect();
   }
 

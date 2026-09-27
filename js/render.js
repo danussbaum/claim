@@ -1259,7 +1259,6 @@ function draw(now) {
 
     // Sichtkegel unter den Waechtern
     for (const e of enemies) {
-      if (versusRender) break; // Versus-Waechter prallen nur ab, sie haben keine Sicht
       const v = VISION[e.personality] || VISION.wanderer;
       const dc = e.prevC + (e.c - e.prevC) * enemyT;
       const dr = e.prevR + (e.r - e.prevR) * enemyT;

@@ -49,6 +49,8 @@
           <div id="shopRow"></div>
         </div>
         <div id="modeSelect" class="hidden">
+          <button id="optionsToggle" type="button">⚙️ Options · <span id="optionsSummary"></span></button>
+          <div id="runOptions" class="hidden">
           <div class="selectLabel">Mode</div>
           <div class="pillRow" id="modeRow"></div>
           <div class="selectLabel">Camera</div>
@@ -58,12 +60,13 @@
           <div class="selectLabel">Guard voices</div>
           <div class="pillRow" id="voiceRow"></div>
           <div class="selectDesc" id="selectDesc"></div>
+          </div>
         </div>
         <p id="overlayText" class="hidden"></p>
         <button class="primary" id="startBtn">Next</button>
         <button id="skipBtn">Skip - Play now</button>
-        <button id="tutorialBtn" class="hidden">🎓 Play tutorial</button>
         <button id="vsBtn" class="hidden">⚔️ 2 Player</button>
+        <button id="tutorialBtn" class="hidden">🎓 Play tutorial</button>
         <div id="vsPanel" class="hidden">
           <canvas id="vsQr" class="hidden"></canvas>
           <p id="vsText"></p>

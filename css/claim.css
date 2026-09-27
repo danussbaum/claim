@@ -483,7 +483,11 @@ button.primary:active { background: #24714a; }
 }
 
 /* 2-Spieler-Versus */
-#vsBtn { color: #7fe0a0; background: none; border: 1px solid #2f6b48; border-radius: 8px; padding: 7px 14px; font-size: 12px; margin-top: 2px; font-family: 'Space Grotesk', sans-serif; }
+#vsBtn {
+  color: #7fe0a0; background: none; border: 1px solid #2f8f5c; border-radius: 8px;
+  padding: 9px 22px; font-size: 15px; font-weight: 600; font-family: 'Space Grotesk', sans-serif;
+}
+#vsBtn:active { background: rgba(47,143,92,0.18); }
 #vsBtn.hidden, #vsPanel.hidden, #vsQr.hidden { display: none; }
 #overlay .vsHide { display: none !important; }
 #vsPanel { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 300px; }
@@ -491,3 +495,13 @@ button.primary:active { background: #24714a; }
 #vsButtons { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #vsStatus { font-size: 11px; color: #6c8578; min-height: 14px; max-width: 280px; }
 .vsLink { background: none; border: none; color: #6c8578; font-size: 12px; padding: 6px 10px; text-decoration: underline; text-underline-offset: 2px; font-family: 'Space Grotesk', sans-serif; }
+
+/* Hauptmenue: Spielerwahl oben, Einstellungen eingeklappt unten */
+#modeSelect { order: 5; margin-top: 6px; }
+#optionsToggle {
+  background: none; border: none; color: #6c8578; font-size: 12px; padding: 6px 10px;
+  font-family: 'Space Grotesk', sans-serif; text-decoration: underline; text-underline-offset: 2px;
+}
+#optionsToggle:active { color: #9ab5a2; }
+#runOptions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#runOptions.hidden { display: none; }
