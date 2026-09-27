@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claim - 2 player connection test</title>
+<style>
+  body { background: #0d1410; color: #d8e8dc; font-family: system-ui, sans-serif; margin: 0; padding: 16px; text-align: center; }
+  h1 { font-size: 20px; letter-spacing: 2px; }
+  button { background: #2f8f5c; color: #fff; border: 0; border-radius: 8px; padding: 12px 20px; font-size: 16px; margin: 6px; }
+  #qr { background: #fff; padding: 8px; border-radius: 8px; margin: 12px auto; display: block; max-width: 90vw; }
+  #status { margin: 12px; color: #9fd4b2; }
+  #log { text-align: left; max-width: 480px; margin: 12px auto; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
+  #link { word-break: break-all; font-size: 12px; color: #8aa; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<h1>CLAIM · 2 PLAYER TEST</h1>
+<div id="start">
+  <button id="hostBtn">Host game</button>
+</div>
+<canvas id="qr" class="hidden"></canvas>
+<div id="link"></div>
+<div id="status"></div>
+<div id="chat" class="hidden">
+  <button id="pingBtn">Send ping</button>
+</div>
+<div id="log"></div>
+
+<script src="js/qr.js"></script>
+<script src="js/net.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const log = t => { $('log').textContent = new Date().toLocaleTimeString() + '  ' + t + '\n' + $('log').textContent; };
+  Net.onStatus = t => { $('status').textContent = t; log(t); };
+  Net.onOpen = () => { $('qr').classList.add('hidden'); $('link').textContent = ''; $('chat').classList.remove('hidden'); };
+  Net.onMessage = msg => {
+    if (msg.type === 'ping') { log('Ping received, sending pong'); Net.send({ type: 'pong', t: msg.t }); }
+    if (msg.type === 'pong') log('Pong received, round trip ' + Math.round(performance.now() - msg.t) + ' ms');
+  };
+  $('pingBtn').onclick = () => Net.send({ type: 'ping', t: performance.now() });
+
+  const room = Net.roomFromUrl();
+  if (room) {
+    $('start').classList.add('hidden');
+    Net.join(room);
+  } else {
+    $('hostBtn').onclick = () => {
+      $('start').classList.add('hidden');
+      const url = Net.joinUrl(Net.host());
+      QR.draw($('qr'), url, 280);
+      $('qr').classList.remove('hidden');
+      $('link').textContent = url;
+    };
+  }
+</script>
+</body>
+</html>
