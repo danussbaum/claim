@@ -154,7 +154,56 @@
     lastGuardLine = text;
     guardBubbles.push({ e, x: e.c, y: e.r, text, start: now });
     if (e.voiceShift === undefined) e.voiceShift = 0.8 + Math.random() * 0.45; // jeder Waechter hat seine eigene Stimmlage
-    sndGibberish(text, e.personality, e.voiceShift);
+    if (voiceMode === 'gibberish') sndGibberish(text, e.personality, e.voiceShift);
+    else if (voiceMode === 'speech') guardSpeak(e, text);
+  }
+
+  // Stimmen der Waechter: Kauderwelsch, Sprachausgabe oder nichts
+  const VOICE_MODES = {
+    gibberish: { label: 'Gibberish', desc: 'Guards babble.' },
+    speech: { label: 'Speech', desc: 'Guards speak their lines.' },
+    off: { label: 'Off', desc: 'Guards are silent.' }
+  };
+  let voiceMode = 'gibberish';
+  try {
+    const v = localStorage.getItem('claim_voice');
+    if (v && VOICE_MODES[v]) voiceMode = v;
+  } catch (e) { /* ignore */ }
+  function setVoiceMode(v) {
+    if (!VOICE_MODES[v]) return;
+    voiceMode = v;
+    try { localStorage.setItem('claim_voice', v); } catch (e) { /* ignore */ }
+    if (v !== 'speech' && window.speechSynthesis) speechSynthesis.cancel();
+  }
+  function guardVoices() {
+    if (!window.speechSynthesis) return [];
+    const all = speechSynthesis.getVoices();
+    const en = all.filter(v => /^en/i.test(v.lang));
+    return en.length ? en : all;
+  }
+  function guardSpeak(e, text) {
+    const synth = window.speechSynthesis;
+    if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
+    // Laeuft schon ein Spruch, wird der neue unterdrueckt
+    if (synth.speaking || synth.pending) return;
+    // Jeder Waechter bekommt einmalig eigene Stimme, Tonhoehe und Tempo
+    if (!e.speechVoice) {
+      const voices = guardVoices();
+      e.speechVoice = {
+        idx: Math.floor(Math.random() * 1000),
+        pitch: 0.6 + Math.random() * 1.2,
+        rate: 0.8 + Math.random() * 0.6
+      };
+      if (!voices.length) e.speechVoice.idx = -1;
+    }
+    const sv = e.speechVoice;
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = guardVoices();
+    if (voices.length) u.voice = voices[Math.abs(sv.idx) % voices.length];
+    u.pitch = sv.pitch;
+    u.rate = sv.rate;
+    u.volume = 0.9;
+    synth.speak(u);
   }
   // Benommen oder in der Pause: sieht nichts
   function guardBlind(e, now) {

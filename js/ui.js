@@ -202,6 +202,15 @@
       b.addEventListener('click', () => { setGadgetChoice(key); refreshModeSelect(); });
       gadgetRow.appendChild(b);
     });
+    const voiceRow = document.getElementById('voiceRow');
+    Object.keys(VOICE_MODES).forEach(key => {
+      const b = document.createElement('button');
+      b.className = 'pill';
+      b.dataset.voice = key;
+      b.textContent = VOICE_MODES[key].label;
+      b.addEventListener('click', () => { setVoiceMode(key); refreshModeSelect(); });
+      voiceRow.appendChild(b);
+    });
     modeSelectBuilt = true;
   }
 
@@ -226,6 +235,9 @@
     });
     document.querySelectorAll('#gadgetRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.gadget === gadgetChoice);
+    });
+    document.querySelectorAll('#voiceRow .pill').forEach(b => {
+      b.classList.toggle('active', b.dataset.voice === voiceMode);
     });
     document.getElementById('selectDesc').textContent =
       MODES[gameMode].desc + ' ' + CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
