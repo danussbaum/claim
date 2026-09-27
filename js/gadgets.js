@@ -204,7 +204,7 @@
       e.speechVoice = {
         idx: Math.floor(Math.random() * 1000),
         pitch: 0.1 + Math.random() * 0.4,  // sehr tief = bedrohlich
-        rate: 1.7 + Math.random() * 0.5    // sehr schnell, keift
+        rate: 1.2 + Math.random() * 0.3    // zuegig, aber verstaendlich
       };
       if (!voices.length) e.speechVoice.idx = -1;
     }
