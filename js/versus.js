@@ -222,6 +222,7 @@
     pl.x = c.x; pl.y = c.y;
     pl.dir = pl.next = null;
     pl.stunUntil = now + stunMs;
+    pl.stunMs = stunMs;
     pl.inv = now + stunMs + VS_INVULN_MS;
     s.events.push({ t: 'hit', p });
     s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
@@ -523,7 +524,8 @@
       land: s.land.join(''),
       trail: s.trail.join(''),
       players: s.players.map(pl => ({ x: pl.x, y: pl.y, inv: now < pl.inv,
-        speed: left(pl.speedUntil), slow: left(pl.slowUntil), shield: left(pl.shieldUntil), rapid: left(pl.rapidUntil) })),
+        speed: left(pl.speedUntil), slow: left(pl.slowUntil), shield: left(pl.shieldUntil), rapid: left(pl.rapidUntil),
+        stun: left(pl.stunUntil || 0), stunMs: pl.stunMs || 1 })),
       guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0, g.hunting ? 1 : 0,
         now < g.stunUntil ? 1 : 0, now < g.breakUntil ? 1 : 0, g.pers, g.name]),
       powerUps: s.powerUps.map(u => [u.x, u.y, u.type, u.kind]),
@@ -679,7 +681,8 @@
     return {
       land: Array.from(msg.land, Number), trail: Array.from(msg.trail, Number),
       players: msg.players.map(pl => ({ x: pl.x, y: pl.y, inv: pl.inv,
-        speedUntil: now + pl.speed, slowUntil: now + pl.slow, shieldUntil: now + pl.shield, rapidUntil: now + pl.rapid })),
+        speedUntil: now + pl.speed, slowUntil: now + pl.slow, shieldUntil: now + pl.shield, rapidUntil: now + pl.rapid,
+        stunUntil: now + pl.stun, stunMs: pl.stunMs })),
       guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2], hunting: !!g[3],
         stunUntil: g[4] ? now + 300 : 0, breakUntil: g[5] ? now + 300 : 0, pers: g[6], name: g[7] })),
       powerUps: msg.powerUps.map(u => ({ x: u[0], y: u[1], type: u[2], kind: u[3] })),
@@ -781,6 +784,7 @@
   // Feld, Figur, Waechter und Axt genau gleich aussehen wie im 1-Spieler-Modus.
   // Den Gegner zeichnet vsDrawWorld() dazu (Hook am Ende von draw()).
   let vsGuardObjs = [];
+  let vsWasStunned = false;
   let vsRival = null;
   let vsSaved = null;       // waehrend des Matches ueberschriebene Einstellungen
   let vsHud = {};
@@ -863,6 +867,10 @@
     }
     // Schildring waehrend der Schonzeit oder mit Schild-Power-up
     shieldUntil = Math.max(vsInvul(mp, now) ? now + 1000 : 0, mp.shieldUntil);
+    // Wartezeit vorbei: kurzer Piepser, damit man weiss, dass es weitergeht
+    const stunned = now < (mp.stunUntil || 0);
+    if (vsWasStunned && !stunned) sndCountdownBeep(true);
+    vsWasStunned = stunned;
     speedUntil = mp.speedUntil; slowUntil = mp.slowUntil; rapidfireUntil = mp.rapidUntil;
     freezeUntil = s.freezeUntil;
 
@@ -962,6 +970,8 @@
         startTime: now, resolveAt: now + ROULETTE_MS, applied: true, lastTickIdx: -1 });
       if (ev.p === vsMe) { if (ev.kind === 'down') sndPowerDown(ev.type); else sndPowerUp(ev.type); }
     } else if (ev.t === 'hit') {
+      const k = vsSpawnCorner(ev.p);
+      milestonePopups.push({ x: k.x, y: k.y + (ev.p === 0 ? 1 : -1), text: '🏠 Back home!', startTime: now });
       triggerShake(8, 300);
       if (ev.p === vsMe) { triggerDeathFlash(); vibrate(150); }
     }
@@ -1041,14 +1051,42 @@
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-    const rivalLabel = vsCpu ? 'CPU' : 'RIVAL';
+    const meStunned = vsDrawStun(vsState.players[vsMe], mx, my, now);
+    const rivalStunned = vsDrawStun(vsState.players[1 - vsMe], cx, cy, now);
+    const rivalLabel = rivalStunned ? 'WAIT' : (vsCpu ? 'CPU' : 'RIVAL');
     ctx.strokeText(rivalLabel, cx, cy - CELL * 0.7);
     ctx.fillStyle = '#8cc4ff';
     ctx.fillText(rivalLabel, cx, cy - CELL * 0.7);
-    ctx.strokeText('YOU', mx, my - CELL * 0.7);
+    const meLabel = meStunned ? 'WAIT' : 'YOU';
+    ctx.strokeText(meLabel, mx, my - CELL * 0.7);
     ctx.fillStyle = '#7fe0a0';
-    ctx.fillText('YOU', mx, my - CELL * 0.7);
+    ctx.fillText(meLabel, mx, my - CELL * 0.7);
     ctx.restore();
+  }
+
+  // Wartezeit nach einem Treffer: kreisende Sterne (wie beim benommenen Waechter)
+  // und ein Ring, der ablaeuft. Gibt true zurueck, solange gewartet wird.
+  function vsDrawStun(pl, x, y, now) {
+    const left = (pl.stunUntil || 0) - now;
+    if (left <= 0) return false;
+    const frac = Math.min(1, left / (pl.stunMs || 1));
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = Math.max(2, CELL * 0.1);
+    ctx.beginPath();
+    ctx.arc(x, y, CELL * 0.62, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#ffd23f';
+    ctx.beginPath();
+    ctx.arc(x, y, CELL * 0.62, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+    ctx.stroke();
+    ctx.font = Math.floor(CELL * 0.42) + 'px -apple-system, sans-serif';
+    for (let k = 0; k < 3; k++) {
+      const a = now / 180 + k * Math.PI * 2 / 3;
+      ctx.fillText('⭐', x + Math.cos(a) * CELL * 0.4, y - CELL * 0.45 + Math.sin(a) * CELL * 0.12);
+    }
+    ctx.restore();
+    return true;
   }
 
   // Sichtkegel der CPU, gleiche Geometrie wie bei den Waechtern, aber blau
