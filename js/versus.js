@@ -18,7 +18,7 @@
   const VS_SEND_MS = 33;
   // Serie: gewonnen hat, wer mindestens VS_SERIES_WINS Matches und VS_SERIES_LEAD Siege mehr hat
   const VS_SERIES_WINS = 3;
-  const VS_SERIES_LEAD = 1;
+  const VS_SERIES_LEAD = 2;   // wie im Tennis: zwei Siege Vorsprung
 
   let vsActive = false;      // Versus-Bildschirm aktiv (Lobby oder Match)
   let vsPlaying = false;     // Match laeuft
@@ -65,7 +65,7 @@
 
   function vsOpenLobby() {
     vsActive = true;
-    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. First to 3 matches wins. Cut their line or shoot them to send them back home.', [
+    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Win 3 matches with a 2-match lead. Cut their line or shoot them to send them back home.', [
       { label: '📡 Host a match', primary: true, onClick: vsStartHost },
       { label: '🤖 Play vs CPU', onClick: vsStartCpu },
       { label: 'Back', onClick: vsLeave },
