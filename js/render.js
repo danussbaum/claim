@@ -15,6 +15,89 @@
     }
   }
 
+  // Ente (Chaos-Power-down) mit Vektorformen statt Emoji: animierbare Beine und
+  // unabhaengig von Emoji-Schriften, Spiegelung und Szenenfiltern.
+  // Zeichnet um (0,0), Blick nach rechts; R = Kopfradius des Spielers.
+  let duckFacingLeft = false;
+  function drawDuck(R, now, walking) {
+    const step = walking ? Math.sin(now / 65) : 0;
+    ctx.lineCap = 'round';
+    // Beine: schwingen gegenlaeufig, Fuesse als kleine Schwimmflossen
+    ctx.strokeStyle = '#e8892b';
+    ctx.fillStyle = '#e8892b';
+    ctx.lineWidth = Math.max(1.5, R * 0.16);
+    for (const [hipX, phase] of [[-R * 0.22, 1], [R * 0.18, -1]]) {
+      const swing = step * phase * R * 0.32;
+      const lift = Math.max(0, -step * phase) * R * 0.18;
+      const footX = hipX + swing, footY = R * 1.02 - lift;
+      ctx.beginPath();
+      ctx.moveTo(hipX, R * 0.55);
+      ctx.lineTo(footX, footY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(footX - R * 0.08, footY);
+      ctx.lineTo(footX + R * 0.34, footY + R * 0.02);
+      ctx.lineTo(footX + R * 0.12, footY - R * 0.14);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Koerper wippt beim Watscheln
+    const bob = walking ? Math.abs(step) * -R * 0.08 : 0;
+    const tilt = walking ? step * 0.08 : 0;
+    ctx.save();
+    ctx.translate(0, bob);
+    ctx.rotate(tilt);
+    ctx.fillStyle = '#f7d23e';
+    ctx.strokeStyle = '#8a6a12';
+    ctx.lineWidth = Math.max(1, R * 0.07);
+    // Schwanz
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.75, R * 0.05);
+    ctx.lineTo(-R * 1.08, -R * 0.28);
+    ctx.lineTo(-R * 0.62, -R * 0.12);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // Rumpf
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.05, R * 0.18, R * 0.82, R * 0.52, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // Fluegel flattert leicht
+    ctx.fillStyle = '#e9bd2a';
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.15, R * 0.14, R * 0.42, R * 0.24, -0.25 + step * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    // Kopf
+    ctx.fillStyle = '#f7d23e';
+    ctx.beginPath();
+    ctx.arc(R * 0.5, -R * 0.42, R * 0.42, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // Schnabel: klappt beim Quaken (jeder Schritt) kurz auf
+    const open = walking ? Math.max(0, step) * R * 0.1 : 0;
+    ctx.fillStyle = '#f08a24';
+    ctx.beginPath();
+    ctx.moveTo(R * 0.82, -R * 0.44 - open);
+    ctx.lineTo(R * 1.28, -R * 0.36 - open * 0.5);
+    ctx.lineTo(R * 0.84, -R * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(R * 0.84, -R * 0.3);
+    ctx.lineTo(R * 1.2, -R * 0.28 + open * 0.5);
+    ctx.lineTo(R * 0.82, -R * 0.2 + open);
+    ctx.closePath();
+    ctx.fill();
+    // Auge
+    ctx.fillStyle = '#101414';
+    ctx.beginPath();
+    ctx.arc(R * 0.6, -R * 0.52, R * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(R * 0.62, -R * 0.55, R * 0.03, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function draw(now) {
     const dtMs = Math.min(120, Math.max(0, now - (lastDrawTime || now)));
     lastDrawTime = now;
@@ -747,13 +830,13 @@
     if (smokeActive) ctx.globalAlpha = 0.38;
     else if (playerHidden(now)) ctx.globalAlpha = 0.55; // versteckt in der eigenen Flaeche
     if (now < duckUntil) {
-      // Ente statt Kopf
+      // Ente statt Kopf: steht aufrecht, schaut nach links/rechts (bei hoch/runter bleibt die letzte Seite)
       ctx.rotate(-playerLeanDisp);
-      ctx.scale(Math.cos(playerHeadingDisp) < 0 ? 1 : -1, 1);
-      ctx.font = Math.floor(CELL * 0.85) + 'px -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🦆', 0, 2);
+      const hx = Math.cos(playerHeadingDisp);
+      if (Math.abs(hx) > 0.3) duckFacingLeft = hx < 0;
+      if (duckFacingLeft) ctx.scale(-1, 1);
+      const walking = running && !paused && !gameOver && !countdownActive;
+      drawDuck(R * 0.95, now, walking);
     } else {
     // PSYLO-Kopf: Regenbogen-Pulsung, der zur Szenenfilter-Drehung phasenversetzt
     // läuft (innerhalb des gefilterten Blocks also noch schneller als die Bühne).

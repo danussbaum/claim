@@ -95,13 +95,43 @@
 
   // --- Waechter-Persoenlichkeit: Sprechblasen, Stolpern, Kaffeepause, Stau ---
   const GUARD_LINES = {
-    spotted: ['Hey!', 'There!', 'Gotcha!', 'Stop right there!', 'I see you!', 'Intruder!'],
-    lost:    ['...must be the wind.', 'Huh?', 'Where did it go?', 'Nothing here.', 'Weird.'],
-    decoy:   ['A rock?!', 'Who throws rocks?!', 'What was that?', 'Ooh, shiny!'],
-    stuck:   ['Uh... help?', 'Not again!', 'Let me out!', 'Mommy?'],
-    trip:    ['Whoa!', 'Oof!', 'My ankle!', 'Who put that there?!'],
-    break:   ['Coffee time.', 'Five minutes...', 'zzz', 'Union break!'],
-    jam:     ['Move!', 'You move!', 'After you.', 'Hey, my spot!']
+    spotted: [
+      'Hey!', 'There!', 'Gotcha!', 'Stop right there!', 'I see you!',
+      'Intruder!', 'Freeze!', 'Found you!', 'You\'re mine!', 'Halt!',
+      'Over here!', 'Not so fast!', 'Caught you!', 'Aha!', 'Busted!',
+      'Don\'t move!', 'Target spotted!', 'Oi, you!', 'Get back here!', 'Peekaboo!'
+    ],
+    lost: [
+      '...must be the wind.', 'Huh?', 'Where did it go?', 'Nothing here.', 'Weird.',
+      'I swear it was here.', 'Lost it.', 'Hmm...', 'Was I dreaming?', 'Probably a cat.',
+      'Back to patrol.', 'I\'ll get you next time!', 'Where are you?', 'Just my imagination.', 'Did anyone see that?',
+      'Ghosts again?', 'Need new glasses.', 'Whatever.'
+    ],
+    decoy: [
+      'A rock?!', 'Who throws rocks?!', 'What was that?', 'Ooh, shiny!', 'Did that rock move?',
+      'Rock! Suspicious!', 'Hello, rock?', 'Must investigate!', 'Is that... gravel?', 'Who\'s there?',
+      'I heard something!', 'Nice rock.', 'Rocks don\'t fly!', 'Sounded like trouble.'
+    ],
+    stuck: [
+      'Uh... help?', 'Not again!', 'Let me out!', 'Mommy?', 'This is fine.',
+      'Claustrophobic!', 'Walls everywhere!', 'I want my lawyer!', 'I\'ve been framed!', 'Tell my wife...',
+      'Unfair!', 'Oh no...'
+    ],
+    trip: [
+      'Whoa!', 'Oof!', 'My ankle!', 'Who put that there?!', 'Ouch!',
+      'I meant to do that.', 'Stupid hole!', 'Nobody saw that.', 'My knee!', 'Graceful as always.',
+      'Floor attacked me!', 'Ow ow ow!', 'Physics!', 'Mind the gap...'
+    ],
+    break: [
+      'Coffee time.', 'Five minutes...', 'zzz', 'Union break!', 'Espresso o\'clock.',
+      'Just resting my eyes.', 'Break time!', 'Need caffeine.', 'Not my shift.', 'Do not disturb.',
+      'Mmm, decaf.', 'Donut time.'
+    ],
+    jam: [
+      'Move!', 'You move!', 'After you.', 'Hey, my spot!', 'Excuse me?!',
+      'Get out of my way!', 'Traffic jam!', 'I was here first!', 'Rude!', 'Budge over!',
+      'Watch it!', 'Honk honk!'
+    ]
   };
   const BUBBLE_MS = 1600;
   const GUARD_TRIP_CHANCE = 0.25;   // jagender Waechter tritt auf eine Grube
@@ -110,6 +140,7 @@
   const GUARD_BREAK_MS = 3000;
   const BREAK_SNEAK_BONUS = 25;
   let guardBubbles = []; // { e, x, y, text, start }
+  let lastGuardLine = '';
   function guardSay(e, kind, force) {
     const now = performance.now();
     if (!force && now - (e.lastBubbleAt || 0) < 2500) return;
@@ -117,8 +148,13 @@
     const pool = GUARD_LINES[kind];
     e.lastBubbleAt = now;
     guardBubbles = guardBubbles.filter(b => b.e !== e);
-    guardBubbles.push({ e, x: e.c, y: e.r, text: pool[Math.floor(Math.random() * pool.length)], start: now });
-    if (kind === 'lost' || kind === 'stuck') sndBubble(); // die anderen Anlaesse haben eigene Sounds
+    // Nie zweimal hintereinander derselbe Spruch
+    let text = pool[Math.floor(Math.random() * pool.length)];
+    if (text === lastGuardLine) text = pool[(pool.indexOf(text) + 1) % pool.length];
+    lastGuardLine = text;
+    guardBubbles.push({ e, x: e.c, y: e.r, text, start: now });
+    if (e.voiceShift === undefined) e.voiceShift = 0.8 + Math.random() * 0.45; // jeder Waechter hat seine eigene Stimmlage
+    sndGibberish(text, e.personality, e.voiceShift);
   }
   // Benommen oder in der Pause: sieht nichts
   function guardBlind(e, now) {

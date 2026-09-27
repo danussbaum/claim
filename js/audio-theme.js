@@ -407,9 +407,51 @@
     tone(140, 0.15, 'sawtooth', 0.06, 0, 110);
     tone(120, 0.15, 'sawtooth', 0.06, 0.16, 95);
   }
-  function sndBubble() {
-    tone(700 + Math.random() * 300, 0.05, 'triangle', 0.035, 0);
+  // Kauderwelsch der Waechter: ein kurzer Ton pro Silbe. Tonlage nach Typ,
+  // Melodie nach Satzzeichen ('!' steigt, '?' fragt, '...' faellt ab).
+  const GIBBERISH_VOICE = {
+    wanderer: { base: 300, wave: 'square' },
+    hunter:   { base: 190, wave: 'sawtooth' },
+    guardian: { base: 240, wave: 'triangle' },
+    nervous:  { base: 440, wave: 'square' },
+    cutter:   { base: 360, wave: 'triangle' }
+  };
+  function sndGibberish(text, personality, voiceShift) {
+    const voice = GIBBERISH_VOICE[personality] || GIBBERISH_VOICE.wanderer;
+    const syllables = Math.max(2, Math.min(9, (text.toLowerCase().match(/[aeiouy]+/g) || []).length + (Math.random() < 0.4 ? 1 : 0)));
+    const shout = /!/.test(text), ask = /\?/.test(text), trail = /\.\.\./.test(text);
+    const base = voice.base * (voiceShift || 1);
+    const gap = personality === 'nervous' ? 0.065 : 0.09;
+    // Satzmelodie pro Spruch zufaellig: steigend, fallend, Welle oder hin und her springend
+    const contour = Math.floor(Math.random() * 4);
+    const vol = shout ? 0.11 : 0.08;
+    let t = 0;
+    for (let i = 0; i < syllables; i++) {
+      const last = i === syllables - 1;
+      const k = syllables > 1 ? i / (syllables - 1) : 0;
+      let shape = 1;
+      if (contour === 0) shape = 0.85 + k * 0.4;
+      else if (contour === 1) shape = 1.2 - k * 0.4;
+      else if (contour === 2) shape = 1 + Math.sin(k * Math.PI * 2) * 0.25;
+      else shape = i % 2 ? 0.8 : 1.25;
+      let f = base * shape * (1 + (Math.random() - 0.5) * 0.6);
+      if (shout) f *= 1.2;
+      if (trail) f *= 1 - k * 0.35;
+      // Jede Silbe gleitet anders: hoch, runter oder "wa-wa"
+      let glide = f * (0.75 + Math.random() * 0.55);
+      if (last && ask) glide = f * 1.7;
+      else if (last && shout) glide = f * 1.35;
+      else if (last && trail) glide = f * 0.7;
+      const dur = gap * (0.55 + Math.random() * 0.7) * (last && (ask || trail) ? 1.8 : 1);
+      const wave = Math.random() < 0.25 ? (voice.wave === 'triangle' ? 'square' : 'triangle') : voice.wave;
+      tone(f, dur, wave, vol, t, glide);
+      // Zweiter, hoeherer Oberton faerbt den "Vokal" jeder Silbe unterschiedlich
+      tone(f * (2 + Math.random() * 1.5), dur * 0.8, 'sine', vol * 0.35, t, glide * 2.2);
+      t += dur + gap * (0.15 + Math.random() * 0.5);
+      if (!last && Math.random() < 0.12) t += gap; // kleine Denkpause
+    }
   }
+
   function sndGadgetHook() {
     tone(260, 0.1, 'square', 0.11, 0, 520);
     tone(180, 0.14, 'sawtooth', 0.09, 0.04, 340);
