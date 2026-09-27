@@ -5,6 +5,9 @@
   const ctx = boardCanvas.getContext('2d');
 
   const EMPTY = 0, TERRITORY = 1, TRAIL = 2, BLOCK = 3, PIT = 4;
+  // Nur im 2-Spieler-Versus: Flaeche und Linie des Gegners
+  const RIVAL_TERRITORY = 5, RIVAL_TRAIL = 6;
+  let versusRender = false; // draw() zeichnet gerade ein Versus-Match (js/versus.js)
   // Bonuszone: Zellen bleiben normal eroberbar, geben aber extra Punkte.
   let bonusCells = [];        // [{r, c}]
   let bonusClaimed = false;

@@ -1,14 +1,10 @@
   // --- 2-Spieler-Versus ueber WebRTC (js/net.js) ---
-  // Eigene, schlanke Simulation, damit der 1-Spieler-Code unberuehrt bleibt.
+  // Eigene, schlanke Simulation, damit die 1-Spieler-Logik unberuehrt bleibt.
+  // Gezeichnet wird trotzdem mit draw() aus render.js (siehe vsSyncRender).
   // Der Host rechnet alles, der Gast schickt nur Eingaben und zeichnet den Zustand.
 
-  const VS_COLORS = [
-    { head: '#3ecf7a', trail: '#8ff0b4', land: '#1f6b43', name: 'Green' },
-    { head: '#4aa3ff', trail: '#a3d0ff', land: '#1f4f80', name: 'Blue' },
-  ];
-  const VS_STEP_MS = 140;         // Spielerschritt
+  const VS_STEP_MS = 170;         // Spielerschritt
   const VS_GUARD_MS = 260;        // Waechterschritt
-  const VS_SHOT_MS = 45;          // Schuss pro Zelle
   const VS_SHOT_RANGE = 8;
   const VS_SHOT_COOLDOWN = 900;
   const VS_GUARDS = 3;
@@ -18,14 +14,14 @@
   const VS_MATCH_MS = 120000;
   const VS_WIN_PCT = 50;
   const VS_COUNTDOWN_MS = 3000;
-  const VS_SEND_MS = 50;
+  const VS_SEND_MS = 33;
 
   let vsActive = false;      // Versus-Bildschirm aktiv (Lobby oder Match)
   let vsPlaying = false;     // Match laeuft
   let vsIsHost = false;
   let vsMe = 0;              // 0 = Host, 1 = Gast
   let vsState = null;        // beim Host die Wahrheit, beim Gast die letzte Kopie
-  let vsRaf = 0, vsLastTime = 0, vsSendTimer = 0;
+  let vsRaf = 0, vsLastTime = 0, vsSendTimer = 0, vsPlayed = 0;
 
   // --- Overlay / Lobby ---
   function vsPanel() { return document.getElementById('vsPanel'); }
@@ -107,6 +103,7 @@
     Net.onClose = () => {};
     Net.close();
     vsState = null;
+    vsExitRender();
     vsHidePanel();
     openModeSelect();
   }
@@ -125,11 +122,11 @@
       trail: new Array(COLS * ROWS).fill(0),  // 0 keine, 1/2 Linie von Spieler 0/1
       players: [],
       guards: [],
-      shots: [],
+      events: [],             // Schuesse usw. fuer die Darstellung, werden mit dem Zustand verschickt
       timeLeft: VS_MATCH_MS,
       countdown: VS_COUNTDOWN_MS,
       over: null,
-      stepT: 0, guardT: 0, shotT: 0,
+      stepT: 0, guardT: 0,
     };
     for (let p = 0; p < 2; p++) {
       const c = vsSpawnCorner(p);
@@ -167,6 +164,7 @@
     pl.trail.forEach(i => { s.trail[i] = 0; });
     pl.trail = [];
     pl.lives--;
+    s.events.push({ t: 'hit', p });
     if (pl.lives <= 0) { vsEndMatch(s, 1 - p, 'out of lives'); return; }
     // Zurueck aufs eigene Land, moeglichst nahe der Startecke
     const c = vsSpawnCorner(p);
@@ -183,7 +181,6 @@
     pl.x = best.x; pl.y = best.y;
     pl.dir = pl.next = null;
     pl.inv = now + VS_INVULN_MS;
-    s.flash = { p, until: now + 400 };
   }
 
   function vsCapture(s, p) {
@@ -261,27 +258,31 @@
     });
   }
 
+  // Wie im 1-Spieler-Modus trifft der Schuss sofort; die Axt fliegt nur als Animation.
   function vsShoot(s, p, now) {
     const pl = s.players[p];
     if (now < pl.shotReady || s.countdown > 0 || s.over) return;
     pl.shotReady = now + VS_SHOT_COOLDOWN;
     const [dx, dy] = vsDelta(pl.dir || pl.lastDir);
-    s.shots.push({ x: pl.x, y: pl.y, dx, dy, owner: p, left: VS_SHOT_RANGE });
-  }
-
-  function vsStepShots(s, now) {
-    s.shots = s.shots.filter(sh => {
-      sh.x += sh.dx; sh.y += sh.dy; sh.left--;
-      if (!vsInBounds(sh.x, sh.y) || sh.left < 0) return false;
-      const opp = 1 - sh.owner, op = s.players[opp];
-      const g = s.guards.find(g => !g.deadUntil && g.x === sh.x && g.y === sh.y);
-      if (g) { g.deadUntil = now + VS_GUARD_RESPAWN; return false; }
-      if ((op.x === sh.x && op.y === sh.y) || s.trail[vsIdx(sh.x, sh.y)] === opp + 1) {
-        vsKill(s, opp, now);
-        return false;
+    const opp = 1 - p, op = s.players[opp];
+    const path = [[pl.x, pl.y]];
+    let x = pl.x, y = pl.y;
+    for (let k = 0; k < VS_SHOT_RANGE; k++) {
+      x += dx; y += dy;
+      if (!vsInBounds(x, y)) break;
+      path.push([x, y]);
+      const g = s.guards.find(g => !g.deadUntil && g.x === x && g.y === y);
+      if (g) {
+        g.deadUntil = now + VS_GUARD_RESPAWN;
+        s.events.push({ t: 'guardDown', x, y, dx, dy, i: s.guards.indexOf(g) });
+        break;
       }
-      return true;
-    });
+      if ((op.x === x && op.y === y) || s.trail[vsIdx(x, y)] === opp + 1) {
+        vsKill(s, opp, now);
+        break;
+      }
+    }
+    s.events.push({ t: 'shot', path });
   }
 
   function vsPct(s, p) {
@@ -300,8 +301,7 @@
     if (s.over) return;
     if (s.countdown > 0) { s.countdown -= delta; return; }
     s.timeLeft -= delta;
-    s.stepT += delta; s.guardT += delta; s.shotT += delta;
-    while (s.shotT >= VS_SHOT_MS) { s.shotT -= VS_SHOT_MS; vsStepShots(s, now); }
+    s.stepT += delta; s.guardT += delta;
     if (s.stepT >= VS_STEP_MS) {
       s.stepT = Math.min(s.stepT - VS_STEP_MS, VS_STEP_MS);
       vsStepPlayer(s, 0, now);
@@ -326,8 +326,8 @@
       trail: s.trail.join(''),
       players: s.players.map(pl => ({ x: pl.x, y: pl.y, lives: pl.lives, inv: now < pl.inv,
         cd: Math.max(0, pl.shotReady - now) })),
-      guards: s.guards.filter(g => !g.deadUntil).map(g => [g.x, g.y]),
-      shots: s.shots.map(sh => [sh.x, sh.y, sh.owner]),
+      guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0]),
+      events: s.events,
       timeLeft: s.timeLeft, countdown: s.countdown, over: s.over,
       pct: [vsPct(s, 0), vsPct(s, 1)],
     };
@@ -335,6 +335,7 @@
 
   function vsHostStartMatch() {
     vsState = vsNewState();
+    vsPlayed = 0;
     Net.send({ t: 'start' });
     vsBeginLoop();
   }
@@ -349,15 +350,18 @@
       else if (msg.t === 'rematch' && vsState.over) vsHostStartMatch();
     } else {
       if (msg.t === 'start') { vsState = null; vsBeginLoop(); }
-      else if (msg.t === 'state') vsState = vsUnpack(msg);
+      else if (msg.t === 'state') {
+        vsState = vsUnpack(msg);
+        (msg.events || []).forEach(vsPlayEvent);
+      }
     }
   }
 
   function vsUnpack(msg) {
     return {
       land: Array.from(msg.land, Number), trail: Array.from(msg.trail, Number),
-      players: msg.players, guards: msg.guards.map(g => ({ x: g[0], y: g[1] })),
-      shots: msg.shots.map(s => ({ x: s[0], y: s[1], owner: s[2] })),
+      players: msg.players, guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2] })),
+      events: [],
       timeLeft: msg.timeLeft, countdown: msg.countdown, over: msg.over, pct: msg.pct,
     };
   }
@@ -372,12 +376,14 @@
 
   // --- Eingaben (ersetzen die 1-Spieler-Handler, solange Versus aktiv ist) ---
   function vsInputDir(d) {
+    ensureAudio(); // der Gast kommt per QR-Link und hat evtl. noch nie getippt
     if (!vsPlaying) return;
     if (vsIsHost) vsApplyDir(vsState.players[0], d);
     else Net.send({ t: 'dir', d });
   }
 
   function vsInputShoot() {
+    ensureAudio();
     if (!vsPlaying) return;
     if (vsIsHost) vsShoot(vsState, 0, performance.now());
     else Net.send({ t: 'shoot' });
@@ -388,6 +394,7 @@
     vsPlaying = true;
     vsHidePanel();
     document.getElementById('overlay').classList.add('hidden');
+    vsEnterRender();
     vsShownOver = false;
     vsLastTime = 0;
     cancelAnimationFrame(vsRaf);
@@ -407,13 +414,18 @@
     vsLastTime = time;
     if (vsIsHost && vsState) {
       vsHostTick(delta, performance.now());
+      // Eigene Effekte sofort zeigen, verschickt werden sie mit dem naechsten Zustand
+      vsState.events.slice(vsPlayed).forEach(vsPlayEvent);
+      vsPlayed = vsState.events.length;
       vsSendTimer += delta;
       if (vsSendTimer >= VS_SEND_MS || vsState.over) {
         vsSendTimer = 0;
         Net.send(vsSnapshot(vsState));
+        vsState.events = [];
+        vsPlayed = 0;
       }
     }
-    vsDraw();
+    vsDraw(performance.now());
     const over = vsState && vsState.over;
     if (over && !vsShownOver) { vsShownOver = true; setTimeout(vsShowResult, 900); }
     vsRaf = requestAnimationFrame(vsLoop);
@@ -433,98 +445,278 @@
     vsSetStatus('');
   }
 
-  // --- Zeichnen ---
-  function vsDraw() {
-    const w = boardCanvas.width, h = boardCanvas.height;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#0d1410';
-    ctx.fillRect(0, 0, w, h);
-    const s = vsState;
-    if (!s) {
+  // --- Zeichnen: nutzt draw() aus render.js ---
+  // Der Versus-Zustand wird in die globalen 1-Spieler-Variablen gespiegelt, damit
+  // Feld, Figur, Waechter und Axt genau gleich aussehen wie im 1-Spieler-Modus.
+  // Den Gegner zeichnet vsDrawWorld() dazu (Hook am Ende von draw()).
+  let vsGuardObjs = [];
+  let vsRival = null;
+  let vsSaved = null;       // waehrend des Matches ueberschriebene Einstellungen
+  let vsHud = {};
+  const VS_STAT_LABELS = ['YOU', 'RIVAL', 'TIME', 'LIVES'];
+
+  function vsEnterRender() {
+    if (!vsSaved) {
+      const stats = Array.from(document.querySelectorAll('.topbar .stat'));
+      vsSaved = { cameraMode, labels: stats.map(el => el.firstChild.nodeValue) };
+      stats.forEach((el, i) => { el.firstChild.nodeValue = VS_STAT_LABELS[i]; });
+    }
+    cameraMode = 'standard';
+    if (!perks) perks = defaultPerks();
+    // Reste eines 1-Spieler-Laufs abschalten
+    shieldUntil = speedUntil = freezeUntil = confuseUntil = fogUntil = alarmUntil = 0;
+    trailGuardUntil = rapidfireUntil = spikesUntil = slowUntil = swarmUntil = 0;
+    drunkUntil = psyloUntil = duckUntil = heliumUntil = discoUntil = smokeUntil = 0;
+    bananaSlide = 0; hookAnim = null; killCam = null;
+    powerUps = []; swarmEnemies = []; decoys = []; bananaPeels = []; movingBlocks = [];
+    bonusCells = []; flashCells = []; guardBubbles = []; enemyDeathAnims = []; shotProjectiles = [];
+    nearMissPopups = []; comboPopups = []; revealPopups = []; milestonePopups = []; emotePopups = [];
+    fireworkParticles = []; dustParticles = []; smokeParticles = []; bgRipples = [];
+    countdownActive = false; dying = false; gameOver = false; paused = false;
+    playerInterval = VS_STEP_MS; enemyInterval = VS_GUARD_MS;
+    enemies = []; vsGuardObjs = []; vsRival = null; vsHud = {};
+    px = py = prevPx = prevPy = -99; // erste Position ohne Gleiten uebernehmen
+    versusRender = true;
+  }
+
+  function vsExitRender() {
+    versusRender = false;
+    if (!vsSaved) return;
+    cameraMode = vsSaved.cameraMode;
+    document.querySelectorAll('.topbar .stat').forEach((el, i) => { el.firstChild.nodeValue = vsSaved.labels[i]; });
+    vsSaved = null;
+    shieldUntil = 0; enemies = []; shotProjectiles = []; enemyDeathAnims = []; trail = [];
+    initGrid();
+    px = Math.floor(COLS / 2); py = 0; prevPx = px; prevPy = py;
+    draw(performance.now());
+  }
+
+  function vsInvul(pl, now) { return typeof pl.inv === 'boolean' ? pl.inv : now < pl.inv; }
+
+  const VS_DIRS = { '0,-1': 'up', '0,1': 'down', '-1,0': 'left', '1,0': 'right' };
+
+  function vsSyncRender(now) {
+    const s = vsState, me = vsMe;
+    let myTrail = 0, rivalTrail = 0;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const i = vsIdx(c, r), t = s.trail[i], l = s.land[i];
+      if (t === me + 1) myTrail++; else if (t) rivalTrail++;
+      grid[r][c] = t ? (t === me + 1 ? TRAIL : RIVAL_TRAIL) : l ? (l === me + 1 ? TERRITORY : RIVAL_TERRITORY) : EMPTY;
+    }
+    trail = new Array(myTrail);
+
+    // Eigene Figur: Schritt erkennen und wie im 1-Spieler-Modus gleiten lassen
+    const mp = s.players[me];
+    if (mp.x !== px || mp.y !== py) {
+      const jump = Math.abs(mp.x - px) + Math.abs(mp.y - py) > 1;
+      const d = VS_DIRS[(mp.x - px) + ',' + (mp.y - py)];
+      if (d) dir = d;
+      else if (jump && px === -99) dir = me === 0 ? 'down' : 'up';
+      prevPx = jump ? mp.x : px; prevPy = jump ? mp.y : py;
+      px = mp.x; py = mp.y;
+      playerStepTime = now;
+    }
+    shieldUntil = vsInvul(mp, now) ? now + 1000 : 0; // Schildring waehrend der Schonzeit
+
+    // Gegner
+    const rp = s.players[1 - me];
+    if (!vsRival) {
+      const h = me === 0 ? -Math.PI / 2 : Math.PI / 2;
+      vsRival = { x: rp.x, y: rp.y, prevX: rp.x, prevY: rp.y, stepTime: 0, heading: h, headingDisp: h, lastDraw: now };
+    } else if (rp.x !== vsRival.x || rp.y !== vsRival.y) {
+      const dx = rp.x - vsRival.x, dy = rp.y - vsRival.y;
+      const jump = Math.abs(dx) + Math.abs(dy) > 1;
+      if (!jump) vsRival.heading = Math.atan2(dy, dx);
+      vsRival.prevX = jump ? rp.x : vsRival.x; vsRival.prevY = jump ? rp.y : vsRival.y;
+      vsRival.x = rp.x; vsRival.y = rp.y;
+      vsRival.stepTime = now;
+    }
+    vsRival.inv = vsInvul(rp, now);
+    vsRival.trailLen = rivalTrail;
+
+    // Waechter: feste Objekte je Index, damit sie gleiten statt springen
+    const alive = [], movedNow = [];
+    s.guards.forEach((g, i) => {
+      if (g.deadUntil) { vsGuardObjs[i] = null; return; }
+      let e = vsGuardObjs[i];
+      if (!e) {
+        const pers = BASE_PERSONALITIES[i % BASE_PERSONALITIES.length];
+        e = { r: g.y, c: g.x, prevR: g.y, prevC: g.x, personality: pers, name: guardName(pers),
+          dc0: 1, dr0: 0, angleDisp: undefined, wasHunting: false, huntingActive: false,
+          huntCooldownUntil: 0, lastSeenAt: -99999 };
+        vsGuardObjs[i] = e;
+      } else if (e.c !== g.x || e.r !== g.y) {
+        e.dc0 = Math.sign(g.x - e.c); e.dr0 = Math.sign(g.y - e.r);
+        e.prevC = e.c; e.prevR = e.r; e.c = g.x; e.r = g.y;
+        movedNow.push(e);
+      }
+      alive.push(e);
+    });
+    if (movedNow.length) {
+      enemyStepTime = now;
+      alive.forEach(e => { if (!movedNow.includes(e)) { e.prevC = e.c; e.prevR = e.r; } });
+    }
+    enemies = alive;
+
+    // Anzeige oben
+    const pct = s.pct || [vsPct(s, 0), vsPct(s, 1)];
+    const secs = Math.max(0, Math.ceil(s.timeLeft / 1000));
+    vsSetHud('pct', pct[me] + '%');
+    vsSetHud('score', pct[1 - me] + '%');
+    vsSetHud('level', Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'));
+    vsSetHud('lives', String(Math.max(0, mp.lives)));
+  }
+
+  function vsSetHud(id, text) {
+    if (vsHud[id] === text) return;
+    vsHud[id] = text;
+    document.getElementById(id).textContent = text;
+  }
+
+  function vsPlayEvent(ev) {
+    const now = performance.now();
+    if (ev.t === 'shot') {
+      shotProjectiles.push({
+        pts: ev.path.map(([x, y]) => [x * CELL + CELL / 2, y * CELL + CELL / 2]),
+        startTime: now, life: 220 + (ev.path.length > 2 ? 140 : 0)
+      });
+      sndShoot();
+    } else if (ev.t === 'guardDown') {
+      const pers = BASE_PERSONALITIES[ev.i % BASE_PERSONALITIES.length];
+      enemyDeathAnims.push({ r: ev.y, c: ev.x, kind: 'shot', dx: ev.dx, dy: ev.dy,
+        color: PERSONALITY_COLORS[pers] || '#e3574a', startTime: now });
+      sndEnemyDeath();
+      triggerShake(6, 220);
+    } else if (ev.t === 'hit') {
+      triggerShake(8, 300);
+      if (ev.p === vsMe) { triggerDeathFlash(); vibrate(150); }
+    }
+  }
+
+  function vsDraw(now) {
+    if (!vsState) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#0d1410';
+      ctx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
       ctx.fillStyle = '#7fe0a0';
       ctx.font = '600 ' + Math.round(CELL * 0.7) + 'px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Waiting for host...', w / 2, h / 2);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Waiting for host...', boardCanvas.width / 2, boardCanvas.height / 2);
       ctx.restore();
       return;
     }
-    // Gitter
-    ctx.strokeStyle = 'rgba(127,224,160,0.06)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= COLS; x++) { ctx.beginPath(); ctx.moveTo(x * CELL + 0.5, 0); ctx.lineTo(x * CELL + 0.5, h); ctx.stroke(); }
-    for (let y = 0; y <= ROWS; y++) { ctx.beginPath(); ctx.moveTo(0, y * CELL + 0.5); ctx.lineTo(w, y * CELL + 0.5); ctx.stroke(); }
-    // Land und Linien
-    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
-      const i = vsIdx(x, y);
-      if (s.land[i]) {
-        ctx.fillStyle = VS_COLORS[s.land[i] - 1].land;
-        ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
-      }
-      if (s.trail[i]) {
-        ctx.fillStyle = VS_COLORS[s.trail[i] - 1].trail;
-        const m = CELL * 0.25;
-        ctx.fillRect(x * CELL + m, y * CELL + m, CELL - 2 * m, CELL - 2 * m);
-      }
+    vsSyncRender(now);
+    draw(now);
+    vsDrawCountdown();
+  }
+
+  // Wird von draw() im Weltkoordinatensystem aufgerufen
+  function vsDrawWorld(now) {
+    const rv = vsRival;
+    if (!rv) return;
+    const dt = Math.min(120, Math.max(0, now - rv.lastDraw));
+    rv.lastDraw = now;
+    rv.headingDisp = easeAngle(rv.headingDisp, rv.heading, dt, 52);
+    const t = Math.min(1, (now - rv.stepTime) / VS_STEP_MS);
+    const cx = (rv.prevX + (rv.x - rv.prevX) * t) * CELL + CELL / 2;
+    const cy = (rv.prevY + (rv.y - rv.prevY) * t) * CELL + CELL / 2;
+    const R = CELL * 0.38;
+    const bounce = Math.sin(t * Math.PI);
+    const h = rv.headingDisp;
+
+    if (rv.inv) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, CELL * 0.52, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(79,126,229,0.85)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
     }
-    // Waechter
-    s.guards.forEach(g => {
-      ctx.fillStyle = '#e3574a';
-      ctx.beginPath(); ctx.arc((g.x + 0.5) * CELL, (g.y + 0.5) * CELL, CELL * 0.38, 0, Math.PI * 2); ctx.fill();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(h);
+    ctx.scale(1 + bounce * 0.18, 1 - bounce * 0.13);
+    ctx.rotate(-h);
+    ctx.fillStyle = '#8cc4ff';
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    // Gesicht wie beim Spieler: entschlossen mit Linie, sonst entspannt
+    const eyeOffX = R * 0.36, eyeOffY = -R * 0.06;
+    const lookX = Math.cos(h) * 0.5, lookY = Math.sin(h) * 0.5;
+    const determined = rv.trailLen > 0;
+    const eyeR = determined ? R * 0.2 : R * 0.22;
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX;
+      ctx.beginPath();
+      ctx.arc(exx, eyeOffY, eyeR, 0, Math.PI * 2);
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc((g.x + 0.5) * CELL, (g.y + 0.42) * CELL, CELL * 0.1, 0, Math.PI * 2); ctx.fill();
-    });
-    // Schuesse
-    s.shots.forEach(sh => {
-      ctx.fillStyle = '#ffe36b';
-      ctx.beginPath(); ctx.arc((sh.x + 0.5) * CELL, (sh.y + 0.5) * CELL, CELL * 0.15, 0, Math.PI * 2); ctx.fill();
-    });
-    // Spieler
-    const now = performance.now();
-    const players = s.players.map(pl => ({ x: pl.x, y: pl.y, lives: pl.lives,
-      inv: typeof pl.inv === 'boolean' ? pl.inv : now < pl.inv }));
-    players.forEach((pl, p) => {
-      if (pl.inv && Math.floor(now / 120) % 2) return; // blinken nach Treffer
-      const cx = (pl.x + 0.5) * CELL, cy = (pl.y + 0.5) * CELL;
-      ctx.fillStyle = VS_COLORS[p].head;
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = Math.max(1.5, CELL * 0.08);
-      ctx.fillRect(pl.x * CELL + CELL * 0.12, pl.y * CELL + CELL * 0.12, CELL * 0.76, CELL * 0.76);
-      ctx.strokeRect(pl.x * CELL + CELL * 0.12, pl.y * CELL + CELL * 0.12, CELL * 0.76, CELL * 0.76);
-      if (p === vsMe) {
-        ctx.fillStyle = '#fff';
-        ctx.font = '700 ' + Math.round(CELL * 0.42) + 'px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('YOU', cx, cy - CELL * 0.6);
-      }
-    });
-    // Anzeige oben
-    const pct = s.pct || [vsPct(s, 0), vsPct(s, 1)];
-    const me = vsMe, opp = 1 - vsMe;
-    const barH = Math.round(CELL * 0.9);
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, w, barH);
-    ctx.font = '700 ' + Math.round(barH * 0.5) + 'px "Space Grotesk", sans-serif';
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = VS_COLORS[me].head;
-    ctx.fillText('YOU ' + pct[me] + '%  ' + '♥'.repeat(Math.max(0, players[me].lives)), 6, barH / 2);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = VS_COLORS[opp].head;
-    ctx.fillText('♥'.repeat(Math.max(0, players[opp].lives)) + '  ' + pct[opp] + '% RIVAL', w - 6, barH / 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx + lookX * eyeR * 0.5, eyeOffY + lookY * eyeR * 0.5, eyeR * 0.52, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#101414';
+    ctx.lineWidth = Math.max(1.3, R * 0.1);
+    ctx.lineCap = 'round';
+    if (determined) {
+      ctx.beginPath();
+      ctx.moveTo(-eyeOffX - R * 0.18, eyeOffY - R * 0.32);
+      ctx.lineTo(-eyeOffX + R * 0.15, eyeOffY - R * 0.22);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(eyeOffX + R * 0.18, eyeOffY - R * 0.32);
+      ctx.lineTo(eyeOffX - R * 0.15, eyeOffY - R * 0.22);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.16, R * 0.4);
+      ctx.lineTo(R * 0.16, R * 0.4);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, R * 0.28, R * 0.22, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Namensschilder
+    const pt = Math.min(1, (now - playerStepTime) / VS_STEP_MS);
+    const mx = (prevPx + (px - prevPx) * pt) * CELL + CELL / 2;
+    const my = (prevPy + (py - prevPy) * pt) * CELL + CELL / 2;
+    ctx.save();
+    ctx.font = '700 ' + Math.max(9, Math.round(CELL * 0.34)) + 'px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.strokeText('RIVAL', cx, cy - CELL * 0.7);
+    ctx.fillStyle = '#8cc4ff';
+    ctx.fillText('RIVAL', cx, cy - CELL * 0.7);
+    ctx.strokeText('YOU', mx, my - CELL * 0.7);
+    ctx.fillStyle = '#7fe0a0';
+    ctx.fillText('YOU', mx, my - CELL * 0.7);
+    ctx.restore();
+  }
+
+  function vsDrawCountdown() {
+    const s = vsState;
+    if (!s || s.countdown <= 0) return;
+    const w = boardCanvas.width, h = boardCanvas.height;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
-    const secs = Math.max(0, Math.ceil(s.timeLeft / 1000));
-    ctx.fillText(Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'), w / 2, barH / 2);
-    // Countdown
-    if (s.countdown > 0) {
-      ctx.fillStyle = '#fff';
-      ctx.font = '800 ' + Math.round(CELL * 3) + 'px Orbitron, sans-serif';
-      ctx.fillText(String(Math.ceil(s.countdown / 1000)), w / 2, h / 2);
-      ctx.font = '600 ' + Math.round(CELL * 0.6) + 'px "Space Grotesk", sans-serif';
-      ctx.fillStyle = VS_COLORS[me].head;
-      ctx.fillText('You are ' + VS_COLORS[me].name, w / 2, h / 2 + CELL * 2);
-    }
+    ctx.font = '800 ' + Math.round(CELL * 3) + 'px Orbitron, sans-serif';
+    ctx.fillText(String(Math.ceil(s.countdown / 1000)), w / 2, h / 2);
+    ctx.font = '600 ' + Math.round(CELL * 0.6) + 'px "Space Grotesk", sans-serif';
+    ctx.fillStyle = '#7fe0a0';
+    ctx.fillText('You are green', w / 2, h / 2 + CELL * 2);
     ctx.restore();
   }
 

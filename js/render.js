@@ -460,6 +460,18 @@ function draw(now) {
           ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
           ctx.fillStyle = 'rgba(255,255,255,0.08)';
           ctx.fillRect(c*CELL, r*CELL, CELL, 2);
+        } else if (v === RIVAL_TERRITORY) {
+          ctx.fillStyle = '#2f5f9f';
+          ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(c*CELL, r*CELL, CELL, 2);
+        } else if (v === RIVAL_TRAIL) {
+          ctx.save();
+          ctx.shadowColor = '#6fb4ff';
+          ctx.shadowBlur = CELL * 0.55;
+          ctx.fillStyle = '#6fb4ff';
+          ctx.fillRect(c*CELL+3, r*CELL+3, CELL-6, CELL-6);
+          ctx.restore();
         } else if (v === TRAIL) {
           if (c === px && r === py && playerT < 1) {
             // neuester Trail-Block: erst einblenden, wenn der Punkt visuell ankommt
@@ -1247,6 +1259,7 @@ function draw(now) {
 
     // Sichtkegel unter den Waechtern
     for (const e of enemies) {
+      if (versusRender) break; // Versus-Waechter prallen nur ab, sie haben keine Sicht
       const v = VISION[e.personality] || VISION.wanderer;
       const dc = e.prevC + (e.c - e.prevC) * enemyT;
       const dr = e.prevR + (e.r - e.prevR) * enemyT;
@@ -1551,6 +1564,7 @@ function draw(now) {
       ctx.fillText(b.text, 0, 1);
       ctx.restore();
     }
+    if (versusRender) vsDrawWorld(now);
     ctx.restore();
 
     // Szenenfilter (Drunk/PSYLO) in einem einzigen Durchgang aufs fertige Bild
