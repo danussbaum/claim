@@ -101,6 +101,7 @@
       startTime: performance.now()
     });
     sndEnemyDeath();
+    guardScream(e);
     statKills++;
     triggerShake(6, 220);
     triggerSlowMo(110);

@@ -154,7 +154,74 @@
     lastGuardLine = text;
     guardBubbles.push({ e, x: e.c, y: e.r, text, start: now });
     if (e.voiceShift === undefined) e.voiceShift = 0.8 + Math.random() * 0.45; // jeder Waechter hat seine eigene Stimmlage
-    sndGibberish(text, e.personality, e.voiceShift);
+    if (voiceMode === 'gibberish') sndGibberish(text, e.personality, e.voiceShift);
+    else if (voiceMode === 'speech') guardSpeak(e, text);
+  }
+
+  // Stimmen der Waechter: Kauderwelsch, Sprachausgabe oder nichts
+  const VOICE_MODES = {
+    gibberish: { label: 'Gibberish', desc: 'Guards babble.' },
+    speech: { label: 'Speech', desc: 'Guards speak their lines.' },
+    off: { label: 'Off', desc: 'Guards are silent.' }
+  };
+  let voiceMode = 'gibberish';
+  try {
+    const v = localStorage.getItem('claim_voice');
+    if (v && VOICE_MODES[v]) voiceMode = v;
+  } catch (e) { /* ignore */ }
+  function setVoiceMode(v) {
+    if (!VOICE_MODES[v]) return;
+    voiceMode = v;
+    try { localStorage.setItem('claim_voice', v); } catch (e) { /* ignore */ }
+    if (v !== 'speech' && window.speechSynthesis) speechSynthesis.cancel();
+  }
+  // Todesschrei beim Abschuss: unterbricht einen laufenden Spruch
+  const GUARD_SCREAMS = ['Aaaaargh!', 'Noooooo!', 'Aaaaah!', 'Argh!', 'Waaaah!', 'Uaaaargh!'];
+  function guardScream(e) {
+    const text = GUARD_SCREAMS[Math.floor(Math.random() * GUARD_SCREAMS.length)];
+    if (voiceMode === 'gibberish') {
+      sndGibberish(text, e.personality, (e.voiceShift || 1) * 1.3);
+    } else if (voiceMode === 'speech' && window.speechSynthesis) {
+      speechSynthesis.cancel();
+      guardSpeak(e, text, true);
+    }
+  }
+  function guardVoices() {
+    if (!window.speechSynthesis) return [];
+    const all = speechSynthesis.getVoices();
+    const en = all.filter(v => /^en/i.test(v.lang));
+    return en.length ? en : all;
+  }
+  function guardSpeak(e, text, scream) {
+    const synth = window.speechSynthesis;
+    if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
+    // Laeuft schon ein Spruch, wird der neue unterdrueckt
+    if (!scream && (synth.speaking || synth.pending)) return;
+    // Jeder Waechter bekommt einmalig eigene Stimme, Tonhoehe und Tempo
+    if (!e.speechVoice) {
+      const voices = guardVoices();
+      e.speechVoice = {
+        idx: Math.floor(Math.random() * 1000),
+        pitch: 0.4 + Math.random() * 0.7,  // eher tief = bedrohlicher
+        rate: 1.3 + Math.random() * 0.5    // schnell und gehetzt
+      };
+      if (!voices.length) e.speechVoice.idx = -1;
+    }
+    const sv = e.speechVoice;
+    // Ausrufezeichen statt Punkt: klingt bei vielen Stimmen schaerfer
+    const u = new SpeechSynthesisUtterance(text.replace(/\.+$/, '!').replace(/([^!?])$/, '$1!'));
+    const voices = guardVoices();
+    // Sprache immer Englisch setzen, sonst liest das Handy mit deutscher Stimme vor
+    u.lang = 'en-US';
+    if (voices.length) {
+      u.voice = voices[Math.abs(sv.idx) % voices.length];
+      if (/^en/i.test(u.voice.lang)) u.lang = u.voice.lang;
+    }
+    u.pitch = sv.pitch;
+    u.rate = sv.rate;
+    if (scream) { u.pitch = Math.min(2, sv.pitch + 0.8); u.rate = 1.1; }
+    u.volume = 1;
+    synth.speak(u);
   }
   // Benommen oder in der Pause: sieht nichts
   function guardBlind(e, now) {
