@@ -209,6 +209,7 @@
     if (now < pl.inv || now < pl.shieldUntil || s.over) return;
     pl.trail.forEach(i => { s.trail[i] = 0; });
     pl.trail = [];
+    pl.combo = 0;
     // Alles Land verloren: freie Zellen der Startkanten zurueck, sonst kaeme man nie mehr heim
     if (!s.land.includes(p + 1)) {
       const before = s.land.slice();
@@ -228,6 +229,8 @@
 
   function vsCapture(s, p) {
     const own = p + 1, pl = s.players[p], opp = s.players[1 - p];
+    const cells = pl.trail.slice();  // alles, was jetzt dazukommt (fuer die Effekte)
+    let stolen = 0;
     pl.trail.forEach(i => { s.trail[i] = 0; s.land[i] = own; });
     pl.trail = [];
     // Alles, was weder Waechter noch Gegner erreichen koennen, gehoert jetzt mir
@@ -248,9 +251,17 @@
       if (y < ROWS - 1) seed(x, y + 1);
     }
     for (let i = 0; i < COLS * ROWS; i++) {
-      if (!seen[i] && s.land[i] !== own) { s.land[i] = own; s.trail[i] = 0; }
+      if (!seen[i] && s.land[i] !== own) {
+        if (s.land[i]) stolen++;
+        s.land[i] = own; s.trail[i] = 0;
+        cells.push(i);
+      }
     }
     s.powerUps = s.powerUps.filter(u => s.land[vsIdx(u.x, u.y)] === 0);
+    if (cells.length) {
+      pl.combo = (pl.combo || 0) + 1;
+      s.events.push({ t: 'capture', p, cells, stolen, combo: pl.combo, x: pl.x, y: pl.y });
+    }
   }
 
   function vsPlayerInterval(pl, now) {
@@ -418,6 +429,7 @@
     const k = pl.trail.indexOf(hitIdx);
     if (k < 0) return;
     const removed = pl.trail.splice(0, k + 1);
+    pl.combo = 0;
     removed.forEach(i => { s.trail[i] = 0; });
     s.events.push({ t: 'cut', cells: removed, p });
   }
@@ -899,6 +911,8 @@
       sndHunterAlert();
     } else if (ev.t === 'break') {
       sndCoffeeBreak();
+    } else if (ev.t === 'capture') {
+      vsPlayCapture(ev, now);
     } else if (ev.t === 'cut') {
       ev.cells.forEach(i => flashCells.push({ r: Math.floor(i / COLS), c: i % COLS, time: now }));
       const last = ev.cells[ev.cells.length - 1];
@@ -913,6 +927,35 @@
     } else if (ev.t === 'hit') {
       triggerShake(8, 300);
       if (ev.p === vsMe) { triggerDeathFlash(); vibrate(150); }
+    }
+  }
+
+  // Eroberungs-Effekte wie in finalizeCapture(), in der Farbe des Spielers
+  function vsPlayCapture(ev, now) {
+    const mine = ev.p === vsMe;
+    const gained = ev.cells.length;
+    let sumR = 0, sumC = 0;
+    ev.cells.forEach(i => {
+      const r = Math.floor(i / COLS), c = i % COLS;
+      flashCells.push({ r, c, time: now });
+      sumR += r; sumC += c;
+    });
+    addRipple(sumC / gained, sumR / gained, Math.min(14, 2.5 + Math.sqrt(gained) * 1.4),
+      520 + Math.min(380, gained * 6), mine ? '127,224,160' : '140,196,255', 0.8);
+    sndCapture(gained, ev.combo);
+    if (gained > 12) {
+      triggerShake(Math.min(7, 2 + gained * 0.08), 220);
+      spawnEmote('💪', ev.x, ev.y);
+    }
+    if (gained > 2) {
+      spawnFireworkBurst(ev.x * CELL + CELL / 2, ev.y * CELL + CELL / 2,
+        mine ? ['#63c96a', '#7fe0a0', '#ffd23f'] : ['#4a8fe0', '#8cc4ff', '#ffd23f']);
+    }
+    if (ev.combo >= 2) {
+      comboPopups.push({ x: ev.x, y: ev.y, combo: ev.combo, mult: 1 + Math.min(ev.combo - 1, 9) * 0.1, startTime: now });
+    }
+    if (ev.stolen > 0) {
+      milestonePopups.push({ x: ev.x, y: ev.y - 1, text: '🏴 Stolen ' + ev.stolen + '!', startTime: now });
     }
   }
 
