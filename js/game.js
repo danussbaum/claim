@@ -194,7 +194,7 @@
         const nowT = performance.now();
         if (nowT >= shieldUntil) {
           if (nowT < spikesUntil) {
-            killEnemyByShot(e);
+            killEnemyByShot(e, 'spikes');
             continue;
           }
           endGame('A guard caught you.', '😈');
