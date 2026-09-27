@@ -131,15 +131,16 @@
     return p === 0 ? { x: 0, y: 0 } : { x: COLS - 1, y: ROWS - 1 };
   }
 
-  // Startland wie im 1-Spieler-Modus als Randlinie: Spieler 0 obere und linke Kante,
-  // Spieler 1 untere und rechte Kante (inklusive der beiden Ecken, wo sie sich treffen).
+  // Startland wie im 1-Spieler-Modus als Randlinie: Spieler 0 obere und linke Kante
+  // (mit Ecke unten links), Spieler 1 untere und rechte Kante (mit Ecke oben rechts).
+  // So bekommen beide gleich viele Randzellen.
   function vsClaimStartEdges(s, p) {
     for (let x = 0; x < COLS; x++) {
       if (p === 0 && x < COLS - 1) s.land[vsIdx(x, 0)] = 1;
-      if (p === 1) s.land[vsIdx(x, ROWS - 1)] = 2;
+      if (p === 1 && x > 0) s.land[vsIdx(x, ROWS - 1)] = 2;
     }
     for (let y = 0; y < ROWS; y++) {
-      if (p === 0 && y < ROWS - 1) s.land[vsIdx(0, y)] = 1;
+      if (p === 0) s.land[vsIdx(0, y)] = 1;
       if (p === 1) s.land[vsIdx(COLS - 1, y)] = 2;
     }
   }
@@ -656,6 +657,8 @@
     vsHidePanel();
     document.getElementById('overlay').classList.add('hidden');
     vsEnterRender();
+    // Countdown-Piepser wie im 1-Spieler-Modus: 3, 2, 1, los
+    for (let i = 0; i <= 3; i++) setTimeout(() => { if (vsPlaying) sndCountdownBeep(i === 3); }, i * 1000);
     vsShownOver = false;
     vsLastTime = 0;
     cancelAnimationFrame(vsRaf);
@@ -686,6 +689,7 @@
         vsPlayed = 0;
       }
     }
+    if (vsState && !vsState.over && !(vsState.countdown > 0)) updateMusicScheduler();
     vsDraw(performance.now());
     const over = vsState && vsState.over;
     if (over && !vsShownOver) { vsShownOver = true; setTimeout(vsShowResult, 900); }
@@ -735,6 +739,9 @@
     fireworkParticles = []; dustParticles = []; smokeParticles = []; bgRipples = [];
     countdownActive = false; dying = false; gameOver = false; paused = false;
     playerInterval = VS_STEP_MS; enemyInterval = VS_GUARD_MS;
+    level = 1;
+    hasStarted = true;   // Titelmelodie aus, Spielmusik wie im 1-Spieler-Modus
+    resetMusicTiming();
     enemies = []; vsGuardObjs = []; vsRival = null; vsHud = {};
     px = py = prevPx = prevPy = -99; // erste Position ohne Gleiten uebernehmen
     versusRender = true;
@@ -746,6 +753,8 @@
     cameraMode = vsSaved.cameraMode;
     document.querySelectorAll('.topbar .stat').forEach((el, i) => { el.firstChild.nodeValue = vsSaved.labels[i]; });
     vsSaved = null;
+    hasStarted = false; // zurueck im Menue: Titelmelodie wieder an
+    resetMenuThemeTiming();
     shieldUntil = speedUntil = slowUntil = rapidfireUntil = freezeUntil = 0;
     enemies = []; powerUps = []; revealPopups = []; guardBubbles = [];
     shotProjectiles = []; enemyDeathAnims = []; trail = [];
