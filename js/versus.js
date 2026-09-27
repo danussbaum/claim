@@ -391,12 +391,21 @@
         s.events.push({ t: 'guardDown', x, y, dx, dy, i: s.guards.indexOf(g), pers: g.pers });
         break;
       }
-      if ((op.x === x && op.y === y) || s.trail[vsIdx(x, y)] === opp + 1) {
-        vsKill(s, opp, now);
-        break;
-      }
+      if (op.x === x && op.y === y) { vsKill(s, opp, now); break; }
+      if (s.trail[vsIdx(x, y)] === opp + 1) { vsCutTrail(s, opp, vsIdx(x, y)); break; }
     }
     s.events.push({ t: 'shot', path });
+  }
+
+  // Treffer auf die unfertige Linie: wie im 1-Spieler-Modus (cutTrailAt) faellt das Stueck
+  // vom Land bis zur Trefferstelle weg, ein Leben kostet es nicht.
+  function vsCutTrail(s, p, hitIdx) {
+    const pl = s.players[p];
+    const k = pl.trail.indexOf(hitIdx);
+    if (k < 0) return;
+    const removed = pl.trail.splice(0, k + 1);
+    removed.forEach(i => { s.trail[i] = 0; });
+    s.events.push({ t: 'cut', cells: removed, p });
   }
 
   function vsPct(s, p) {
@@ -844,6 +853,13 @@
       sndHunterAlert();
     } else if (ev.t === 'break') {
       sndCoffeeBreak();
+    } else if (ev.t === 'cut') {
+      ev.cells.forEach(i => flashCells.push({ r: Math.floor(i / COLS), c: i % COLS, time: now }));
+      const last = ev.cells[ev.cells.length - 1];
+      milestonePopups.push({ x: last % COLS, y: Math.floor(last / COLS), text: '✂️ Line cut!', startTime: now });
+      sndLineCut();
+      triggerShake(5, 200);
+      if (ev.p === vsMe) vibrate([40, 30, 40]);
     } else if (ev.t === 'pick') {
       revealPopups.push({ x: ev.x, y: ev.y, type: ev.type, kind: ev.kind,
         startTime: now, resolveAt: now + ROULETTE_MS, applied: true, lastTickIdx: -1 });
