@@ -9,9 +9,9 @@
   const VS_SHOT_COOLDOWN = 900;
   const VS_GUARDS = 1;
   const VS_GUARD_RESPAWN = 3000;
-  const VS_LIVES = 3;
   const VS_INVULN_MS = 1500;
   const VS_SHOT_STUN_MS = 800;   // nach einem Abschuss: kurz stehen, dann weiter
+  const VS_CRASH_STUN_MS = 1500;  // Linie gekreuzt/gekappt, vom Waechter erwischt: laenger stehen
   const VS_MATCH_MS = 120000;
   const VS_WIN_PCT = 50;
   const VS_COUNTDOWN_MS = COUNTDOWN_SPEECH_LEAD_MS + COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
@@ -61,7 +61,7 @@
 
   function vsOpenLobby() {
     vsActive = true;
-    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Cut their line or shoot them to take a life.', [
+    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Cut their line or shoot them to send them back home.', [
       { label: '📡 Host a match', primary: true, onClick: vsStartHost },
       { label: '🤖 Play vs CPU', onClick: vsStartCpu },
       { label: 'Back', onClick: vsLeave },
@@ -163,7 +163,7 @@
       const c = vsSpawnCorner(p);
       vsClaimStartEdges(s, p);
       s.players.push({ x: c.x, y: c.y, dir: null, next: null, lastDir: p === 0 ? 'down' : 'up',
-        trail: [], lives: VS_LIVES, inv: 0, shotReady: 0, stepT: 0,
+        trail: [], inv: 0, shotReady: 0, stepT: 0,
         speedUntil: 0, slowUntil: 0, shieldUntil: 0, rapidUntil: 0 });
     }
     for (let i = 0; i < VS_GUARDS; i++) s.guards.push(vsNewGuard(s));
@@ -202,51 +202,29 @@
     return s.land[vsIdx(pl.x, pl.y)] === p + 1;
   }
 
-  // Abgeschossen: kostet kein Leben, aber Linie weg und zurueck aufs Startfeld,
-  // dort kurz eingefroren.
-  function vsShotDown(s, p, now) {
+  // Keine Leben im Versus: wer erwischt wird, verliert seine Linie, muss zurueck aufs
+  // Startfeld und dort kurz stehen (nach einem Abschuss kuerzer als nach einem Crash).
+  function vsSendHome(s, p, now, stunMs) {
     const pl = s.players[p];
     if (now < pl.inv || now < pl.shieldUntil || s.over) return;
     pl.trail.forEach(i => { s.trail[i] = 0; });
     pl.trail = [];
-    const c = vsSpawnCorner(p);
-    pl.x = c.x; pl.y = c.y;
-    pl.dir = pl.next = null;
-    pl.stunUntil = now + VS_SHOT_STUN_MS;
-    pl.inv = now + VS_SHOT_STUN_MS + VS_INVULN_MS;
-    s.events.push({ t: 'hit', p });
-    s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
-  }
-
-  function vsKill(s, p, now) {
-    const pl = s.players[p];
-    if (now < pl.inv || now < pl.shieldUntil || s.over) return;
-    pl.trail.forEach(i => { s.trail[i] = 0; });
-    pl.trail = [];
-    pl.lives--;
-    s.events.push({ t: 'hit', p });
-    if (pl.lives <= 0) { vsEndMatch(s, 1 - p, 'out of lives'); return; }
-    // Zurueck aufs eigene Land, moeglichst nahe der Startecke
-    const c = vsSpawnCorner(p);
-    let best = null, bestD = 1e9;
-    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
-      if (s.land[vsIdx(x, y)] !== p + 1) continue;
-      const d = Math.abs(x - c.x) + Math.abs(y - c.y);
-      if (d < bestD) { bestD = d; best = { x, y }; }
-    }
-    if (!best) {
-      // Alles verloren: Startkante zurueck (nur freie Zellen, fremdes Land bleibt)
+    // Alles Land verloren: freie Zellen der Startkanten zurueck, sonst kaeme man nie mehr heim
+    if (!s.land.includes(p + 1)) {
       const before = s.land.slice();
       vsClaimStartEdges(s, p);
       for (let i = 0; i < s.land.length; i++) if (before[i] && before[i] !== p + 1) s.land[i] = before[i];
-      best = c;
-      s.land[vsIdx(c.x, c.y)] = p + 1;
     }
-    pl.x = best.x; pl.y = best.y;
+    const c = vsSpawnCorner(p);
+    pl.x = c.x; pl.y = c.y;
     pl.dir = pl.next = null;
-    pl.inv = now + VS_INVULN_MS;
+    pl.stunUntil = now + stunMs;
+    pl.inv = now + stunMs + VS_INVULN_MS;
+    s.events.push({ t: 'hit', p });
     s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
   }
+  function vsShotDown(s, p, now) { vsSendHome(s, p, now, VS_SHOT_STUN_MS); }
+  function vsKill(s, p, now) { vsSendHome(s, p, now, VS_CRASH_STUN_MS); }
 
   function vsCapture(s, p) {
     const own = p + 1, pl = s.players[p], opp = s.players[1 - p];
@@ -496,7 +474,7 @@
       t: 'state',
       land: s.land.join(''),
       trail: s.trail.join(''),
-      players: s.players.map(pl => ({ x: pl.x, y: pl.y, lives: pl.lives, inv: now < pl.inv,
+      players: s.players.map(pl => ({ x: pl.x, y: pl.y, inv: now < pl.inv,
         speed: left(pl.speedUntil), slow: left(pl.slowUntil), shield: left(pl.shieldUntil), rapid: left(pl.rapidUntil) })),
       guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0, g.hunting ? 1 : 0,
         now < g.stunUntil ? 1 : 0, now < g.breakUntil ? 1 : 0, g.pers, g.name]),
@@ -653,7 +631,7 @@
     const now = performance.now();
     return {
       land: Array.from(msg.land, Number), trail: Array.from(msg.trail, Number),
-      players: msg.players.map(pl => ({ x: pl.x, y: pl.y, lives: pl.lives, inv: pl.inv,
+      players: msg.players.map(pl => ({ x: pl.x, y: pl.y, inv: pl.inv,
         speedUntil: now + pl.speed, slowUntil: now + pl.slow, shieldUntil: now + pl.shield, rapidUntil: now + pl.rapid })),
       guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2], hunting: !!g[3],
         stunUntil: g[4] ? now + 300 : 0, breakUntil: g[5] ? now + 300 : 0, pers: g[6], name: g[7] })),
@@ -754,13 +732,16 @@
   let vsRival = null;
   let vsSaved = null;       // waehrend des Matches ueberschriebene Einstellungen
   let vsHud = {};
-  const VS_STAT_LABELS = ['YOU', 'RIVAL', 'TIME', 'LIVES'];
+  const VS_STAT_LABELS = ['YOU', 'RIVAL', 'TIME']; // Leben gibt es im Versus nicht: vierte Anzeige aus
 
   function vsEnterRender() {
     if (!vsSaved) {
       const stats = Array.from(document.querySelectorAll('.topbar .stat'));
       vsSaved = { cameraMode, labels: stats.map(el => el.firstChild.nodeValue) };
-      stats.forEach((el, i) => { el.firstChild.nodeValue = VS_STAT_LABELS[i]; });
+      stats.forEach((el, i) => {
+        if (i < VS_STAT_LABELS.length) el.firstChild.nodeValue = VS_STAT_LABELS[i];
+        else el.style.display = 'none';
+      });
     }
     cameraMode = 'standard';
     // Reste eines 1-Spieler-Laufs abschalten
@@ -787,7 +768,10 @@
     versusRender = false;
     if (!vsSaved) return;
     cameraMode = vsSaved.cameraMode;
-    document.querySelectorAll('.topbar .stat').forEach((el, i) => { el.firstChild.nodeValue = vsSaved.labels[i]; });
+    document.querySelectorAll('.topbar .stat').forEach((el, i) => {
+      el.firstChild.nodeValue = vsSaved.labels[i];
+      el.style.display = '';
+    });
     vsSaved = null;
     hasStarted = false; // zurueck im Menue: Titelmelodie wieder an
     countdownActive = false; // bricht auch die Countdown-Ansage ab
@@ -886,7 +870,6 @@
     vsSetHud('pct', pct[me] + '%');
     vsSetHud('score', pct[1 - me] + '%');
     vsSetHud('level', Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'));
-    vsSetHud('lives', String(Math.max(0, mp.lives)));
   }
 
   function vsSetHud(id, text) {
