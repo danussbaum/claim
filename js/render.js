@@ -270,6 +270,119 @@ function drawDeadEyes(R) {
   }
 }
 
+// Sichtkegel fuellen: exakter Sichtbereich (dieselbe Geometrie wie canSeePoint) plus Nahbereich.
+// (ox, oy) in Zellen, (cx, cy) in Pixeln. Auch fuer den CPU-Gegner im Versus (js/versus.js).
+function fillVisionCone(e, ox, oy, cx, cy, fill, stroke) {
+  const poly = visionPolygon(e, ox, oy);
+  ctx.beginPath();
+  ctx.moveTo(poly[0][0] * CELL, poly[0][1] * CELL);
+  for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0] * CELL, poly[i][1] * CELL);
+  ctx.closePath();
+  ctx.moveTo(cx + NEAR_SIGHT * CELL, cy);
+  ctx.arc(cx, cy, NEAR_SIGHT * CELL, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = Math.max(1, CELL * 0.035);
+  ctx.stroke();
+}
+
+// Gesicht des Spielers (ohne PSYLO), um (0,0) mit Kopfradius R.
+// Wird auch fuer den Gegner im 2-Spieler-Modus verwendet (js/versus.js).
+function drawPlayerFace(R, emotion, lookX, lookY) {
+  const eyeOffX = R * 0.36, eyeOffY = -R * 0.06;
+  if (emotion === 'startled') {
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY - R * 0.05;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, R * 0.28, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx, eyy, R * 0.11, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(0, R * 0.42, R * 0.16, 0, Math.PI * 2);
+    ctx.fillStyle = '#101414';
+    ctx.fill();
+  } else if (emotion === 'worried') {
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, R * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx + lookX * R * 0.1, eyy + lookY * R * 0.1, R * 0.11, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#101414';
+    ctx.lineWidth = Math.max(1.3, R * 0.09);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-eyeOffX - R*0.15, eyeOffY - R*0.42);
+    ctx.lineTo(-eyeOffX + R*0.2, eyeOffY - R*0.28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(eyeOffX + R*0.15, eyeOffY - R*0.42);
+    ctx.lineTo(eyeOffX - R*0.2, eyeOffY - R*0.28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, R * 0.42, R * 0.14, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  } else if (emotion === 'determined') {
+    const eyeR = R * 0.2;
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx + lookX * eyeR * 0.5, eyy + lookY * eyeR * 0.5, eyeR * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#101414';
+    ctx.lineWidth = Math.max(1.3, R * 0.1);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-eyeOffX - R*0.18, eyeOffY - R*0.32);
+    ctx.lineTo(-eyeOffX + R*0.15, eyeOffY - R*0.22);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(eyeOffX + R*0.18, eyeOffY - R*0.32);
+    ctx.lineTo(eyeOffX - R*0.15, eyeOffY - R*0.22);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.16, R * 0.4);
+    ctx.lineTo(R * 0.16, R * 0.4);
+    ctx.stroke();
+  } else {
+    const eyeR = R * 0.22;
+    for (const side of [-1, 1]) {
+      const exx = side * eyeOffX, eyy = eyeOffY;
+      ctx.beginPath();
+      ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(exx + lookX * eyeR * 0.4, eyy + lookY * eyeR * 0.4, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#101414';
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#101414';
+    ctx.lineWidth = Math.max(1.3, R * 0.09);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, R * 0.28, R * 0.22, 0.1 * Math.PI, 0.9 * Math.PI);
+    ctx.stroke();
+  }
+}
+
 function draw(now) {
     const dtMs = Math.min(120, Math.max(0, now - (lastDrawTime || now)));
     lastDrawTime = now;
@@ -460,6 +573,18 @@ function draw(now) {
           ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
           ctx.fillStyle = 'rgba(255,255,255,0.08)';
           ctx.fillRect(c*CELL, r*CELL, CELL, 2);
+        } else if (v === RIVAL_TERRITORY) {
+          ctx.fillStyle = '#2f5f9f';
+          ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(c*CELL, r*CELL, CELL, 2);
+        } else if (v === RIVAL_TRAIL) {
+          ctx.save();
+          ctx.shadowColor = '#6fb4ff';
+          ctx.shadowBlur = CELL * 0.55;
+          ctx.fillStyle = '#6fb4ff';
+          ctx.fillRect(c*CELL+3, r*CELL+3, CELL-6, CELL-6);
+          ctx.restore();
         } else if (v === TRAIL) {
           if (c === px && r === py && playerT < 1) {
             // neuester Trail-Block: erst einblenden, wenn der Punkt visuell ankommt
@@ -1087,95 +1212,8 @@ function draw(now) {
       ctx.lineWidth = Math.max(1.5, R * 0.042);
       ctx.lineCap = 'round';
       ctx.stroke();
-    } else if (emotion === 'startled') {
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY - R * 0.05;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, R * 0.28, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx, eyy, R * 0.11, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.beginPath();
-      ctx.arc(0, R * 0.42, R * 0.16, 0, Math.PI * 2);
-      ctx.fillStyle = '#101414';
-      ctx.fill();
-    } else if (emotion === 'worried') {
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, R * 0.25, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx + lookX * R * 0.1, eyy + lookY * R * 0.1, R * 0.11, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#101414';
-      ctx.lineWidth = Math.max(1.3, R * 0.09);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-eyeOffX - R*0.15, eyeOffY - R*0.42);
-      ctx.lineTo(-eyeOffX + R*0.2, eyeOffY - R*0.28);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(eyeOffX + R*0.15, eyeOffY - R*0.42);
-      ctx.lineTo(eyeOffX - R*0.2, eyeOffY - R*0.28);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, R * 0.42, R * 0.14, 0.15 * Math.PI, 0.85 * Math.PI);
-      ctx.stroke();
-    } else if (emotion === 'determined') {
-      const eyeR = R * 0.2;
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx + lookX * eyeR * 0.5, eyy + lookY * eyeR * 0.5, eyeR * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#101414';
-      ctx.lineWidth = Math.max(1.3, R * 0.1);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-eyeOffX - R*0.18, eyeOffY - R*0.32);
-      ctx.lineTo(-eyeOffX + R*0.15, eyeOffY - R*0.22);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(eyeOffX + R*0.18, eyeOffY - R*0.32);
-      ctx.lineTo(eyeOffX - R*0.15, eyeOffY - R*0.22);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-R * 0.16, R * 0.4);
-      ctx.lineTo(R * 0.16, R * 0.4);
-      ctx.stroke();
     } else {
-      const eyeR = R * 0.22;
-      for (const side of [-1, 1]) {
-        const exx = side * eyeOffX, eyy = eyeOffY;
-        ctx.beginPath();
-        ctx.arc(exx, eyy, eyeR, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(exx + lookX * eyeR * 0.4, eyy + lookY * eyeR * 0.4, eyeR * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#101414';
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#101414';
-      ctx.lineWidth = Math.max(1.3, R * 0.09);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(0, R * 0.28, R * 0.22, 0.1 * Math.PI, 0.9 * Math.PI);
-      ctx.stroke();
+      drawPlayerFace(R, emotion, lookX, lookY);
     }
     } // Ende Kopf (else-Zweig der Ente)
 
@@ -1277,20 +1315,8 @@ function draw(now) {
         for (const [hc, hr] of hidingCells) ctx.rect(hc * CELL, hr * CELL, CELL, CELL);
         ctx.clip('evenodd');
       }
-      ctx.beginPath();
-      // Exakter Sichtbereich (dieselbe Geometrie wie canSeePlayer) plus Nahbereich
       const [sox, soy] = guardSightOrigin(e, now);
-      const poly = visionPolygon(e, sox, soy);
-      ctx.moveTo(poly[0][0] * CELL, poly[0][1] * CELL);
-      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0] * CELL, poly[i][1] * CELL);
-      ctx.closePath();
-      ctx.moveTo(cx + NEAR_SIGHT * CELL, cy);
-      ctx.arc(cx, cy, NEAR_SIGHT * CELL, 0, Math.PI * 2);
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = alerted ? 'rgba(255,110,90,0.45)' : 'rgba(255,225,150,0.20)';
-      ctx.lineWidth = Math.max(1, CELL * 0.035);
-      ctx.stroke();
+      fillVisionCone(e, sox, soy, cx, cy, g, alerted ? 'rgba(255,110,90,0.45)' : 'rgba(255,225,150,0.20)');
       ctx.restore();
     }
 
@@ -1551,6 +1577,7 @@ function draw(now) {
       ctx.fillText(b.text, 0, 1);
       ctx.restore();
     }
+    if (versusRender) vsDrawWorld(now);
     ctx.restore();
 
     // Szenenfilter (Drunk/PSYLO) in einem einzigen Durchgang aufs fertige Bild
@@ -1603,9 +1630,9 @@ function draw(now) {
     drawVignette(vw, vh);
 
     if (countdownActive) {
-      const elapsed = now - countdownStartTime;
+      const elapsed = Math.max(0, now - countdownStartTime); // vor dem Start (Sprachvorlauf) steht die 3
       const totalDur = COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS;
-      if (elapsed >= totalDur) {
+      if (now - countdownStartTime >= totalDur) {
         countdownActive = false;
       } else {
         ctx.fillStyle = 'rgba(5,8,6,0.5)';

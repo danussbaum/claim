@@ -102,10 +102,44 @@
 
   function triggerStartCountdown() {
     countdownActive = true;
-    countdownStartTime = performance.now();
+    // Anzeige und Piepser starten etwas spaeter als die Sprache, damit alles gleichzeitig ankommt
+    countdownStartTime = performance.now() + COUNTDOWN_SPEECH_LEAD_MS;
     for (let i = 0; i < COUNTDOWN_STEPS.length; i++) {
-      setTimeout(() => sndCountdownBeep(i === COUNTDOWN_STEPS.length - 1), i * COUNTDOWN_STEP_MS);
+      setTimeout(() => sndCountdownBeep(i === COUNTDOWN_STEPS.length - 1),
+        COUNTDOWN_SPEECH_LEAD_MS + i * COUNTDOWN_STEP_MS);
     }
+    speakCountdown();
+  }
+
+  // Sprachausgabe zum Countdown (1-Spieler und Versus), aus bei "Guard voices: Off"
+  const COUNTDOWN_WORDS = ['Three', 'Two', 'One', 'Go!'];
+
+  // Klare englische Stimme: bekannte gute Stimmen zuerst, dann lokale en-US, dann irgendeine englische
+  function countdownVoice() {
+    const en = guardVoices().filter(v => /^en/i.test(v.lang));
+    const preferred = /Google US English|Samantha|Daniel|Karen|Serena|Moira|Aaron|Microsoft (Aria|Jenny|Guy)/i;
+    return en.find(v => preferred.test(v.name)) ||
+      en.find(v => /en[-_]US/i.test(v.lang) && v.localService) ||
+      en.find(v => /en[-_]US/i.test(v.lang)) || en[0] || null;
+  }
+  // Die Stimmenliste laedt der Browser verzoegert: frueh anstossen
+  if (window.speechSynthesis) speechSynthesis.getVoices();
+
+  function speakCountdown() {
+    if (voiceMode === 'off' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+    const voice = countdownVoice();
+    COUNTDOWN_WORDS.forEach((word, i) => setTimeout(() => {
+      if (!countdownActive) return; // Spiel inzwischen verlassen
+      // Jedes Wort genau zu seiner Zahl: nichts in die Warteschlange, Reste abbrechen
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(word);
+      if (voice) u.voice = voice;
+      u.lang = voice ? voice.lang : 'en-US';
+      u.rate = 1.1;
+      u.pitch = 0.5; // tiefe Stimme
+      u.volume = 1;
+      speechSynthesis.speak(u);
+    }, i * COUNTDOWN_STEP_MS));
   }
 
   function startGame() {
@@ -211,6 +245,9 @@
       b.addEventListener('click', () => { setVoiceMode(key); refreshModeSelect(); });
       voiceRow.appendChild(b);
     });
+    document.getElementById('optionsToggle').addEventListener('click', () => {
+      document.getElementById('runOptions').classList.toggle('hidden');
+    });
     modeSelectBuilt = true;
   }
 
@@ -239,6 +276,8 @@
     document.querySelectorAll('#voiceRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.voice === voiceMode);
     });
+    document.getElementById('optionsSummary').textContent = [MODES[gameMode].label, CAMERAS[cameraMode].label,
+      GADGETS[gadgetChoice].icon + ' ' + GADGETS[gadgetChoice].label, VOICE_MODES[voiceMode].label].join(' · ');
     document.getElementById('selectDesc').textContent =
       MODES[gameMode].desc + ' ' + CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
     updateGadgetButtonIcon();
@@ -321,12 +360,13 @@
     document.getElementById('skipBtn').classList.add('hidden');
     document.getElementById('modeBtn').classList.add('hidden');
     document.getElementById('modeSelect').classList.remove('hidden');
-    document.getElementById('overlayTitle').textContent = 'Choose your run';
+    document.getElementById('overlayTitle').textContent = 'Claim';
+    document.getElementById('runOptions').classList.add('hidden'); // Einstellungen eingeklappt starten
     const firstTime = !tutorialDone();
     const tutBtn = document.getElementById('tutorialBtn');
     tutBtn.classList.remove('hidden');
     tutBtn.textContent = firstTime ? '🎓 Play the tutorial first' : '🎓 Replay tutorial';
-    document.getElementById('startBtn').textContent = firstTime ? '▶ Skip - straight into the game' : "▶ Let's go!";
+    document.getElementById('startBtn').textContent = '▶ 1 Player';
     refreshModeSelect();
   }
 

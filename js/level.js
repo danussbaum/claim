@@ -169,8 +169,8 @@
     }
   }
 
-  function comboMultiplier() {
-    return 1 + Math.min(comboCount - 1, 9) * 0.1;
+  function comboMultiplier(n = comboCount) {
+    return 1 + Math.min(n - 1, 9) * 0.1;
   }
 
   const BASE_PERSONALITIES = ['wanderer', 'hunter', 'guardian', 'nervous'];
@@ -336,13 +336,17 @@
 
   // Versteck: eigene Flaeche, deren vier Nachbarn ebenfalls eigene Flaeche (oder Spielfeldrand) sind.
   // Am Rand der Flaeche bleibt man sichtbar.
-  function isHidingCell(c, r) {
-    if (!inBounds(c, r) || grid[r][c] !== TERRITORY) return false;
+  // isOwn(c, r) sagt, ob eine Zelle eigene Flaeche ist (im Versus je Spieler verschieden).
+  function isHidingCellBy(c, r, isOwn) {
+    if (!inBounds(c, r) || !isOwn(c, r)) return false;
     for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       const nc = c + dc, nr = r + dr;
-      if (inBounds(nc, nr) && grid[nr][nc] !== TERRITORY) return false;
+      if (inBounds(nc, nr) && !isOwn(nc, nr)) return false;
     }
     return true;
+  }
+  function isHidingCell(c, r) {
+    return isHidingCellBy(c, r, (cc, rr) => grid[rr][cc] === TERRITORY);
   }
   // Massgeblich ist die Zelle, in der der gezeichnete Mittelpunkt des Spielers liegt
   function playerHidden(now) {

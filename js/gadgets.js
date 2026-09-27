@@ -297,6 +297,8 @@
   let enemyDeathAnims = [];
   let shotProjectiles = [];
   const POWERUP_TYPES = ['speed', 'shield', 'freeze', 'trailguard', 'rapidfire', 'spikes', 'decoy'];
+  // Grunddauer der Effekte in ms (1-Spieler und Versus)
+  const POWER_MS = { speed: 4000, shield: 4000, freeze: 3000, trailguard: 5000, rapidfire: 5000, spikes: 5000, slow: 4000 };
   const POWERUP_COLORS = {
     speed: '#f5d347', shield: '#4f7ee5', freeze: '#7fdcff', trailguard: '#3fd6b0',
     rapidfire: '#ff7a3d', spikes: '#c9752e', decoy: '#a89f8c'
@@ -506,7 +508,8 @@
   let dying = false;
   let countdownActive = false, countdownStartTime = 0;
   const COUNTDOWN_STEPS = ['3', '2', '1', 'GO!'];
-  const COUNTDOWN_STEP_MS = 500;
+  const COUNTDOWN_STEP_MS = 700; // lang genug, dass die Ansage jedes Wort ganz ausspricht
+  const COUNTDOWN_SPEECH_LEAD_MS = 200; // Sprachausgabe braucht einen Moment: sie startet so viel vor der Anzeige
 
   function isObstacle(v) { return v === BLOCK || v === PIT; }
 

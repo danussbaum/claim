@@ -37,6 +37,52 @@
     }
   }
 
+  // Wohin laeuft ein Waechter? Gemeinsam fuer 1-Spieler und Versus (js/versus.js).
+  // opts: freie Richtungen [[dx, dy]]. target {c, r}: direkt darauf zu (Jagd, Ablenkung).
+  // Sonst je nach Charakter: isLand(c, r) = eroberte Flaeche, trailCells = Linie [[c, r]].
+  function chooseGuardStep(e, opts, target, isLand, trailCells) {
+    const closest = (tc, tr) => {
+      let best = null, bestDist = Infinity;
+      for (const [dx, dy] of opts) {
+        const d = Math.abs(e.c + dx - tc) + Math.abs(e.r + dy - tr);
+        if (d < bestDist) { bestDist = d; best = [dx, dy]; }
+      }
+      return best;
+    };
+    if (target) return closest(target.c, target.r);
+    if ((e.personality === 'cutter' || e.personality === 'dog') && trailCells && trailCells.length) {
+      // Sucht die Linie statt den Spieler
+      let t = trailCells[0], tDist = Infinity;
+      for (const [tx, ty] of trailCells) {
+        const d = Math.abs(tx - e.c) + Math.abs(ty - e.r);
+        if (d < tDist) { tDist = d; t = [tx, ty]; }
+      }
+      return closest(t[0], t[1]);
+    }
+    if (e.personality === 'guardian') {
+      // Haelt Abstand zu eroberter Flaeche
+      let best = null, bestScore = -Infinity;
+      for (const [dx, dy] of opts) {
+        const nx = e.c + dx, ny = e.r + dy;
+        let terrCount = 0;
+        for (const [ddx, ddy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+          const cx = nx + ddx, cy = ny + ddy;
+          if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) continue;
+          if (isLand(cx, cy)) terrCount++;
+        }
+        const score = -terrCount + Math.random() * 0.5;
+        if (score > bestScore) { bestScore = score; best = [dx, dy]; }
+      }
+      return best;
+    }
+    if (e.personality === 'nervous') return opts[Math.floor(Math.random() * opts.length)];
+    if (Math.random() < 0.65) {
+      const keepGoing = opts.find(([dx, dy]) => dx === e.dc0 && dy === e.dr0);
+      return keepGoing || opts[Math.floor(Math.random() * opts.length)];
+    }
+    return opts[Math.floor(Math.random() * opts.length)];
+  }
+
   function moveEnemies() {
     enemyStepTime = performance.now();
     if (enemyStepTime < discoUntil) sndDiscoBeat();
@@ -109,13 +155,8 @@
       e.wasHunting = isHuntingNow;
 
       if (isHuntingNow) {
-        let best = null, bestDist = Infinity;
-        for (const [dx, dy] of opts) {
-          const nx = e.c + dx, ny = e.r + dy;
-          const d = Math.abs(nx - px) + Math.abs(ny - py);
-          if (d < bestDist) { bestDist = d; best = [dx, dy]; }
-        }
-        choice = best;
+        choice = chooseGuardStep(e, opts, { c: px, r: py });
+        const best = choice;
         // Stau: ein anderer jagender Waechter steht im Weg - beide blockieren sich
         const blocker = enemies.find(o => o !== e && o.c === e.c + best[0] && o.r === e.r + best[1] &&
                                           (o.huntingActive || alarmActive));
@@ -132,49 +173,9 @@
       } else if (now < (e.distractedUntil || 0)) {
         // Abgelenkt: zur Aufschlagstelle laufen und dort stehen bleiben
         if (e.c === e.distractC && e.r === e.distractR) continue;
-        let best = null, bestDist = Infinity;
-        for (const [dx, dy] of opts) {
-          const d = Math.abs(e.c + dx - e.distractC) + Math.abs(e.r + dy - e.distractR);
-          if (d < bestDist) { bestDist = d; best = [dx, dy]; }
-        }
-        choice = best;
-      } else if ((e.personality === 'cutter' || e.personality === 'dog') && trail.length) {
-        // Sucht die eigene Linie statt den Spieler
-        let target = trail[0], tDist = Infinity;
-        for (const [tx, ty] of trail) {
-          const d = Math.abs(tx - e.c) + Math.abs(ty - e.r);
-          if (d < tDist) { tDist = d; target = [tx, ty]; }
-        }
-        let best = null, bestDist = Infinity;
-        for (const [dx, dy] of opts) {
-          const nx = e.c + dx, ny = e.r + dy;
-          const d = Math.abs(nx - target[0]) + Math.abs(ny - target[1]);
-          if (d < bestDist) { bestDist = d; best = [dx, dy]; }
-        }
-        choice = best;
-      } else if (e.personality === 'guardian') {
-        let best = null, bestScore = -Infinity;
-        for (const [dx, dy] of opts) {
-          const nx = e.c + dx, ny = e.r + dy;
-          let terrCount = 0;
-          for (const [ddx, ddy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-            const cx = nx + ddx, cy = ny + ddy;
-            if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) continue;
-            if (grid[cy][cx] === TERRITORY) terrCount++;
-          }
-          const score = -terrCount + Math.random() * 0.5;
-          if (score > bestScore) { bestScore = score; best = [dx, dy]; }
-        }
-        choice = best;
-      } else if (e.personality === 'nervous') {
-        choice = opts[Math.floor(Math.random() * opts.length)];
+        choice = chooseGuardStep(e, opts, { c: e.distractC, r: e.distractR });
       } else {
-        if (Math.random() < 0.65) {
-          const keepGoing = opts.find(([dx,dy]) => dx === e.dc0 && dy === e.dr0);
-          choice = keepGoing || opts[Math.floor(Math.random() * opts.length)];
-        } else {
-          choice = opts[Math.floor(Math.random() * opts.length)];
-        }
+        choice = chooseGuardStep(e, opts, null, (c, r) => grid[r][c] === TERRITORY, trail);
       }
 
       e.dc0 = choice[0]; e.dr0 = choice[1];
