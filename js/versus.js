@@ -16,6 +16,7 @@
   const VS_WIN_PCT = 50;
   const VS_COUNTDOWN_MS = COUNTDOWN_SPEECH_LEAD_MS + COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
   const VS_SEND_MS = 33;
+  const VS_BOOSTS = 3;           // Boosts pro Match
   // Serie: gewonnen hat, wer mindestens VS_SERIES_WINS Matches und VS_SERIES_LEAD Siege mehr hat
   const VS_SERIES_WINS = 3;
   const VS_SERIES_LEAD = 2;   // wie im Tennis: zwei Siege Vorsprung
@@ -26,6 +27,7 @@
   let vsCpu = false;         // lokales Match gegen die KI (zum Testen ohne zweites Geraet)
   let vsMe = 0;              // 0 = Host, 1 = Gast
   let vsState = null;        // beim Host die Wahrheit, beim Gast die letzte Kopie
+  let vsGadgets = ['hook', 'hook']; // gewaehltes Gadget je Spieler (der Gast meldet seines)
   let vsSeries = [0, 0];      // Matchsiege in der laufenden Serie (Host fuehrt)
   let vsRaf = 0, vsLastTime = 0, vsSendTimer = 0, vsPlayed = 0;
 
@@ -75,12 +77,14 @@
 
   function vsStartCpu() {
     vsIsHost = true; vsMe = 0; vsCpu = true;
+    vsGadgets = [gadgetChoice, 'hook'];
     vsSeries = [0, 0];
     vsHostStartMatch();
   }
 
   function vsStartHost() {
     vsIsHost = true; vsMe = 0; vsCpu = false;
+    vsGadgets = [gadgetChoice, 'hook'];
     vsSeries = [0, 0];
     vsBindNet();
     const url = Net.joinUrl(Net.host());
@@ -101,7 +105,10 @@
     Net.onStatus = vsSetStatus;
     Net.onOpen = () => {
       if (vsIsHost) vsHostStartMatch();
-      else vsShowPanel('2 Player', 'Connected! Waiting for host...', [{ label: 'Leave', onClick: vsLeave }], false);
+      else {
+        Net.send({ t: 'hello', gadget: gadgetChoice });
+        vsShowPanel('2 Player', 'Connected! Waiting for host...', [{ label: 'Leave', onClick: vsLeave }], false);
+      }
     };
     Net.onMessage = vsOnMessage;
     Net.onClose = () => {
@@ -171,7 +178,8 @@
       vsClaimStartEdges(s, p);
       s.players.push({ x: c.x, y: c.y, dir: null, next: null, lastDir: p === 0 ? 'down' : 'up',
         trail: [], inv: 0, shotReady: 0, stepT: 0,
-        speedUntil: 0, slowUntil: 0, shieldUntil: 0, rapidUntil: 0 });
+        speedUntil: 0, slowUntil: 0, shieldUntil: 0, rapidUntil: 0,
+        gadget: vsGadgets[p], gadgetReadyAt: 0, smokeUntil: 0, boosts: VS_BOOSTS });
     }
     for (let i = 0; i < VS_GUARDS; i++) s.guards.push(vsNewGuard(s));
     return s;
@@ -301,12 +309,17 @@
     if (pl.next) { pl.dir = pl.next; pl.next = null; }
     if (!pl.dir) return;
     const [dx, dy] = dirDelta(pl.dir);
-    const nx = pl.x + dx, ny = pl.y + dy;
-    if (!vsInBounds(nx, ny)) { pl.dir = null; return; }
+    if (vsMoveTo(s, p, pl.x + dx, pl.y + dy, now) === 'blocked') pl.dir = null;
+  }
+
+  // Ein Feld weiter (normaler Schritt und Enterhaken). Gibt 'moved', 'blocked' oder 'hit' zurueck.
+  function vsMoveTo(s, p, nx, ny, now) {
+    const pl = s.players[p];
+    if (!vsInBounds(nx, ny)) return 'blocked';
     const i = vsIdx(nx, ny);
-    if (s.trail[i] === p + 1) { vsKill(s, p, now); return; }       // eigene Linie gekreuzt
+    if (s.trail[i] === p + 1) { vsKill(s, p, now); return 'hit'; }  // eigene Linie gekreuzt
     if (s.trail[i] === 2 - p) vsKill(s, 1 - p, now);                // Linie des Gegners gekappt
-    if (s.over) return;
+    if (s.over) return 'hit';
     pl.x = nx; pl.y = ny;
     if (s.land[i] !== p + 1) { s.trail[i] = p + 1; pl.trail.push(i); }
     else if (pl.trail.length) vsCapture(s, p);
@@ -318,6 +331,42 @@
       if (!vsOnOwnLand(s, p)) vsKill(s, p, now);
     }
     vsCheckGuardHits(s, now);
+    return pl.x === nx && pl.y === ny ? 'moved' : 'hit';
+  }
+
+  // --- Gadgets und Boost (wie im 1-Spieler-Modus: GADGETS, GADGET_HOOK_PULL, GADGET_SMOKE_MS) ---
+  function vsCanAct(s, pl, now) {
+    return !s.over && !(s.countdown > 0) && now >= (pl.stunUntil || 0);
+  }
+
+  function vsUseGadget(s, p, now) {
+    const pl = s.players[p];
+    if (!vsCanAct(s, pl, now) || now < pl.gadgetReadyAt) return;
+    pl.gadgetReadyAt = now + GADGETS[pl.gadget].cooldown;
+    if (pl.gadget === 'smoke') {
+      pl.smokeUntil = now + GADGET_SMOKE_MS;
+      s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
+      s.events.push({ t: 'smoke', p, x: pl.x, y: pl.y });
+      return;
+    }
+    // Enterhaken: bis zu GADGET_HOOK_PULL Felder in Blickrichtung
+    const [dx, dy] = dirDelta(pl.dir || pl.lastDir);
+    const ox = pl.x, oy = pl.y;
+    let pulled = 0;
+    for (let k = 0; k < GADGET_HOOK_PULL; k++) {
+      if (vsMoveTo(s, p, pl.x + dx, pl.y + dy, now) !== 'moved') break;
+      pulled++;
+    }
+    pl.stepT = 0;
+    s.events.push({ t: 'hook', p, ox, oy, dx, dy, pulled });
+  }
+
+  function vsUseBoost(s, p, now) {
+    const pl = s.players[p];
+    if (!vsCanAct(s, pl, now) || pl.boosts <= 0) return;
+    pl.speedUntil = Math.max(pl.speedUntil, now + 180);
+    pl.boosts--;
+    s.events.push({ t: 'boost', p });
   }
 
   // --- Power-ups ---
@@ -359,7 +408,7 @@
   }
 
   function vsGuardSees(s, g, p) {
-    if (vsHidden(s, p)) return false;
+    if (vsHidden(s, p) || performance.now() < s.players[p].smokeUntil) return false;
     const pl = s.players[p];
     const view = { personality: BASE_PERSONALITIES[g.pers], dc0: g.dc0, dr0: g.dr0, c: g.x, r: g.y };
     return canSeePoint(view, g.x + 0.5, g.y + 0.5, pl.x + 0.5, pl.y + 0.5);
@@ -547,7 +596,8 @@
       trail: s.trail.join(''),
       players: s.players.map(pl => ({ x: pl.x, y: pl.y, inv: now < pl.inv,
         speed: left(pl.speedUntil), slow: left(pl.slowUntil), shield: left(pl.shieldUntil), rapid: left(pl.rapidUntil),
-        stun: left(pl.stunUntil || 0), stunMs: pl.stunMs || 1 })),
+        stun: left(pl.stunUntil || 0), stunMs: pl.stunMs || 1,
+        gadgetCd: left(pl.gadgetReadyAt), smoke: left(pl.smokeUntil), shotCd: left(pl.shotReady), boosts: pl.boosts })),
       guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0, g.hunting ? 1 : 0,
         now < g.stunUntil ? 1 : 0, now < g.breakUntil ? 1 : 0, g.pers, g.name]),
       powerUps: s.powerUps.map(u => [u.x, u.y, u.type, u.kind]),
@@ -665,7 +715,8 @@
       const x = pl.x + dx * k, y = pl.y + dy * k;
       if (!vsInBounds(x, y)) break;
       if (!vsCpuSees({ x: pl.x, y: pl.y, dir }, x, y)) break; // ausserhalb der Sicht
-      const hit = (opp.x === x && opp.y === y) || s.trail[vsIdx(x, y)] === 1 ||
+      const oppVisible = now >= opp.smokeUntil;
+      const hit = (oppVisible && opp.x === x && opp.y === y) || s.trail[vsIdx(x, y)] === 1 ||
         s.guards.some(g => !g.deadUntil && g.x === x && g.y === y);
       if (hit) { pl.dir = dir; vsShoot(s, p, now); break; }
     }
@@ -683,10 +734,17 @@
   // --- Nachrichten ---
   function vsOnMessage(msg) {
     if (vsIsHost) {
+      if (msg.t === 'hello' && GADGETS[msg.gadget]) {
+        vsGadgets[1] = msg.gadget;
+        if (vsState) vsState.players[1].gadget = msg.gadget; // Match laeuft evtl. schon
+        return;
+      }
       if (!vsState) return;
       const pl = vsState.players[1];
       if (msg.t === 'dir') vsApplyDir(pl, msg.d);
       else if (msg.t === 'shoot') vsShoot(vsState, 1, performance.now());
+      else if (msg.t === 'gadget') vsUseGadget(vsState, 1, performance.now());
+      else if (msg.t === 'boost') vsUseBoost(vsState, 1, performance.now());
       else if (msg.t === 'rematch' && vsState.over) vsNextMatch();
     } else {
       if (msg.t === 'start') { vsState = null; vsBeginLoop(); }
@@ -704,7 +762,8 @@
       land: Array.from(msg.land, Number), trail: Array.from(msg.trail, Number),
       players: msg.players.map(pl => ({ x: pl.x, y: pl.y, inv: pl.inv,
         speedUntil: now + pl.speed, slowUntil: now + pl.slow, shieldUntil: now + pl.shield, rapidUntil: now + pl.rapid,
-        stunUntil: now + pl.stun, stunMs: pl.stunMs })),
+        stunUntil: now + pl.stun, stunMs: pl.stunMs,
+        gadgetReadyAt: now + pl.gadgetCd, smokeUntil: now + pl.smoke, shotReady: now + pl.shotCd, boosts: pl.boosts })),
       guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2], hunting: !!g[3],
         stunUntil: g[4] ? now + 300 : 0, breakUntil: g[5] ? now + 300 : 0, pers: g[6], name: g[7] })),
       powerUps: msg.powerUps.map(u => ({ x: u[0], y: u[1], type: u[2], kind: u[3] })),
@@ -725,8 +784,22 @@
   function vsInputDir(d) {
     ensureAudio(); // der Gast kommt per QR-Link und hat evtl. noch nie getippt
     if (!vsPlaying) return;
+    if (d === dir) vsInputBoost(); // gleiche Richtung nochmals = Boost, wie im 1-Spieler-Modus
     if (vsIsHost) vsApplyDir(vsState.players[0], d);
     else Net.send({ t: 'dir', d });
+  }
+
+  function vsInputGadget() {
+    ensureAudio();
+    if (!vsPlaying) return;
+    if (vsIsHost) vsUseGadget(vsState, 0, performance.now());
+    else Net.send({ t: 'gadget' });
+  }
+
+  function vsInputBoost() {
+    if (!vsPlaying) return;
+    if (vsIsHost) vsUseBoost(vsState, 0, performance.now());
+    else Net.send({ t: 'boost' });
   }
 
   function vsInputShoot() {
@@ -776,6 +849,7 @@
     }
     if (vsState && !vsState.over && !(vsState.countdown > 0)) updateMusicScheduler();
     vsDraw(performance.now());
+    if (vsState) updateActionButtonsUI();
     const over = vsState && vsState.over;
     if (over && !vsShownOver) { vsShownOver = true; setTimeout(vsShowResult, 900); }
     vsRaf = requestAnimationFrame(vsLoop);
@@ -855,6 +929,7 @@
     countdownActive = false; // bricht auch die Countdown-Ansage ab
     resetMenuThemeTiming();
     shieldUntil = speedUntil = slowUntil = rapidfireUntil = freezeUntil = 0;
+    gadgetCooldownUntil = shotCooldownUntil = smokeUntil = 0; hookAnim = null;
     enemies = []; powerUps = []; revealPopups = []; guardBubbles = [];
     shotProjectiles = []; enemyDeathAnims = []; trail = [];
     initGrid();
@@ -863,6 +938,9 @@
   }
 
   function vsInvul(pl, now) { return typeof pl.inv === 'boolean' ? pl.inv : now < pl.inv; }
+
+  // Sprung (neu setzen statt gleiten): alles ausser 1-2 Feldern geradeaus (Schritt, Enterhaken)
+  function vsIsJump(dx, dy) { return (dx && dy) || Math.abs(dx) + Math.abs(dy) > GADGET_HOOK_PULL; }
 
   const VS_DIRS = { '0,-1': 'up', '0,1': 'down', '-1,0': 'left', '1,0': 'right' };
 
@@ -879,8 +957,8 @@
     // Eigene Figur: Schritt erkennen und wie im 1-Spieler-Modus gleiten lassen
     const mp = s.players[me];
     if (mp.x !== px || mp.y !== py) {
-      const jump = Math.abs(mp.x - px) + Math.abs(mp.y - py) > 1;
-      const d = VS_DIRS[(mp.x - px) + ',' + (mp.y - py)];
+      const jump = vsIsJump(mp.x - px, mp.y - py);
+      const d = VS_DIRS[Math.sign(mp.x - px) + ',' + Math.sign(mp.y - py)];
       if (d) dir = d;
       else if (jump && px === -99) dir = me === 0 ? 'down' : 'up';
       prevPx = jump ? mp.x : px; prevPy = jump ? mp.y : py;
@@ -894,6 +972,13 @@
     if (vsWasStunned && !stunned) sndCountdownBeep(true);
     vsWasStunned = stunned;
     speedUntil = mp.speedUntil; slowUntil = mp.slowUntil; rapidfireUntil = mp.rapidUntil;
+    // Knoepfe: Gadget- und Schuss-Abklingzeit, Boost-Vorrat, Rauch
+    gadgetCooldownUntil = mp.gadgetReadyAt; shotCooldownUntil = mp.shotReady; smokeUntil = mp.smokeUntil;
+    decoyCharges = 0;
+    if (boostsRemaining !== mp.boosts || boostsMax !== VS_BOOSTS) {
+      boostsRemaining = mp.boosts; boostsMax = VS_BOOSTS;
+      updateBoostUI();
+    }
     freezeUntil = s.freezeUntil;
 
     // Gegner
@@ -903,7 +988,7 @@
       vsRival = { x: rp.x, y: rp.y, prevX: rp.x, prevY: rp.y, stepTime: 0, heading: h, headingDisp: h, lastDraw: now };
     } else if (rp.x !== vsRival.x || rp.y !== vsRival.y) {
       const dx = rp.x - vsRival.x, dy = rp.y - vsRival.y;
-      const jump = Math.abs(dx) + Math.abs(dy) > 1;
+      const jump = vsIsJump(dx, dy);
       if (!jump) vsRival.heading = Math.atan2(dy, dx);
       vsRival.prevX = jump ? rp.x : vsRival.x; vsRival.prevY = jump ? rp.y : vsRival.y;
       vsRival.x = rp.x; vsRival.y = rp.y;
@@ -912,6 +997,7 @@
     vsRival.inv = vsInvul(rp, now) || now < rp.shieldUntil;
     vsRival.iv = vsPlayerInterval(rp, now);
     vsRival.fast = now < rp.speedUntil;
+    vsRival.smoke = now < rp.smokeUntil;
     vsRival.trailLen = rivalTrail;
 
     // Waechter: feste Objekte je Index, damit sie gleiten statt springen
@@ -985,6 +1071,20 @@
       sndCoffeeBreak();
     } else if (ev.t === 'capture') {
       vsPlayCapture(ev, now);
+    } else if (ev.t === 'hook') {
+      sndGadgetHook();
+      if (ev.p === vsMe) {
+        hookAnim = { ox: ev.ox, oy: ev.oy, dx: ev.dx, dy: ev.dy, reachCells: ev.pulled > 0 ? ev.pulled : 0.55,
+          startTime: now, mode: ev.pulled > 0 ? 'pull' : 'bounce' };
+      }
+      if (ev.pulled > 0) { triggerShake(3, 140); spawnEmote('💨', ev.ox, ev.oy); }
+      else triggerShake(2, 90);
+    } else if (ev.t === 'smoke') {
+      sndGadgetSmoke();
+      spawnEmote('💨', ev.x, ev.y);
+      triggerShake(2, 150);
+    } else if (ev.t === 'boost') {
+      if (ev.p === vsMe) sndBoost();
     } else if (ev.t === 'cut') {
       playLineCutEffects(ev.cells.map(i => [i % COLS, Math.floor(i / COLS)]), '✂️', ev.p === vsMe);
     } else if (ev.t === 'pick') {
@@ -1055,6 +1155,7 @@
     ctx.rotate(h);
     ctx.scale(1 + bounce * 0.18, 1 - bounce * 0.13);
     ctx.rotate(-h);
+    if (rv.smoke) ctx.globalAlpha = 0.38; // Rauchbombe: halb durchsichtig
     ctx.fillStyle = rv.fast ? '#f5d347' : '#8cc4ff';
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, Math.PI * 2);
@@ -1131,8 +1232,8 @@
       origOpenModeSelect = openModeSelect, origHideOverlay = hideOverlay;
     setDir = function (d) { if (vsActive) vsInputDir(d); else origSetDir(d); };
     shoot = function () { if (vsActive) vsInputShoot(); else origShoot(); };
-    useGadget = function () { if (!vsActive) origUseGadget(); };
-    useBoost = function () { if (!vsActive) origUseBoost(); };
+    useGadget = function () { if (vsActive) vsInputGadget(); else origUseGadget(); };
+    useBoost = function () { if (vsActive) vsInputBoost(); else origUseBoost(); };
     togglePause = function () { if (!vsActive) origTogglePause(); };
     openQuitConfirm = function () {
       if (!vsActive) { origOpenQuit(); return; }

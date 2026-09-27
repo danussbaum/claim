@@ -117,6 +117,20 @@
     return n;
   }
 
+  // Boost-Knopf: Anzahl und Fuellstand (auch vom Versus genutzt)
+  function updateBoostUI() {
+    const boostEl = document.getElementById('boosts');
+    if (boostEl) boostEl.textContent = boostsRemaining;
+    const infoCellEl = document.getElementById('infoCell');
+    if (infoCellEl) infoCellEl.classList.toggle('empty', boostsRemaining <= 0);
+    const boostFillEl = document.getElementById('boostFill');
+    if (boostFillEl) {
+      // Der Vorrat leert sich pro Einsatz um einen Anteil - Gegenstueck zu den ladenden Knoepfen.
+      const frac = boostsMax > 0 ? Math.max(0, Math.min(1, boostsRemaining / boostsMax)) : 0;
+      boostFillEl.style.setProperty('--fill', (frac * 100) + '%');
+    }
+  }
+
   function updateStats() {
     capturedPct = Math.round((countTerritory() / totalCells()) * 100);
     const pctEl = document.getElementById('pct');
@@ -136,16 +150,7 @@
       scoreEl.classList.add('scorePopAnim');
       prevStatsScore = score;
     }
-    const boostEl = document.getElementById('boosts');
-    if (boostEl) boostEl.textContent = boostsRemaining;
-    const infoCellEl = document.getElementById('infoCell');
-    if (infoCellEl) infoCellEl.classList.toggle('empty', boostsRemaining <= 0);
-    const boostFillEl = document.getElementById('boostFill');
-    if (boostFillEl) {
-      // Der Vorrat leert sich pro Einsatz um einen Anteil - Gegenstueck zu den ladenden Knoepfen.
-      const frac = boostsMax > 0 ? Math.max(0, Math.min(1, boostsRemaining / boostsMax)) : 0;
-      boostFillEl.style.setProperty('--fill', (frac * 100) + '%');
-    }
+    updateBoostUI();
     const pauseBtnEl = document.getElementById('pauseBtn');
     const pauseGlyphEl = document.getElementById('pauseGlyph');
     const cashReady = levelReadyToComplete && running && !gameOver;
