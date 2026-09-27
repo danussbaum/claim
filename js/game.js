@@ -13,8 +13,11 @@
         const nr = mb.r + mb.dr, nc = mb.c + mb.dc;
         const blockedCell = !inBounds(nc, nr) || nr < 1 || nr > ROWS - 2 || nc < 1 || nc > COLS - 2 ||
           grid[nr][nc] === TERRITORY || grid[nr][nc] === BLOCK || grid[nr][nc] === PIT ||
-          enemies.some(e => e.r === nr && e.c === nc) || (nc === px && nr === py);
+          (nc === px && nr === py);
         if (blockedCell) { mb.dr = -mb.dr; mb.dc = -mb.dc; continue; }
+        // Waechter im Weg: wird zerquetscht
+        const squashed = enemies.find(e => e.r === nr && e.c === nc);
+        if (squashed) killEnemyByShot(squashed, 'crushed', mb.dc, mb.dr);
         if (grid[nr][nc] === TRAIL) cutTrailAt(nc, nr, '🪨');
         grid[mb.r][mb.c] = EMPTY;
         mb.prevR = mb.r; mb.prevC = mb.c;
@@ -81,6 +84,16 @@
       if (e.personality === 'nervous' && Math.random() < 0.28) {
         continue; // stockt kurz, wirkt unruhig
       }
+      // Scharfschuetze: bewegt sich nur jeden zweiten Takt
+      if (e.personality === 'sniper') {
+        e.slowBeat = !e.slowBeat;
+        if (e.slowBeat) continue;
+      }
+      // Hund: bleibt ab und zu schnueffelnd stehen
+      if (e.personality === 'dog' && Math.random() < 0.3) {
+        if (Math.random() < 0.3) spawnEmote('🐾', e.c, e.r);
+        continue;
+      }
 
       let choice;
       const now = performance.now();
@@ -125,7 +138,7 @@
           if (d < bestDist) { bestDist = d; best = [dx, dy]; }
         }
         choice = best;
-      } else if (e.personality === 'cutter' && trail.length) {
+      } else if ((e.personality === 'cutter' || e.personality === 'dog') && trail.length) {
         // Sucht die eigene Linie statt den Spieler
         let target = trail[0], tDist = Infinity;
         for (const [tx, ty] of trail) {
@@ -174,14 +187,25 @@
         e.stunnedUntil = now + 1500;
         e.huntingActive = false;
         spawnEmote('🍌', e.c, e.r);
-        guardSay(e, 'trip', true);
         sndGuardSlip();
         triggerShake(3, 160);
         addRipple(e.c, e.r, 2, 400, '245,221,74', 0.6);
+        // Rutscht er dabei in eine Grube daneben, ist es aus
+        const pit = [[0,1],[0,-1],[1,0],[-1,0]].map(([dx, dy]) => [e.c + dx, e.r + dy])
+          .find(([x, y]) => inBounds(x, y) && grid[y][x] === PIT);
+        if (pit && Math.random() < 0.6) {
+          e.prevC = e.c; e.prevR = e.r;
+          e.c = pit[0]; e.r = pit[1];
+          killEnemyByShot(e, 'pit');
+          continue;
+        }
+        guardSay(e, 'trip', true);
       }
 
       // Stolpern: wer blind hinterherjagt, faellt schon mal in eine Grube
       if (isHuntingNow && grid[e.r][e.c] === PIT && Math.random() < GUARD_TRIP_CHANCE) {
+        // Manchmal faellt er ganz hinein
+        if (Math.random() < 0.25) { killEnemyByShot(e, 'pit'); continue; }
         e.stunnedUntil = now + GUARD_TRIP_MS;
         e.huntingActive = false;
         spawnEmote('💫', e.c, e.r);

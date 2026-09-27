@@ -106,7 +106,34 @@ function drawGuardDeath(a, now) {
   const cx = a.c * CELL + CELL / 2, cy = a.r * CELL + CELL / 2;
   const R = CELL * 0.34;
   ctx.save();
-  if (a.kind === 'shot') {
+  if (a.kind === 'pit') {
+    // In die Grube gefallen: dreht sich, schrumpft und verschwindet in der Tiefe
+    const f = Math.min(1, t / 0.7);
+    ctx.globalAlpha = 1 - Math.max(0, (t - 0.6) / 0.4);
+    ctx.translate(cx, cy);
+    ctx.rotate(f * Math.PI * 4);
+    ctx.scale(1 - f * 0.9, 1 - f * 0.9);
+    ctx.fillStyle = shadeColor(a.color, -f * 0.6);
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    drawDeadEyes(R);
+  } else if (a.kind === 'crushed') {
+    // Zerquetscht: in Schubrichtung plattgedrueckt, Sterne kreisen darueber
+    const squash = Math.min(1, t / 0.12);
+    const horiz = a.dx !== 0;
+    const sq = 1 - squash * 0.8, st = 1 + squash * 0.6;
+    ctx.globalAlpha = t < 0.65 ? 1 : 1 - (t - 0.65) / 0.35;
+    ctx.translate(cx + a.dx * R * 0.6 * squash, cy + a.dy * R * 0.6 * squash);
+    ctx.fillStyle = a.color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R * (horiz ? sq : st), R * (horiz ? st : sq), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = Math.floor(CELL * 0.3) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let k = 0; k < 3; k++) {
+      const ang = now / 150 + k * Math.PI * 2 / 3;
+      ctx.fillText('⭐', Math.cos(ang) * R, -R * 1.1 + Math.sin(ang) * R * 0.3);
+    }
+  } else if (a.kind === 'shot') {
     // Weggeschleudert: fliegt in Schussrichtung, dreht sich, hopst und verblasst
     const dist = CELL * 2.2 * (1 - Math.pow(1 - t, 2));
     const hop = Math.sin(Math.min(1, t * 1.6) * Math.PI) * CELL * 0.6;
@@ -185,6 +212,49 @@ function drawGuardDeath(a, now) {
   }
   ctx.restore();
   return false;
+}
+// Hundeohren, Schild, Gewehr - im Koordinatensystem des Waechters (Ursprung = Mitte)
+function drawGuardGear(e, R, faceAng, now) {
+  const p = e.personality;
+  if (p !== 'dog' && p !== 'shield' && p !== 'sniper') {
+    if (now < (e.enragedUntil || 0)) {
+      // Wuetend: Zornesader
+      ctx.fillStyle = '#ff2a2a';
+      ctx.font = Math.floor(R * 0.9) + 'px -apple-system, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('💢', R * 0.7, -R * 0.9);
+    }
+    return;
+  }
+  ctx.save();
+  ctx.rotate(faceAng);
+  if (p === 'dog') {
+    ctx.fillStyle = '#6b4424';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.1, side * R * 0.85, R * 0.45, R * 0.22, side * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(R * 1.3, 0, R * 0.16, 0, Math.PI * 2); ctx.fill();
+  } else if (p === 'shield') {
+    ctx.fillStyle = '#c9d1d6';
+    ctx.strokeStyle = '#4b5258';
+    ctx.lineWidth = Math.max(1, R * 0.1);
+    ctx.beginPath();
+    ctx.roundRect(R * 1.05, -R * 0.85, R * 0.32, R * 1.7, R * 0.15);
+    ctx.fill(); ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = Math.max(2, R * 0.16);
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(R * 0.2, R * 0.55); ctx.lineTo(R * 2.1, R * 0.55); ctx.stroke();
+    // Zielfernrohr blitzt
+    const glint = 0.5 + 0.5 * Math.sin(now / 200);
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.4 + glint * 0.6).toFixed(2) + ')';
+    ctx.beginPath(); ctx.arc(R * 1.1, R * 0.3, R * 0.14, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
 }
 function drawDeadEyes(R) {
   ctx.strokeStyle = '#101414';
@@ -282,6 +352,14 @@ function draw(now) {
     if (camFollow) {
       ctx.translate(boardCanvas.width / 2 - (dispPx * CELL + CELL / 2),
                     boardCanvas.height / 2 - (dispPy * CELL + CELL / 2));
+    }
+    // Kill-Cam: kurzer Zoom auf besondere Abschuesse
+    if (killCam && now < killCam.until) {
+      const kt = (now - killCam.start) / (killCam.until - killCam.start);
+      const z = 1 + 0.6 * Math.sin(Math.PI * Math.min(1, kt));
+      ctx.translate(killCam.x, killCam.y);
+      ctx.scale(z, z);
+      ctx.translate(-killCam.x, -killCam.y);
     }
     const shakeRemaining = shakeEndTime - now;
     if (shakeRemaining > 0) {
@@ -598,8 +676,21 @@ function draw(now) {
       const sp = shotProjectiles[i];
       const t = (now - sp.startTime) / sp.life;
       if (t >= 1) { shotProjectiles.splice(i, 1); continue; }
-      const tx = sp.x0 + (sp.x1 - sp.x0) * t;
-      const ty = sp.y0 + (sp.y1 - sp.y0) * t;
+      // Position entlang der Flugbahn (mit Abpraller: mehrere Teilstrecken)
+      const pts = sp.pts;
+      let total = 0;
+      for (let k = 1; k < pts.length; k++) total += Math.hypot(pts[k][0] - pts[k-1][0], pts[k][1] - pts[k-1][1]);
+      let along = total * t, tx = pts[0][0], ty = pts[0][1];
+      for (let k = 1; k < pts.length; k++) {
+        const seg = Math.hypot(pts[k][0] - pts[k-1][0], pts[k][1] - pts[k-1][1]);
+        if (along <= seg || k === pts.length - 1) {
+          const f = seg ? Math.min(1, along / seg) : 1;
+          tx = pts[k-1][0] + (pts[k][0] - pts[k-1][0]) * f;
+          ty = pts[k-1][1] + (pts[k][1] - pts[k-1][1]) * f;
+          break;
+        }
+        along -= seg;
+      }
       // Rotierende Axt
       const L = CELL * 0.42;
       ctx.save();
@@ -1272,6 +1363,9 @@ function draw(now) {
       ctx.stroke();
       ctx.restore();
 
+      // Ausruestung je nach Waechtertyp
+      drawGuardGear(e, R, faceAng, now);
+
       if (now < alarmUntil) {
         const alarmPulse = 0.5 + Math.sin(now / 90) * 0.5;
         ctx.strokeStyle = 'rgba(255,60,40,' + (0.4 + alarmPulse * 0.5) + ')';
@@ -1350,7 +1444,7 @@ function draw(now) {
 
     for (let i = enemyDeathAnims.length - 1; i >= 0; i--) {
       const a = enemyDeathAnims[i];
-      if (a.kind === 'shot' || a.kind === 'spikes' || a.kind === 'sealed') {
+      if (a.kind) {
         if (drawGuardDeath(a, now)) enemyDeathAnims.splice(i, 1);
         continue;
       }

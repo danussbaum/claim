@@ -141,18 +141,36 @@
   const BREAK_SNEAK_BONUS = 25;
   let guardBubbles = []; // { e, x, y, text, start }
   let lastGuardLine = '';
+  const GUARD_NAMES = ['Kevin', 'Gary', 'Steve', 'Bob', 'Dave', 'Karen', 'Brenda', 'Frank',
+    'Greg', 'Linda', 'Chad', 'Doris', 'Nigel', 'Barry', 'Sandra', 'Hank'];
+  const DOG_NAMES = ['Rex', 'Bello', 'Fido', 'Brutus', 'Waldi'];
+  const DOG_LINES = ['Woof!', 'Woof woof!', 'Grrr... woof!', 'Arf arf!', 'Bark!'];
+  function guardName(personality) {
+    const pool = personality === 'dog' ? DOG_NAMES : GUARD_NAMES;
+    const used = enemies.map(o => o.name);
+    const free = pool.filter(n => !used.includes(n));
+    const from = free.length ? free : pool;
+    return from[Math.floor(Math.random() * from.length)];
+  }
   function guardSay(e, kind, force) {
     const now = performance.now();
     if (!force && now - (e.lastBubbleAt || 0) < 2500) return;
     if (!force && guardBubbles.length >= 3) return;
-    const pool = GUARD_LINES[kind];
+    const pool = e.personality === 'dog' ? DOG_LINES : GUARD_LINES[kind];
     e.lastBubbleAt = now;
     guardBubbles = guardBubbles.filter(b => b.e !== e);
     // Nie zweimal hintereinander derselbe Spruch
     let text = pool[Math.floor(Math.random() * pool.length)];
     if (text === lastGuardLine) text = pool[(pool.indexOf(text) + 1) % pool.length];
     lastGuardLine = text;
-    guardBubbles.push({ e, x: e.c, y: e.r, text, start: now });
+    guardShout(e, text);
+  }
+  // Freier Text: Sprechblase mit Namen plus Stimme
+  function guardShout(e, text) {
+    const now = performance.now();
+    e.lastBubbleAt = now;
+    guardBubbles = guardBubbles.filter(b => b.e !== e);
+    guardBubbles.push({ e, x: e.c, y: e.r, text: (e.name ? e.name + ': ' : '') + text, start: now });
     if (e.voiceShift === undefined) e.voiceShift = 0.8 + Math.random() * 0.45; // jeder Waechter hat seine eigene Stimmlage
     if (voiceMode === 'gibberish') sndGibberish(text, e.personality, e.voiceShift);
     else if (voiceMode === 'speech') guardSpeak(e, text);
@@ -186,6 +204,48 @@
       guardSpeak(e, text, true);
     }
   }
+  // Andere Waechter reagieren auf einen Tod: rufen den Namen und werden wuetend
+  const REACT_LINES = ['Nooo, {n}!', '{n}! You monster!', 'You got {n}!', 'Avenge {n}!', 'Not {n}!', '{n}, nooo!'];
+  const ENRAGE_MS = 4000;
+  function guardReactToDeath(dead) {
+    if (!dead.name || !enemies.length) return;
+    let best = null, bestD = Infinity;
+    for (const o of enemies) {
+      if (o.personality === 'dog') continue;
+      const d = Math.abs(o.c - dead.c) + Math.abs(o.r - dead.r);
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    if (!best) return;
+    const o = best;
+    setTimeout(() => {
+      if (!running || gameOver || enemies.indexOf(o) === -1) return;
+      const now = performance.now();
+      const line = REACT_LINES[Math.floor(Math.random() * REACT_LINES.length)].replace('{n}', dead.name);
+      o.enragedUntil = now + ENRAGE_MS;
+      o.huntingActive = true;
+      o.lastSeenAt = now + ENRAGE_MS - VISION_MEMORY; // jagt eine Weile auch ohne Sicht weiter
+      o.stunnedUntil = 0; o.breakUntil = 0;
+      spawnEmote('😡', o.c, o.r);
+      guardShout(o, line);
+    }, 1100);
+  }
+
+  // Ansager fuer Multikills und Trickschuesse
+  function announce(text) {
+    if (voiceMode !== 'speech' || !window.speechSynthesis) return;
+    // Kurz warten, damit der Todesschrei noch zu hoeren ist
+    setTimeout(() => announceNow(text), 650);
+  }
+  function announceNow(text) {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    const voices = guardVoices();
+    if (voices.length) { u.voice = voices[0]; if (/^en/i.test(u.voice.lang)) u.lang = u.voice.lang; }
+    u.pitch = 0.3; u.rate = 0.9; u.volume = 1;
+    speechSynthesis.speak(u);
+  }
+
   const GUARD_GROWLS = ['Grrr!', 'Hey!', 'Oi!', 'Argh!', 'Hah!', 'You!'];
   function guardVoices() {
     if (!window.speechSynthesis) return [];
@@ -398,7 +458,15 @@
   let shakeMagnitude = 0, shakeDuration = 1, shakeEndTime = 0;
 
   let slowMoUntil = 0;
-  function triggerSlowMo(ms) { slowMoUntil = performance.now() + ms; }
+  function triggerSlowMo(ms) { slowMoUntil = Math.max(slowMoUntil, performance.now() + ms); }
+  // Kill-Cam: Zeitlupe plus Zoom auf die Stelle eines besonderen Abschusses
+  let killCam = null; // { x, y, start, until }
+  const KILLCAM_MS = 1100;
+  function triggerKillCam(c, r) {
+    const now = performance.now();
+    killCam = { x: c * CELL + CELL / 2, y: r * CELL + CELL / 2, start: now, until: now + KILLCAM_MS };
+    triggerSlowMo(KILLCAM_MS * 0.8);
+  }
 
   function triggerShake(magnitude, duration) {
     shakeMagnitude = magnitude;
