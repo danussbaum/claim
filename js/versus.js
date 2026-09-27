@@ -193,10 +193,6 @@
       hunting: false, target: -1, lastSeen: -1e9, stunUntil: 0, breakUntil: 0, lastBubbleAt: 0 };
   }
 
-  function vsDelta(d) {
-    return d === 'up' ? [0, -1] : d === 'down' ? [0, 1] : d === 'left' ? [-1, 0] : [1, 0];
-  }
-
   function vsOnOwnLand(s, p) {
     const pl = s.players[p];
     return s.land[vsIdx(pl.x, pl.y)] === p + 1;
@@ -273,7 +269,7 @@
     if (now < (pl.stunUntil || 0)) { pl.next = null; return; } // nach Abschuss kurz eingefroren
     if (pl.next) { pl.dir = pl.next; pl.next = null; }
     if (!pl.dir) return;
-    const [dx, dy] = vsDelta(pl.dir);
+    const [dx, dy] = dirDelta(pl.dir);
     const nx = pl.x + dx, ny = pl.y + dy;
     if (!vsInBounds(nx, ny)) { pl.dir = null; return; }
     const i = vsIdx(nx, ny);
@@ -402,7 +398,7 @@
     const pl = s.players[p];
     if (now < pl.shotReady || s.countdown > 0 || s.over) return;
     pl.shotReady = now + (now < pl.rapidUntil ? VS_RAPID_COOLDOWN : VS_SHOT_COOLDOWN);
-    const [dx, dy] = vsDelta(pl.dir || pl.lastDir);
+    const [dx, dy] = dirDelta(pl.dir || pl.lastDir);
     const opp = 1 - p, op = s.players[opp];
     const path = [[pl.x, pl.y]];
     let x = pl.x, y = pl.y;
@@ -506,7 +502,7 @@
 
   // Die CPU sieht wie ein Waechter (Kegel in Fahrtrichtung, dieselbe Geometrie wie canSeePoint)
   function vsCpuView(pl) {
-    const [dx, dy] = vsDelta(pl.dir || pl.lastDir);
+    const [dx, dy] = dirDelta(pl.dir || pl.lastDir);
     return { personality: 'wanderer', dc0: dx, dr0: dy, c: pl.x, r: pl.y };
   }
   function vsCpuSees(pl, x, y) {
@@ -514,10 +510,9 @@
   }
 
   function vsCpuSafeDirs(s, pl, p) {
-    const back = { up: 'down', down: 'up', left: 'right', right: 'left' };
     return ['up', 'down', 'left', 'right'].filter(d => {
-      if (pl.trail.length && d === back[pl.dir]) return false;
-      const [dx, dy] = vsDelta(d), x = pl.x + dx, y = pl.y + dy;
+      if (pl.trail.length && d === INVERTED_DIR[pl.dir]) return false;
+      const [dx, dy] = dirDelta(d), x = pl.x + dx, y = pl.y + dy;
       return vsInBounds(x, y) && s.trail[vsIdx(x, y)] !== p + 1;
     });
   }
@@ -568,7 +563,7 @@
     if (onLand && !pl.trail.length) {
       // Zu Hause: meist gleich wieder los, Richtung freies Feld
       const out = safe.filter(d => {
-        const [dx, dy] = vsDelta(d);
+        const [dx, dy] = dirDelta(d);
         return s.land[vsIdx(pl.x + dx, pl.y + dy)] !== p + 1;
       });
       if (out.length && guardDist > 3 && Math.random() < 0.5) {
@@ -601,7 +596,7 @@
     pl.lastDir = dir;
 
     // Schiessen, wenn Gegner, seine Linie oder ein Waechter in Reichweite in der Linie steht
-    const [dx, dy] = vsDelta(dir);
+    const [dx, dy] = dirDelta(dir);
     for (let k = 1; k <= VS_SHOT_RANGE; k++) {
       const x = pl.x + dx * k, y = pl.y + dy * k;
       if (!vsInBounds(x, y)) break;
@@ -656,8 +651,7 @@
 
   function vsApplyDir(pl, d) {
     if (!['up', 'down', 'left', 'right'].includes(d)) return;
-    const back = { up: 'down', down: 'up', left: 'right', right: 'left' };
-    if (pl.trail.length && pl.dir === back[d]) return; // nicht in die eigene Linie umdrehen
+    if (pl.trail.length && pl.dir === INVERTED_DIR[d]) return; // nicht in die eigene Linie umdrehen
     pl.next = d;
     pl.lastDir = d;
   }
@@ -914,12 +908,7 @@
     } else if (ev.t === 'capture') {
       vsPlayCapture(ev, now);
     } else if (ev.t === 'cut') {
-      ev.cells.forEach(i => flashCells.push({ r: Math.floor(i / COLS), c: i % COLS, time: now }));
-      const last = ev.cells[ev.cells.length - 1];
-      milestonePopups.push({ x: last % COLS, y: Math.floor(last / COLS), text: '✂️ Line cut!', startTime: now });
-      sndLineCut();
-      triggerShake(5, 200);
-      if (ev.p === vsMe) vibrate([40, 30, 40]);
+      playLineCutEffects(ev.cells.map(i => [i % COLS, Math.floor(i / COLS)]), '✂️', ev.p === vsMe);
     } else if (ev.t === 'pick') {
       revealPopups.push({ x: ev.x, y: ev.y, type: ev.type, kind: ev.kind,
         startTime: now, resolveAt: now + ROULETTE_MS, applied: true, lastTickIdx: -1 });
@@ -930,30 +919,10 @@
     }
   }
 
-  // Eroberungs-Effekte wie in finalizeCapture(), in der Farbe des Spielers
+  // Eroberungs-Effekte: dieselben wie im 1-Spieler-Modus, in der Farbe des Spielers
   function vsPlayCapture(ev, now) {
-    const mine = ev.p === vsMe;
-    const gained = ev.cells.length;
-    let sumR = 0, sumC = 0;
-    ev.cells.forEach(i => {
-      const r = Math.floor(i / COLS), c = i % COLS;
-      flashCells.push({ r, c, time: now });
-      sumR += r; sumC += c;
-    });
-    addRipple(sumC / gained, sumR / gained, Math.min(14, 2.5 + Math.sqrt(gained) * 1.4),
-      520 + Math.min(380, gained * 6), mine ? '127,224,160' : '140,196,255', 0.8);
-    sndCapture(gained, ev.combo);
-    if (gained > 12) {
-      triggerShake(Math.min(7, 2 + gained * 0.08), 220);
-      spawnEmote('💪', ev.x, ev.y);
-    }
-    if (gained > 2) {
-      spawnFireworkBurst(ev.x * CELL + CELL / 2, ev.y * CELL + CELL / 2,
-        mine ? ['#63c96a', '#7fe0a0', '#ffd23f'] : ['#4a8fe0', '#8cc4ff', '#ffd23f']);
-    }
-    if (ev.combo >= 2) {
-      comboPopups.push({ x: ev.x, y: ev.y, combo: ev.combo, mult: 1 + Math.min(ev.combo - 1, 9) * 0.1, startTime: now });
-    }
+    const cells = ev.cells.map(i => [Math.floor(i / COLS), i % COLS]);
+    playCaptureEffects(cells, ev.x, ev.y, ev.combo, ev.p === vsMe ? CAPTURE_FX_GREEN : CAPTURE_FX_BLUE);
     if (ev.stolen > 0) {
       milestonePopups.push({ x: ev.x, y: ev.y - 1, text: '🏴 Stolen ' + ev.stolen + '!', startTime: now });
     }
@@ -1042,19 +1011,8 @@
     const g = ctx.createRadialGradient(cx, cy, CELL * 0.3, cx, cy, radius);
     g.addColorStop(0, 'rgba(120,180,255,0.20)');
     g.addColorStop(1, 'rgba(120,180,255,0)');
-    const poly = visionPolygon(view, ox, oy);
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(poly[0][0] * CELL, poly[0][1] * CELL);
-    for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0] * CELL, poly[i][1] * CELL);
-    ctx.closePath();
-    ctx.moveTo(cx + NEAR_SIGHT * CELL, cy);
-    ctx.arc(cx, cy, NEAR_SIGHT * CELL, 0, Math.PI * 2);
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(140,196,255,0.25)';
-    ctx.lineWidth = Math.max(1, CELL * 0.035);
-    ctx.stroke();
+    fillVisionCone(view, ox, oy, cx, cy, g, 'rgba(140,196,255,0.25)');
     ctx.restore();
   }
 

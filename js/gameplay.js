@@ -518,6 +518,31 @@
     else if (res === 'moved' && performance.now() < heliumUntil) sndHeliumSqueak();
   }
 
+  // Effekte einer Eroberung (1-Spieler und Versus). cells: [[r, c]], (x, y): Figur.
+  const CAPTURE_FX_GREEN = { ripple: '127,224,160', fireworks: ['#63c96a', '#7fe0a0', '#ffd23f'] };
+  const CAPTURE_FX_BLUE = { ripple: '140,196,255', fireworks: ['#4a8fe0', '#8cc4ff', '#ffd23f'] };
+  function playCaptureEffects(cells, x, y, combo, fx) {
+    const gained = cells.length;
+    if (!gained) return;
+    const now = performance.now();
+    let sumR = 0, sumC = 0;
+    for (const [r, c] of cells) {
+      flashCells.push({ r, c, time: now });
+      sumR += r; sumC += c;
+    }
+    // Welle aus dem Schwerpunkt der eroberten Flaeche - je groesser der Claim,
+    // desto weiter laeuft sie.
+    addRipple(sumC / gained, sumR / gained, Math.min(14, 2.5 + Math.sqrt(gained) * 1.4),
+              520 + Math.min(380, gained * 6), fx.ripple, 0.8);
+    sndCapture(gained, combo);
+    if (gained > 12) {
+      triggerShake(Math.min(7, 2 + gained * 0.08), 220);
+      spawnEmote('💪', x, y);
+    }
+    if (gained > 2) spawnFireworkBurst(x * CELL + CELL / 2, y * CELL + CELL / 2, fx.fireworks);
+    if (combo >= 2) comboPopups.push({ x, y, combo, mult: comboMultiplier(combo), startTime: now });
+  }
+
   function finalizeCapture() {
     // Im Tutorial zaehlt schon die geschlossene Schleife, auch wenn sie nichts umschliesst.
     if (trail.length > 0) tutorialFlag('captured');
@@ -549,26 +574,17 @@
       }
     }
 
-    let gained = 0;
-    let gainSumR = 0, gainSumC = 0;
+    const gainedCells = [];
     for (const comp of components) {
       const hasEnemy = comp.some(([r, c]) => enemies.some(e => e.r === r && e.c === c));
       if (!hasEnemy) {
         for (const [r, c] of comp) {
           grid[r][c] = TERRITORY;
-          flashCells.push({ r, c, time: performance.now() });
-          gainSumR += r; gainSumC += c;
-          gained++;
+          gainedCells.push([r, c]);
         }
       }
     }
-    // Welle aus dem Schwerpunkt der eroberten Flaeche - je groesser der Claim,
-    // desto weiter laeuft sie.
-    if (gained > 0) {
-      addRipple(gainSumC / gained, gainSumR / gained,
-                Math.min(14, 2.5 + Math.sqrt(gained) * 1.4),
-                520 + Math.min(380, gained * 6), '127,224,160', 0.8);
-    }
+    const gained = gainedCells.length;
     if (!bonusClaimed && bonusCells.length) {
       const allClaimed = bonusCells.every(b => grid[b.r][b.c] === TERRITORY);
       if (allClaimed) {
@@ -617,17 +633,7 @@
         score += ghost;
         milestonePopups.push({ x: px, y: py - 1, text: '👻 Ghost +' + ghost, startTime: performance.now() });
       }
-      sndCapture(gained, comboCount);
-      if (gained > 12) {
-        triggerShake(Math.min(7, 2 + gained * 0.08), 220);
-        spawnEmote('💪', px, py);
-      }
-      if (gained > 2) {
-        spawnFireworkBurst(px * CELL + CELL / 2, py * CELL + CELL / 2, ['#63c96a', '#7fe0a0', '#ffd23f']);
-      }
-      if (comboCount >= 2) {
-        comboPopups.push({ x: px, y: py, combo: comboCount, mult, startTime: performance.now() });
-      }
+      playCaptureEffects(gainedCells, px, py, comboCount, CAPTURE_FX_GREEN);
     }
     const freshPct = Math.round((countTerritory() / totalCells()) * 100);
 
@@ -774,19 +780,25 @@
   }
 
   // Trennt die Linie an (cx, cy): alles vom Anfang bis zur Schnittstelle geht verloren.
+  // Effekte einer gekappten Linie (1-Spieler und Versus). cells: [[c, r]], die letzte ist die Schnittstelle.
+  function playLineCutEffects(cells, emoji, doVibrate) {
+    const now = performance.now();
+    for (const [c, r] of cells) flashCells.push({ r, c, time: now });
+    sndLineCut();
+    triggerShake(5, 200);
+    if (doVibrate) vibrate([40, 30, 40]);
+    const [cx, cy] = cells[cells.length - 1];
+    milestonePopups.push({ x: cx, y: cy, text: (emoji || '✂️') + ' Line cut!', startTime: now });
+  }
   function cutTrailAt(cx, cy, emoji) {
     const idx = trail.findIndex(([tx, ty]) => tx === cx && ty === cy);
     if (idx < 0) return 0;
     const removed = trail.splice(0, idx + 1);
     for (const [tx, ty] of removed) {
       if (grid[ty][tx] === TRAIL) grid[ty][tx] = EMPTY;
-      flashCells.push({ r: ty, c: tx, time: performance.now() });
     }
     comboCount = 0;
     tutorialFlag('lineCut');
-    sndLineCut();
-    triggerShake(5, 200);
-    vibrate([40, 30, 40]);
-    milestonePopups.push({ x: cx, y: cy, text: (emoji || '✂️') + ' Line cut!', startTime: performance.now() });
+    playLineCutEffects(removed, emoji, true);
   }
 

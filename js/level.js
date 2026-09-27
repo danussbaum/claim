@@ -169,8 +169,8 @@
     }
   }
 
-  function comboMultiplier() {
-    return 1 + Math.min(comboCount - 1, 9) * 0.1;
+  function comboMultiplier(n = comboCount) {
+    return 1 + Math.min(n - 1, 9) * 0.1;
   }
 
   const BASE_PERSONALITIES = ['wanderer', 'hunter', 'guardian', 'nervous'];

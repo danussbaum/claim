@@ -270,6 +270,23 @@ function drawDeadEyes(R) {
   }
 }
 
+// Sichtkegel fuellen: exakter Sichtbereich (dieselbe Geometrie wie canSeePoint) plus Nahbereich.
+// (ox, oy) in Zellen, (cx, cy) in Pixeln. Auch fuer den CPU-Gegner im Versus (js/versus.js).
+function fillVisionCone(e, ox, oy, cx, cy, fill, stroke) {
+  const poly = visionPolygon(e, ox, oy);
+  ctx.beginPath();
+  ctx.moveTo(poly[0][0] * CELL, poly[0][1] * CELL);
+  for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0] * CELL, poly[i][1] * CELL);
+  ctx.closePath();
+  ctx.moveTo(cx + NEAR_SIGHT * CELL, cy);
+  ctx.arc(cx, cy, NEAR_SIGHT * CELL, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = Math.max(1, CELL * 0.035);
+  ctx.stroke();
+}
+
 // Gesicht des Spielers (ohne PSYLO), um (0,0) mit Kopfradius R.
 // Wird auch fuer den Gegner im 2-Spieler-Modus verwendet (js/versus.js).
 function drawPlayerFace(R, emotion, lookX, lookY) {
@@ -1298,20 +1315,8 @@ function draw(now) {
         for (const [hc, hr] of hidingCells) ctx.rect(hc * CELL, hr * CELL, CELL, CELL);
         ctx.clip('evenodd');
       }
-      ctx.beginPath();
-      // Exakter Sichtbereich (dieselbe Geometrie wie canSeePlayer) plus Nahbereich
       const [sox, soy] = guardSightOrigin(e, now);
-      const poly = visionPolygon(e, sox, soy);
-      ctx.moveTo(poly[0][0] * CELL, poly[0][1] * CELL);
-      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0] * CELL, poly[i][1] * CELL);
-      ctx.closePath();
-      ctx.moveTo(cx + NEAR_SIGHT * CELL, cy);
-      ctx.arc(cx, cy, NEAR_SIGHT * CELL, 0, Math.PI * 2);
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = alerted ? 'rgba(255,110,90,0.45)' : 'rgba(255,225,150,0.20)';
-      ctx.lineWidth = Math.max(1, CELL * 0.035);
-      ctx.stroke();
+      fillVisionCone(e, sox, soy, cx, cy, g, alerted ? 'rgba(255,110,90,0.45)' : 'rgba(255,225,150,0.20)');
       ctx.restore();
     }
 

@@ -116,7 +116,7 @@
 
   // Klare englische Stimme: bekannte gute Stimmen zuerst, dann lokale en-US, dann irgendeine englische
   function countdownVoice() {
-    const en = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
+    const en = guardVoices().filter(v => /^en/i.test(v.lang));
     const preferred = /Google US English|Samantha|Daniel|Karen|Serena|Moira|Aaron|Microsoft (Aria|Jenny|Guy)/i;
     return en.find(v => preferred.test(v.name)) ||
       en.find(v => /en[-_]US/i.test(v.lang) && v.localService) ||
