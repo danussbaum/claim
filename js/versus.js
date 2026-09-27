@@ -13,7 +13,7 @@
   const VS_INVULN_MS = 1500;
   const VS_MATCH_MS = 120000;
   const VS_WIN_PCT = 50;
-  const VS_COUNTDOWN_MS = 3000;
+  const VS_COUNTDOWN_MS = COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
   const VS_SEND_MS = 33;
 
   let vsActive = false;      // Versus-Bildschirm aktiv (Lobby oder Match)
@@ -675,8 +675,9 @@
     vsHidePanel();
     document.getElementById('overlay').classList.add('hidden');
     vsEnterRender();
-    // Countdown-Piepser wie im 1-Spieler-Modus: 3, 2, 1, los
-    for (let i = 0; i <= 3; i++) setTimeout(() => { if (vsPlaying) sndCountdownBeep(i === 3); }, i * 1000);
+    // Countdown des 1-Spieler-Modus (Anzeige in draw(), Piepser) plus Sprachausgabe
+    triggerStartCountdown();
+    vsSpeakCountdown();
     vsShownOver = false;
     vsLastTime = 0;
     cancelAnimationFrame(vsRaf);
@@ -930,7 +931,6 @@
     }
     vsSyncRender(now);
     draw(now);
-    vsDrawCountdown();
   }
 
   // Wird von draw() im Weltkoordinatensystem aufgerufen
@@ -1014,23 +1014,18 @@
     ctx.restore();
   }
 
-  function vsDrawCountdown() {
-    const s = vsState;
-    if (!s || s.countdown <= 0) return;
-    const w = boardCanvas.width, h = boardCanvas.height;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(0, 0, w, h);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff';
-    ctx.font = '800 ' + Math.round(CELL * 3) + 'px Orbitron, sans-serif';
-    ctx.fillText(String(Math.ceil(s.countdown / 1000)), w / 2, h / 2);
-    ctx.font = '600 ' + Math.round(CELL * 0.6) + 'px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#7fe0a0';
-    ctx.fillText('You are green', w / 2, h / 2 + CELL * 2);
-    ctx.restore();
+  const VS_COUNTDOWN_WORDS = ['Three', 'Two', 'One', 'Go!'];
+  function vsSpeakCountdown() {
+    if (voiceMode === 'off' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+    speechSynthesis.cancel();
+    VS_COUNTDOWN_WORDS.forEach((word, i) => setTimeout(() => {
+      if (!vsPlaying) return;
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = 'en-US';
+      u.rate = 1.3;
+      u.pitch = i === VS_COUNTDOWN_WORDS.length - 1 ? 1.3 : 1;
+      speechSynthesis.speak(u);
+    }, i * COUNTDOWN_STEP_MS));
   }
 
   // --- Einhaengen in das bestehende Spiel ---
