@@ -7,16 +7,16 @@ Run it by opening index.html in a browser.
 - css/claim.css: all styles
 - js/: classic scripts (no modules) sharing one global scope, in load order:
   - core.js: constants, grid, canvas setup, shared state
-  - gadgets.js: gadgets and cooldowns
+  - gadgets.js: gadgets, mode/camera choice, most shared game state, power-up/perk/achievement definitions
   - level.js: level layout (pillars, pits, bonus zone), vision cone, smooth rotation
   - audio-sfx.js, audio-theme.js, audio-music.js: sound effects and music only
-  - game.js: moving pillars and main game logic (largest file)
+  - gameplay.js: level start, enemy spawning, shooting, power-ups, gadget use, player movement, capture (flood-fill, scoring), level complete
+  - game.js: moving pillars, enemies, game over, shop, overlays
+  - render.js: draw(), all canvas rendering (one large function, largest file)
+  - ui.js: main loop, action buttons, start/pause/retry, mode select, quit
   - tutorial.js: tutorial
   - splash.js: splash screen
-    - game.js: moving pillars, enemies, game over, shop, overlays
-  - render.js: draw(), all canvas rendering (one large function)
-  - ui.js: main loop, action buttons, start/pause/retry, mode select, quit
-  
+
 # Code rules
 - No ES modules, no import/export. All scripts share the global scope.
 - Code that runs at load time may only use things defined in earlier files.
@@ -28,7 +28,7 @@ Run it by opening index.html in a browser.
 - Read only the files needed for the task.
 - Skip audio-*.js unless the task is about sound or music.
 - Read claim.css only for styling tasks.
-- game.js is large: use grep to find the relevant function, then read only that range.
+- render.js and gameplay.js are large: use grep to find the relevant function, then read only that range.
 
 # Working style
 - Think briefly and purposefully. Decide, then act.
