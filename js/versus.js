@@ -16,6 +16,9 @@
   const VS_WIN_PCT = 50;
   const VS_COUNTDOWN_MS = COUNTDOWN_SPEECH_LEAD_MS + COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
   const VS_SEND_MS = 33;
+  // Serie: gewonnen hat, wer mindestens VS_SERIES_WINS Matches und VS_SERIES_LEAD Siege mehr hat
+  const VS_SERIES_WINS = 3;
+  const VS_SERIES_LEAD = 1;
 
   let vsActive = false;      // Versus-Bildschirm aktiv (Lobby oder Match)
   let vsPlaying = false;     // Match laeuft
@@ -23,6 +26,7 @@
   let vsCpu = false;         // lokales Match gegen die KI (zum Testen ohne zweites Geraet)
   let vsMe = 0;              // 0 = Host, 1 = Gast
   let vsState = null;        // beim Host die Wahrheit, beim Gast die letzte Kopie
+  let vsSeries = [0, 0];      // Matchsiege in der laufenden Serie (Host fuehrt)
   let vsRaf = 0, vsLastTime = 0, vsSendTimer = 0, vsPlayed = 0;
 
   // --- Overlay / Lobby ---
@@ -61,7 +65,7 @@
 
   function vsOpenLobby() {
     vsActive = true;
-    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Cut their line or shoot them to send them back home.', [
+    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. First to 3 matches wins. Cut their line or shoot them to send them back home.', [
       { label: '📡 Host a match', primary: true, onClick: vsStartHost },
       { label: '🤖 Play vs CPU', onClick: vsStartCpu },
       { label: 'Back', onClick: vsLeave },
@@ -71,11 +75,13 @@
 
   function vsStartCpu() {
     vsIsHost = true; vsMe = 0; vsCpu = true;
+    vsSeries = [0, 0];
     vsHostStartMatch();
   }
 
   function vsStartHost() {
     vsIsHost = true; vsMe = 0; vsCpu = false;
+    vsSeries = [0, 0];
     vsBindNet();
     const url = Net.joinUrl(Net.host());
     vsShowPanel('2 Player', 'Let your rival scan this code.', [{ label: 'Cancel', onClick: vsLeave }], true);
@@ -438,7 +444,18 @@
 
   function vsEndMatch(s, winner, reason) {
     if (s.over) return;
-    s.over = { winner, reason };
+    if (winner >= 0) vsSeries[winner]++;
+    const [a, b] = vsSeries;
+    const leader = a > b ? 0 : b > a ? 1 : -1;
+    const done = leader >= 0 && vsSeries[leader] >= VS_SERIES_WINS &&
+      vsSeries[leader] - vsSeries[1 - leader] >= VS_SERIES_LEAD;
+    s.over = { winner, reason, series: vsSeries.slice(), seriesWinner: done ? leader : -1 };
+  }
+
+  // Neue Serie, wenn die letzte entschieden ist
+  function vsNextMatch() {
+    if (vsState && vsState.over && vsState.over.seriesWinner >= 0) vsSeries = [0, 0];
+    vsHostStartMatch();
   }
 
   function vsHostTick(delta, now) {
@@ -489,7 +506,7 @@
       powerUps: s.powerUps.map(u => [u.x, u.y, u.type, u.kind]),
       freeze: left(s.freezeUntil),
       events: s.events,
-      timeLeft: s.timeLeft, countdown: s.countdown, over: s.over,
+      timeLeft: s.timeLeft, countdown: s.countdown, over: s.over, series: vsSeries,
       pct: [vsPct(s, 0), vsPct(s, 1)],
     };
   }
@@ -623,7 +640,7 @@
       const pl = vsState.players[1];
       if (msg.t === 'dir') vsApplyDir(pl, msg.d);
       else if (msg.t === 'shoot') vsShoot(vsState, 1, performance.now());
-      else if (msg.t === 'rematch' && vsState.over) vsHostStartMatch();
+      else if (msg.t === 'rematch' && vsState.over) vsNextMatch();
     } else {
       if (msg.t === 'start') { vsState = null; vsBeginLoop(); }
       else if (msg.t === 'state') {
@@ -645,7 +662,7 @@
       powerUps: msg.powerUps.map(u => ({ x: u[0], y: u[1], type: u[2], kind: u[3] })),
       freezeUntil: now + msg.freeze,
       events: [],
-      timeLeft: msg.timeLeft, countdown: msg.countdown, over: msg.over, pct: msg.pct,
+      timeLeft: msg.timeLeft, countdown: msg.countdown, over: msg.over, pct: msg.pct, series: msg.series,
     };
   }
 
@@ -719,11 +736,17 @@
   function vsShowResult() {
     const over = vsState && vsState.over;
     if (!over || !vsActive) return;
-    const title = over.winner === -1 ? 'Draw!' : (over.winner === vsMe ? 'You win! 🏆' : 'You lose 💀');
     const pct = vsState.pct || [vsPct(vsState, 0), vsPct(vsState, 1)];
-    const text = 'Reason: ' + over.reason + '\nYou ' + pct[vsMe] + '%  ·  Rival ' + pct[1 - vsMe] + '%';
-    const buttons = [{ label: '🔁 Rematch', primary: true, onClick: () => {
-      if (vsIsHost) vsHostStartMatch();
+    const series = over.series || [0, 0];
+    const seriesDone = over.seriesWinner >= 0;
+    let title;
+    if (seriesDone) title = over.seriesWinner === vsMe ? 'You win the series! 🏆' : 'Rival wins the series 💀';
+    else title = over.winner === -1 ? 'Draw!' : (over.winner === vsMe ? 'Match won! 👍' : 'Match lost 👎');
+    const text = 'Reason: ' + over.reason + '\nYou ' + pct[vsMe] + '%  ·  Rival ' + pct[1 - vsMe] + '%' +
+      '\n\nMatches  ' + series[vsMe] + ' : ' + series[1 - vsMe] +
+      (seriesDone ? '' : '\nFirst to ' + VS_SERIES_WINS + ' wins' + (VS_SERIES_LEAD > 1 ? ' (lead by ' + VS_SERIES_LEAD + ')' : ''));
+    const buttons = [{ label: seriesDone ? '🔁 New series' : '▶ Next match', primary: true, onClick: () => {
+      if (vsIsHost) vsNextMatch();
       else { Net.send({ t: 'rematch' }); vsSetStatus('Waiting for host...'); }
     } }, { label: 'Leave', onClick: vsLeave }];
     vsShowPanel(title, text, buttons, false);
@@ -738,7 +761,7 @@
   let vsRival = null;
   let vsSaved = null;       // waehrend des Matches ueberschriebene Einstellungen
   let vsHud = {};
-  const VS_STAT_LABELS = ['YOU', 'RIVAL', 'TIME']; // Leben gibt es im Versus nicht: vierte Anzeige aus
+  const VS_STAT_LABELS = ['YOU', 'RIVAL', 'TIME', 'MATCHES']; // statt Leben: Stand der Serie
 
   function vsEnterRender() {
     if (!vsSaved) {
@@ -876,6 +899,8 @@
     vsSetHud('pct', pct[me] + '%');
     vsSetHud('score', pct[1 - me] + '%');
     vsSetHud('level', Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'));
+    const series = vsIsHost ? vsSeries : (s.series || [0, 0]);
+    vsSetHud('lives', series[me] + ':' + series[1 - me]);
   }
 
   function vsSetHud(id, text) {
