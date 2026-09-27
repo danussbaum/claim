@@ -92,11 +92,12 @@
     };
   }
 
-  function killEnemyByShot(e) {
+  // kind: 'shot' (weggeschleudert in dx/dy), 'spikes' (plattgewalzt), 'sealed' (versteinert)
+  function killEnemyByShot(e, kind, dx, dy) {
     const idx = enemies.indexOf(e);
     if (idx >= 0) enemies.splice(idx, 1);
     enemyDeathAnims.push({
-      r: e.r, c: e.c,
+      r: e.r, c: e.c, kind: kind || 'shot', dx: dx || 0, dy: dy || 0,
       color: PERSONALITY_COLORS[e.personality] || '#e3574a',
       startTime: performance.now()
     });
@@ -150,13 +151,13 @@
     shotProjectiles.push({
       x0: px * CELL + CELL / 2, y0: py * CELL + CELL / 2,
       x1: endCx * CELL + CELL / 2, y1: endCy * CELL + CELL / 2,
-      startTime: now, life: 160
+      startTime: now, life: 260
     });
     addRipple(px, py, 2.6, 380, '255,138,110', 0.55);
     sndShoot();
 
     if (hitEnemy) {
-      killEnemyByShot(hitEnemy);
+      killEnemyByShot(hitEnemy, 'shot', ddx, ddy);
     } else if (hitTrail) {
       shootOutTrailCell(hitTrail[0], hitTrail[1]);
     }
@@ -427,7 +428,7 @@
     const enemyAhead = killEnemyCollisionCheck(nx, ny);
     if (enemyAhead && nowT >= shieldUntil && nowT < spikesUntil) {
       const hit = enemies.find(e => e.c === nx && e.r === ny);
-      if (hit) killEnemyByShot(hit);
+      if (hit) killEnemyByShot(hit, 'spikes');
     } else if (grid[ny][nx] === TRAIL) {
       endGame('You touched your own line.', '😵');
       return 'dead';
@@ -537,6 +538,11 @@
       if (stuck) {
         guardSay(e, 'stuck', true);
         enemies.splice(i, 1);
+        enemyDeathAnims.push({
+          r: e.r, c: e.c, kind: 'sealed',
+          color: PERSONALITY_COLORS[e.personality] || '#e3574a',
+          startTime: performance.now()
+        });
         const si = swarmEnemies.indexOf(e);
         if (si >= 0) swarmEnemies.splice(si, 1);
         if (!e.temporary) {
