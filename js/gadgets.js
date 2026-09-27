@@ -186,6 +186,7 @@
       guardSpeak(e, text, true);
     }
   }
+  const GUARD_GROWLS = ['Grrr!', 'Hey!', 'Oi!', 'Argh!', 'Hah!', 'You!'];
   function guardVoices() {
     if (!window.speechSynthesis) return [];
     const all = speechSynthesis.getVoices();
@@ -202,14 +203,19 @@
       const voices = guardVoices();
       e.speechVoice = {
         idx: Math.floor(Math.random() * 1000),
-        pitch: 0.4 + Math.random() * 0.7,  // eher tief = bedrohlicher
-        rate: 1.3 + Math.random() * 0.5    // schnell und gehetzt
+        pitch: 0.1 + Math.random() * 0.4,  // sehr tief = bedrohlich
+        rate: 1.7 + Math.random() * 0.5    // sehr schnell, keift
       };
       if (!voices.length) e.speechVoice.idx = -1;
     }
     const sv = e.speechVoice;
     // Ausrufezeichen statt Punkt: klingt bei vielen Stimmen schaerfer
-    const u = new SpeechSynthesisUtterance(text.replace(/\.+$/, '!').replace(/([^!?])$/, '$1!'));
+    // Ausrufezeichen statt Punkt und ab und zu ein Knurren davor: klingt schaerfer
+    let spoken = text.replace(/\.+$/, '!').replace(/([^!?])$/, '$1!').replace(/!+$/, '!!!');
+    if (!scream && Math.random() < 0.4) {
+      spoken = GUARD_GROWLS[Math.floor(Math.random() * GUARD_GROWLS.length)] + ' ' + spoken;
+    }
+    const u = new SpeechSynthesisUtterance(spoken);
     const voices = guardVoices();
     // Sprache immer Englisch setzen, sonst liest das Handy mit deutscher Stimme vor
     u.lang = 'en-US';
