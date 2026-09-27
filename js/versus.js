@@ -235,25 +235,48 @@
     let stolen = 0;
     pl.trail.forEach(i => { s.trail[i] = 0; s.land[i] = own; });
     pl.trail = [];
-    // Alles, was weder Waechter noch Gegner erreichen koennen, gehoert jetzt mir
-    // (auch Land des Gegners).
-    const seen = new Uint8Array(COLS * ROWS);
-    const stack = [];
-    const seed = (x, y) => {
-      const i = vsIdx(x, y);
-      if (s.land[i] !== own && !seen[i]) { seen[i] = 1; stack.push(i); }
-    };
-    s.guards.forEach(g => { if (!g.deadUntil) seed(g.x, g.y); });
-    seed(opp.x, opp.y);
-    while (stack.length) {
-      const i = stack.pop(), x = i % COLS, y = (i - x) / COLS;
-      if (x > 0) seed(x - 1, y);
-      if (x < COLS - 1) seed(x + 1, y);
-      if (y > 0) seed(x, y - 1);
-      if (y < ROWS - 1) seed(x, y + 1);
+    // Die restlichen Zellen (frei oder Land des Gegners) in zusammenhaengende Gebiete teilen.
+    // Mir gehoert jedes Gebiet ohne Waechter und ohne Gegner - ausser dem groessten:
+    // das bleibt immer offen, damit nie das ganze Feld auf einmal wegfaellt
+    // (z.B. wenn der Waechter gerade abgeschossen ist).
+    const comp = new Int16Array(COLS * ROWS).fill(-1);
+    const sizes = [];
+    for (let start = 0; start < COLS * ROWS; start++) {
+      if (s.land[start] === own || comp[start] >= 0) continue;
+      const id = sizes.length, stack = [start];
+      comp[start] = id;
+      let n = 0;
+      while (stack.length) {
+        const i = stack.pop(), x = i % COLS, y = (i - x) / COLS;
+        n++;
+        for (const [dx, dy] of VS_DIRS4) {
+          const nx = x + dx, ny = y + dy;
+          if (!vsInBounds(nx, ny)) continue;
+          const ni = vsIdx(nx, ny);
+          if (s.land[ni] === own || comp[ni] >= 0) continue;
+          comp[ni] = id;
+          stack.push(ni);
+        }
+      }
+      sizes.push(n);
+    }
+    const safe = new Set();
+    let largest = -1;
+    sizes.forEach((n, id) => { if (largest < 0 || n > sizes[largest]) largest = id; });
+    if (largest >= 0) safe.add(largest);
+    // Waechter schuetzen ihr Gebiet, auch abgeschossene (an ihrer letzten Stelle)
+    s.guards.forEach(g => { const id = comp[vsIdx(g.x, g.y)]; if (id >= 0) safe.add(id); });
+    // Der Gegner schuetzt sein Gebiet; steht er gerade auf meinem Land, die Gebiete daneben
+    const oi = vsIdx(opp.x, opp.y);
+    if (comp[oi] >= 0) safe.add(comp[oi]);
+    else for (const [dx, dy] of VS_DIRS4) {
+      if (vsInBounds(opp.x + dx, opp.y + dy)) {
+        const id = comp[vsIdx(opp.x + dx, opp.y + dy)];
+        if (id >= 0) safe.add(id);
+      }
     }
     for (let i = 0; i < COLS * ROWS; i++) {
-      if (!seen[i] && s.land[i] !== own) {
+      if (comp[i] >= 0 && !safe.has(comp[i])) {
         if (s.land[i]) stolen++;
         s.land[i] = own; s.trail[i] = 0;
         cells.push(i);
