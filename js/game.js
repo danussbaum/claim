@@ -296,6 +296,13 @@
     }, 420);
   }
 
+  // Klickton fuer alle Menueknoepfe (nicht fuer die Spielsteuerung)
+  document.addEventListener('pointerdown', (ev) => {
+    const b = ev.target.closest && ev.target.closest('button');
+    if (!b || b.closest('.controls') || b.disabled) return;
+    sndUiClick();
+  });
+
   let shopOpen = false;
 
   function drawableCards() {
@@ -339,9 +346,11 @@
     document.getElementById('startBtn').classList.add('hidden');
     document.getElementById('shop').classList.remove('hidden');
     document.getElementById('overlayTitle').textContent = nextLevelLabel;
+    hideOverlayExtras();
+    animateOverlayIn();
   }
 
-  function showOverlay(title, text, btnLabel) {
+  function showOverlay(title, text, btnLabel, opts) {
     shopOpen = false;
     document.getElementById('tutorialBtn').classList.add('hidden');
     document.getElementById('shop').classList.add('hidden');
@@ -354,6 +363,75 @@
     document.getElementById('overlayTitle').textContent = title;
     document.getElementById('overlayText').textContent = text;
     document.getElementById('startBtn').textContent = btnLabel;
+    hideOverlayExtras();
+    if (opts) showOverlayResults(opts);
+    animateOverlayIn();
+  }
+
+  // Menue-Inhalte gestaffelt einblenden (Titel zuerst, dann der Rest)
+  function animateOverlayIn() {
+    const ov = document.getElementById('overlay');
+    ov.classList.remove('enter');
+    void ov.offsetWidth; // Animation neu starten
+    let i = 0;
+    for (const el of ov.children) {
+      if (el.classList.contains('hidden')) continue;
+      el.style.animationDelay = (i++ * 55) + 'ms';
+    }
+    ov.classList.add('enter');
+  }
+
+  let overlayTimers = [];
+  function hideOverlayExtras() {
+    for (const t of overlayTimers) clearTimeout(t);
+    overlayTimers = [];
+    document.getElementById('overlayScore').classList.add('hidden');
+    document.getElementById('overlayPops').classList.add('hidden');
+  }
+
+  // Levelabschluss: Punkte zaehlen hoch, danach poppen die Zeilen einzeln auf
+  function showOverlayResults(opts) {
+    const scoreEl = document.getElementById('overlayScore');
+    const popsEl = document.getElementById('overlayPops');
+    const from = opts.scoreFrom || 0, to = opts.scoreTo || 0;
+    scoreEl.classList.remove('hidden');
+    scoreEl.classList.remove('done');
+    scoreEl.textContent = from;
+    popsEl.innerHTML = '';
+    popsEl.classList.remove('hidden');
+    const items = (opts.pops || []).map(txt => {
+      const d = document.createElement('div');
+      d.className = 'pop';
+      d.textContent = txt;
+      popsEl.appendChild(d);
+      return d;
+    });
+    const dur = Math.min(1100, 300 + (to - from) * 2);
+    const start = performance.now() + 250;
+    let lastTick = 0;
+    const step = () => {
+      const now = performance.now();
+      const t = Math.max(0, Math.min(1, (now - start) / dur));
+      const e = 1 - Math.pow(1 - t, 3);
+      scoreEl.textContent = Math.round(from + (to - from) * e);
+      if (t > 0 && now - lastTick > 55 && t < 1) { lastTick = now; sndScoreTick(e); }
+      if (t < 1) { overlayTimers.push(setTimeout(step, 16)); return; }
+      scoreEl.classList.add('done');
+      items.forEach((d, i) => overlayTimers.push(setTimeout(() => {
+        d.classList.add('in');
+        sndOverlayPop(i);
+      }, 120 + i * 260)));
+    };
+    step();
+  }
+
+  // Kurzer diagonaler Wisch ueber das Feld beim Levelstart
+  function playLevelWipe() {
+    const w = document.getElementById('levelWipe');
+    if (!w) return;
+    w.classList.remove('active');
+    void w.offsetWidth;
+    w.classList.add('active');
   }
   function hideOverlay() {
     document.getElementById('overlay').classList.add('hidden');

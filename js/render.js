@@ -127,7 +127,7 @@ function drawGuardDeath(a, now) {
     ctx.beginPath();
     ctx.ellipse(0, 0, R * (horiz ? sq : st), R * (horiz ? st : sq), 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.font = Math.floor(CELL * 0.3) + 'px -apple-system, sans-serif';
+    ctx.font = Math.floor(CELL * 0.3) + 'px "Space Grotesk", -apple-system, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let k = 0; k < 3; k++) {
       const ang = now / 150 + k * Math.PI * 2 / 3;
@@ -220,7 +220,7 @@ function drawGuardGear(e, R, faceAng, now) {
     if (now < (e.enragedUntil || 0)) {
       // Wuetend: Zornesader
       ctx.fillStyle = '#ff2a2a';
-      ctx.font = Math.floor(R * 0.9) + 'px -apple-system, sans-serif';
+      ctx.font = Math.floor(R * 0.9) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('💢', R * 0.7, -R * 0.9);
     }
@@ -515,8 +515,11 @@ function draw(now) {
     ctx.lineWidth = 1;
 
     for (let i = flashCells.length - 1; i >= 0; i--) {
-      if (now - flashCells[i].time > 400) flashCells.splice(i, 1);
+      if (now - flashCells[i].time - (flashCells[i].delay || 0) > 400) flashCells.splice(i, 1);
     }
+    // Eroberung: Zellen, deren Welle noch nicht angekommen ist, bleiben leer
+    const growCells = new Map();
+    for (const f of flashCells) if (f.delay) growCells.set(f.r * COLS + f.c, f);
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -569,10 +572,29 @@ function draw(now) {
           continue;
         }
         if (v === TERRITORY) {
+          const gf = growCells.get(r * COLS + c);
+          if (gf) {
+            const ga = now - gf.time - gf.delay;
+            if (ga < 0) continue;
+            if (ga < 220) {
+              // Aufpoppen mit leichtem Ueberschwingen
+              const t = ga / 220, k = 1.7;
+              const s = 1 + (k + 1) * Math.pow(t - 1, 3) + k * Math.pow(t - 1, 2);
+              const h = CELL * s / 2;
+              ctx.fillStyle = '#2f8f5c';
+              ctx.fillRect(c*CELL + CELL/2 - h, r*CELL + CELL/2 - h, h * 2, h * 2);
+              continue;
+            }
+          }
           ctx.fillStyle = '#2f8f5c';
           ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
           ctx.fillStyle = 'rgba(255,255,255,0.08)';
           ctx.fillRect(c*CELL, r*CELL, CELL, 2);
+          // Tiefe: Kante nach unten, wo die Flaeche endet
+          if (r + 1 >= ROWS || grid[r + 1][c] !== TERRITORY) {
+            ctx.fillStyle = 'rgba(0,0,0,0.28)';
+            ctx.fillRect(c*CELL, (r+1)*CELL - Math.max(2, CELL * 0.12), CELL, Math.max(2, CELL * 0.12));
+          }
         } else if (v === RIVAL_TERRITORY) {
           ctx.fillStyle = '#2f5f9f';
           ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
@@ -608,8 +630,21 @@ function draw(now) {
       }
     }
 
+    // Tiefe: Schlagschatten der Saeulen nach rechts unten
+    const shOff = Math.max(2, Math.round(CELL * 0.18));
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c] !== BLOCK) continue;
+        if (c + 1 < COLS && grid[r][c + 1] !== BLOCK) ctx.fillRect((c+1)*CELL, r*CELL + shOff, shOff, CELL - shOff);
+        if (r + 1 < ROWS && grid[r + 1][c] !== BLOCK) ctx.fillRect(c*CELL + shOff, (r+1)*CELL, CELL - shOff, shOff);
+        if (c + 1 < COLS && r + 1 < ROWS && grid[r + 1][c + 1] !== BLOCK) ctx.fillRect((c+1)*CELL, (r+1)*CELL, shOff, shOff);
+      }
+    }
+
     for (const f of flashCells) {
-      const t = (now - f.time) / 400;
+      const t = (now - f.time - (f.delay || 0)) / 400;
+      if (t < 0) continue;
       ctx.fillStyle = 'rgba(255,255,255,' + (0.5 * (1 - t)) + ')';
       ctx.fillRect(f.c*CELL, f.r*CELL, CELL, CELL);
     }
@@ -644,7 +679,7 @@ function draw(now) {
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = '#ffd23f';
-      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
@@ -671,7 +706,7 @@ function draw(now) {
       ctx.scale(bounce, bounce);
 
       const size = Math.floor(CELL * (0.5 + Math.min(p.combo, 8) * 0.045));
-      ctx.font = '800 ' + size + 'px -apple-system, sans-serif';
+      ctx.font = '800 ' + size + 'px Orbitron, "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -698,7 +733,7 @@ function draw(now) {
       ctx.globalAlpha = alpha;
       ctx.translate(mx, my);
       ctx.scale(bounce, bounce);
-      ctx.font = '800 ' + Math.floor(CELL * 0.5) + 'px -apple-system, sans-serif';
+      ctx.font = '800 ' + Math.floor(CELL * 0.5) + 'px Orbitron, "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
@@ -720,7 +755,7 @@ function draw(now) {
         ctx.strokeRect(b.c*CELL+2, b.r*CELL+2, CELL-4, CELL-4);
       }
       const first = bonusCells[0];
-      ctx.font = '700 ' + Math.floor(CELL * 0.5) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.5) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(255,226,120,' + (0.5 + pulse * 0.5) + ')';
@@ -751,7 +786,7 @@ function draw(now) {
         ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = Math.max(1.5, CELL * 0.05);
         ctx.stroke();
-        ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px -apple-system, sans-serif';
+        ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px "Space Grotesk", -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#101414';
@@ -769,7 +804,7 @@ function draw(now) {
         ctx.globalAlpha = alpha;
         ctx.translate(rx, ry);
         ctx.scale(bounce, bounce);
-        ctx.font = '800 ' + Math.floor(CELL * 0.42) + 'px -apple-system, sans-serif';
+        ctx.font = '800 ' + Math.floor(CELL * 0.42) + 'px Orbitron, "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.strokeStyle = 'rgba(0,0,0,0.65)';
@@ -795,6 +830,25 @@ function draw(now) {
       ctx.fillStyle = p.color;
       ctx.fillRect(Math.round(px2 - size / 2), Math.round(py2 - size / 2), size, size);
     }
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = sparkParticles.length - 1; i >= 0; i--) {
+      const p = sparkParticles[i];
+      const age = now - p.startTime;
+      if (age < 0) continue;
+      if (age > p.life) { sparkParticles.splice(i, 1); continue; }
+      // Luftwiderstand: Weg = v * (1 - e^-kt) / k
+      const k = 4, t = age / 1000, d = (1 - Math.exp(-k * t)) / k;
+      const f = 1 - age / p.life;
+      const size = Math.max(1.5, CELL * p.size * (0.4 + f * 0.6));
+      const sx = p.x0 + p.vx * d, sy = p.y0 + p.vy * d;
+      ctx.fillStyle = p.color;
+      // Leuchten ohne shadowBlur (teuer auf Handys): weicher Hof + heller Kern
+      ctx.globalAlpha = f * 0.3;
+      ctx.fillRect(sx - size, sy - size, size * 2, size * 2);
+      ctx.globalAlpha = f;
+      ctx.fillRect(sx - size / 2, sy - size / 2, size, size);
+    }
+    ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
 
     for (let i = shotProjectiles.length - 1; i >= 0; i--) {
@@ -854,7 +908,7 @@ function draw(now) {
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#101414';
-      ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(MYSTERY_SYMBOL, 0, 1);
@@ -862,7 +916,7 @@ function draw(now) {
     }
 
     // Bananenschalen
-    ctx.font = Math.floor(CELL * 0.6) + 'px -apple-system, sans-serif';
+    ctx.font = Math.floor(CELL * 0.6) + 'px "Space Grotesk", -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const b of bananaPeels) ctx.fillText('🍌', b.c * CELL + CELL / 2, b.r * CELL + CELL / 2 + 1);
@@ -881,7 +935,7 @@ function draw(now) {
       ctx.arc(cx, cy, CELL * (0.35 + ring * 1.1), 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = Math.min(1, left * 3);
-      ctx.font = Math.floor(CELL * 0.6) + 'px -apple-system, sans-serif';
+      ctx.font = Math.floor(CELL * 0.6) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🪨', cx, cy + 1);
@@ -931,8 +985,11 @@ function draw(now) {
     const [pdx, pdy] = dirDelta(dir);
     const R = CELL * 0.38;
     const bounce = Math.sin(Math.min(1, playerT) * Math.PI);
-    const stretch = 1 + bounce * 0.18;
-    const squeeze = 1 - bounce * 0.13;
+    // Nachwippen nach Kurve oder Eroberung (gedaempfte Schwingung)
+    const sqAge = (now - playerSquashTime) / 1000;
+    const wobble = sqAge < 0.6 ? playerSquashAmt * Math.exp(-sqAge * 7) * Math.cos(sqAge * 28) : 0;
+    const stretch = (1 + bounce * 0.18) * (1 - wobble);
+    const squeeze = (1 - bounce * 0.13) * (1 + wobble);
     const headX = Math.cos(playerHeadingDisp), headY = Math.sin(playerHeadingDisp);
 
     const pcx = dispPx * CELL + CELL / 2, pcy = dispPy * CELL + CELL / 2;
@@ -1139,6 +1196,12 @@ function draw(now) {
     else if (trail.length > 0) emotion = 'determined';
     else emotion = 'relaxed';
 
+    // Tiefe: weicher Bodenschatten unter dem Spieler
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(pcx + CELL * 0.06, pcy + R * 0.85, R * 0.85 * stretch, R * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.save();
     ctx.translate(pcx, pcy);
     // Streckung entlang der Blickrichtung, damit die Drehung mitlaeuft
@@ -1240,7 +1303,7 @@ function draw(now) {
     if (activeIcon) {
       const bobY = Math.sin(now / 260) * R * 0.12;
       const iconY = pcy - R * 1.55 + bobY;
-      ctx.font = '700 ' + Math.floor(R * 1.1) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(R * 1.1) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = ALL_ICON_COLORS[activeIcon];
@@ -1262,7 +1325,7 @@ function draw(now) {
       ctx.globalAlpha = alpha;
       ctx.translate(ex, ey);
       ctx.scale(bounce, bounce);
-      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(em.emoji, 0, 0);
@@ -1334,6 +1397,12 @@ function draw(now) {
       else if (frozen) { pulseFreq = 900; pulseAmp = 0.015; }
       const pulse = 1 + Math.sin(now / pulseFreq + e.c * 1.7 + e.r) * pulseAmp;
       const R = CELL * 0.36 * pulse;
+
+      // Tiefe: Bodenschatten
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(ecx + CELL * 0.06, ecy + R * 0.85, R * 0.85, R * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.save();
       ctx.translate(ecx, ecy);
@@ -1536,7 +1605,7 @@ function draw(now) {
       if (!stunned && !onBreak) continue;
       const ex = (e.prevC + (e.c - e.prevC) * enemyT) * CELL + CELL / 2;
       const ey = (e.prevR + (e.r - e.prevR) * enemyT) * CELL + CELL / 2;
-      ctx.font = Math.floor(CELL * 0.42) + 'px -apple-system, sans-serif';
+      ctx.font = Math.floor(CELL * 0.42) + 'px "Space Grotesk", -apple-system, sans-serif';
       if (stunned) {
         for (let k = 0; k < 3; k++) {
           const a = now / 180 + k * Math.PI * 2 / 3;
@@ -1560,7 +1629,7 @@ function draw(now) {
       const pop = t < 0.1 ? 0.6 + t * 4 : 1;
       ctx.save();
       ctx.globalAlpha = t > 0.8 ? (1 - t) / 0.2 : 1;
-      ctx.font = '700 ' + Math.max(10, Math.floor(CELL * 0.42)) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.max(10, Math.floor(CELL * 0.42)) + 'px "Space Grotesk", -apple-system, sans-serif';
       const w = ctx.measureText(b.text).width + CELL * 0.4, h = CELL * 0.62;
       let bx = b.x * CELL + CELL / 2;
       bx = Math.max(w / 2, Math.min(COLS * CELL - w / 2, bx));

@@ -905,7 +905,7 @@
     powerUps = []; swarmEnemies = []; decoys = []; bananaPeels = []; movingBlocks = [];
     bonusCells = []; flashCells = []; guardBubbles = []; enemyDeathAnims = []; shotProjectiles = [];
     nearMissPopups = []; comboPopups = []; revealPopups = []; milestonePopups = []; emotePopups = [];
-    fireworkParticles = []; dustParticles = []; smokeParticles = []; bgRipples = [];
+    fireworkParticles = []; sparkParticles = []; dustParticles = []; smokeParticles = []; bgRipples = [];
     countdownActive = false; dying = false; gameOver = false; paused = false;
     playerInterval = VS_STEP_MS; enemyInterval = VS_GUARD_MS;
     level = 1;
@@ -1203,7 +1203,7 @@
     ctx.beginPath();
     ctx.arc(x, y, CELL * 0.62, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
     ctx.stroke();
-    ctx.font = Math.floor(CELL * 0.42) + 'px -apple-system, sans-serif';
+    ctx.font = Math.floor(CELL * 0.42) + 'px "Space Grotesk", -apple-system, sans-serif';
     for (let k = 0; k < 3; k++) {
       const a = now / 180 + k * Math.PI * 2 / 3;
       ctx.fillText('⭐', x + Math.cos(a) * CELL * 0.4, y - CELL * 0.45 + Math.sin(a) * CELL * 0.12);

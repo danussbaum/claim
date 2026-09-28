@@ -2,6 +2,7 @@
 
   function resetLevel(newLevel) {
     level = newLevel;
+    scoreAtLevelStart = score || 0;
     initGrid();
     if (!tutorialActive) placeObstacles(level);
     else { bonusCells = []; bonusClaimed = false; movingBlocks = []; }
@@ -106,6 +107,8 @@
       startTime: performance.now()
     });
     sndEnemyDeath();
+    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, PERSONALITY_COLORS[e.personality] || '#e3574a', 22, 260, 0);
+    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, '#fff2c0', 10, 200, 0);
     guardScream(e);
     guardReactToDeath(e);
     statKills++;
@@ -227,6 +230,7 @@
     comboPopups = [];
     revealPopups = [];
     fireworkParticles = [];
+    sparkParticles = [];
     dustParticles = [];
     emotePopups = [];
     milestonePopups = [];
@@ -508,7 +512,14 @@
   function stepPlayer() {
     prevPx = px; prevPy = py;
     playerStepTime = performance.now();
-    if (bananaSlide > 0) bananaSlide--; else dir = nextDir;
+    if (bananaSlide > 0) bananaSlide--;
+    else {
+      if (nextDir !== dir) {
+        playerSquashTime = playerStepTime; playerSquashAmt = 0.16;
+        spawnSparks(px * CELL + CELL / 2, py * CELL + CELL / 2, 'rgba(220,240,228,0.9)', 7, 75, 0);
+      }
+      dir = nextDir;
+    }
     const [dx, dy] = dirDelta(dir);
     const nx = px + dx, ny = py + dy;
     // Rutschen endet an Saeulen und Gruben statt hineinzufallen
@@ -526,10 +537,18 @@
     if (!gained) return;
     const now = performance.now();
     let sumR = 0, sumC = 0;
-    for (const [r, c] of cells) {
-      flashCells.push({ r, c, time: now });
+    // Flaeche waechst wellenfoermig von der Figur aus; Gesamtdauer begrenzt
+    let maxD = 1;
+    for (const [r, c] of cells) maxD = Math.max(maxD, Math.hypot(c - x, r - y));
+    const stepMs = Math.min(35, 450 / maxD);
+    const sparkEvery = Math.max(1, Math.ceil(gained / 40));
+    cells.forEach(([r, c], i) => {
+      const delay = Math.hypot(c - x, r - y) * stepMs;
+      flashCells.push({ r, c, time: now, delay });
+      if (i % sparkEvery === 0) spawnSparks(c * CELL + CELL / 2, r * CELL + CELL / 2, fx.fireworks[i % 3], 3, 130, delay);
       sumR += r; sumC += c;
-    }
+    });
+    playerSquashTime = now; playerSquashAmt = Math.min(0.3, 0.12 + gained * 0.004);
     // Welle aus dem Schwerpunkt der eroberten Flaeche - je groesser der Claim,
     // desto weiter laeuft sie.
     addRipple(sumC / gained, sumR / gained, Math.min(14, 2.5 + Math.sqrt(gained) * 1.4),
@@ -658,6 +677,17 @@
     }
   }
 
+  function spawnSparks(cx, cy, color, count, speed, delay) {
+    const t0 = performance.now() + (delay || 0);
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = speed * (0.4 + Math.random() * 0.8);
+      sparkParticles.push({ x0: cx, y0: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        color, startTime: t0, life: 500 + Math.random() * 400, size: 0.14 + Math.random() * 0.12 });
+    }
+    if (sparkParticles.length > 400) sparkParticles.splice(0, sparkParticles.length - 400);
+  }
+
   function spawnFireworkBurst(cx, cy, customPalette) {
     const palette = customPalette || ['#ff4d4d', '#ffd23f', '#4f7ee5', '#63c96a', '#e89b3d', '#b06fe0', '#7fdcff'];
     const count = 22;
@@ -745,8 +775,11 @@
       setTimeout(() => sndHighscoreSting(), 100);
     }
 
-    const bonusText = bonusPct > 0 ? (' Risk bonus: +' + bonusPct + '%!') : '';
-    const highText = isNewHigh ? '🏆 NEW HIGH SCORE! ' : '';
+    const pops = [];
+    if (isNewHigh) pops.push('🏆 NEW HIGH SCORE!');
+    pops.push('✅ Territory secured');
+    if (bonusPct > 0) pops.push('🎲 Risk bonus: +' + bonusPct + '%');
+    const scoreFrom = scoreAtLevelStart, scoreTo = score;
 
     setTimeout(() => {
       celebrating = false;
@@ -755,7 +788,8 @@
       resetLevel(lv);
       running = false;
       openShop('Level ' + lv + ' - choose your edge', () => {
-        showOverlay('Level ' + lv + '!', highText + 'Territory secured.' + bonusText + ' Onward - faster and with more guards.', 'Continue');
+        showOverlay('Level ' + lv + '!', 'Onward - faster and with more guards.', 'Continue',
+                    { scoreFrom, scoreTo, pops });
       });
     }, 1900);
   }
