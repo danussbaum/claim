@@ -126,10 +126,13 @@
   if (window.speechSynthesis) speechSynthesis.getVoices();
 
   function speakCountdown() {
-    if (voiceMode === 'off' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
-    const voice = countdownVoice();
+    if (voiceMode === 'off') return;
+    const tts = !!window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined';
+    const voice = tts ? countdownVoice() : null;
     COUNTDOWN_WORDS.forEach((word, i) => setTimeout(() => {
       if (!countdownActive) return; // Spiel inzwischen verlassen
+      if (voicePlayCountdown(word)) return; // MP3-Datei vorhanden
+      if (!tts) return;
       // Jedes Wort genau zu seiner Zahl: nichts in die Warteschlange, Reste abbrechen
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(word);
