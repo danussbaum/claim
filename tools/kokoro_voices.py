@@ -27,6 +27,7 @@ Existing files are skipped, so the script can be re-run after adding lines.
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -160,6 +161,7 @@ def main():
 
     out = Path(args.out)
     manifest_path = out / "manifest.json"
+    cleanup(out, args.format)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
 
     total = sum(len(t) * len(v or args.guard_voices) for t, v in cats.values())
@@ -185,11 +187,17 @@ def main():
                     print("   (no audio, skipped)")
                     continue
                 audio = np.concatenate([np.asarray(c) for c in chunks])
-                wav = target.with_suffix(".wav")
+                # Write to temporary files and rename at the end: an interrupted run never
+                # leaves a half-written file under the final name
+                wav = target.with_name(target.stem + ".tmp.wav")
                 sf.write(wav, audio, SAMPLE_RATE)
-                if args.format != "wav":
-                    codec = ["-c:a", "libvorbis", "-q:a", "4"] if args.format == "ogg" else ["-b:a", "96k"]
-                    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), *codec, str(target)], check=True)
+                if args.format == "wav":
+                    os.replace(wav, target)
+                else:
+                    part = target.with_name(target.stem + ".part")
+                    codec = ["-c:a", "libvorbis", "-q:a", "4", "-f", "ogg"] if args.format == "ogg" else ["-b:a", "96k", "-f", "mp3"]
+                    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), *codec, str(part)], check=True)
+                    os.replace(part, target)
                     wav.unlink()
             # Save after every voice, so an interrupted run keeps its progress
             manifest_path.write_text(json.dumps(manifest, indent=1, ensure_ascii=False), encoding="utf-8")
@@ -197,6 +205,24 @@ def main():
 
     write_manifest_js(manifest, out)
     print(f"Done. Manifest: {manifest_path}")
+
+
+def cleanup(out, fmt):
+    """Remove leftovers of an interrupted run, so they get rendered again."""
+    if not out.exists():
+        return
+    removed = 0
+    for f in out.rglob("*"):
+        if not f.is_file() or f.name.startswith("manifest."):
+            continue
+        leftover = f.name.endswith((".tmp.wav", ".part"))
+        stray_wav = fmt != "wav" and f.suffix == ".wav"   # older version converted from here
+        too_small = f.suffix == "." + fmt and f.stat().st_size < 2000  # empty or cut off
+        if leftover or stray_wav or too_small:
+            f.unlink()
+            removed += 1
+    if removed:
+        print(f"Removed {removed} incomplete file(s) from an interrupted run")
 
 
 def write_manifest_js(manifest, out):
