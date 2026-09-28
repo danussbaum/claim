@@ -12,6 +12,7 @@
     announcer: { rate: 0.95, highpass: 450, lowpass: 4500,  drive: 0.6,  reverb: 0.35, peak: 1800, bass: 0, gain: 1.0 }, // Megafon
     countdown: { rate: 0.94, highpass: 0,   lowpass: 12000, drive: 0,    reverb: 0.3,  peak: 0,    bass: 7, gain: 1.1 }
   };
+  const VOICE_VOLUME = 0.55;       // Gesamtlautstaerke aller Stimmen im Verhaeltnis zur Musik
   const VOICE_FILTERS_ON = true;   // false = Dateien ohne Filter abspielen
   const VOICE_DISTANCE_ON = true;  // Waechter weiter weg: leiser, dumpfer, seitlich
   const VOICE_FEMALE_NAMES = ['Karen', 'Brenda', 'Linda', 'Doris', 'Sandra'];
@@ -130,7 +131,7 @@
       const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; link(f);
     }
     const g = audioCtx.createGain();
-    g.gain.value = (fx.gain || 1) * (opt.vol == null ? 1 : opt.vol);
+    g.gain.value = VOICE_VOLUME * (fx.gain || 1) * (opt.vol == null ? 1 : opt.vol);
     link(g);
     let out = g;
     if (audioCtx.createStereoPanner && opt.pan) {
@@ -157,7 +158,7 @@
       const a = new Audio(path);
       a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false;
       a.playbackRate = rate;
-      a.volume = Math.max(0, Math.min(1, opt.vol == null ? 1 : opt.vol));
+      a.volume = Math.max(0, Math.min(1, VOICE_VOLUME * (opt.vol == null ? 1 : opt.vol)));
       a.play().catch(() => {});
       voiceCurrent = { playing: () => !a.paused && !a.ended, stop: () => a.pause() };
       return true;
