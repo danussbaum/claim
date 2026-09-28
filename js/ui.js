@@ -8,7 +8,8 @@
     if (delta > MAX_FRAME_DELTA) delta = MAX_FRAME_DELTA;
     if (time < slowMoUntil) delta *= 0.25; // kurze Zeitlupe nach einem Abschuss
 
-    if (!paused && !gameOver && !celebrating && !dying && !countdownActive) {
+    const hitStopped = time < hitStopUntil;
+    if (!hitStopped && !paused && !gameOver && !celebrating && !dying && !countdownActive) {
       playerTimer += delta;
       const playerIv = currentPlayerInterval();
       if (playerTimer > playerIv) {

@@ -474,6 +474,16 @@ function draw(now) {
       ctx.scale(z, z);
       ctx.translate(-killCam.x, -killCam.y);
     }
+    if (zoomPunch) {
+      const zt = (now - zoomPunch.start) / zoomPunch.dur;
+      if (zt >= 1) zoomPunch = null;
+      else {
+        const z = 1 + zoomPunch.amt * (1 - zt) * (1 - zt);
+        ctx.translate(zoomPunch.x, zoomPunch.y);
+        ctx.scale(z, z);
+        ctx.translate(-zoomPunch.x, -zoomPunch.y);
+      }
+    }
     const shakeRemaining = shakeEndTime - now;
     if (shakeRemaining > 0) {
       const shakeT = shakeRemaining / shakeDuration;

@@ -479,6 +479,15 @@
     triggerSlowMo(KILLCAM_MS * 0.8);
   }
 
+  // Hit-Stop: Spiel steht fuer ein paar Millisekunden still (grosse Eroberung)
+  let hitStopUntil = 0;
+  function triggerHitStop(ms) { hitStopUntil = Math.max(hitStopUntil, performance.now() + ms); }
+  // Zoom-Punch: kurzer Zoom auf einen Punkt, klingt schnell ab
+  let zoomPunch = null; // { x, y, amt, start, dur }
+  function triggerZoomPunch(c, r, amt, dur) {
+    zoomPunch = { x: c * CELL + CELL / 2, y: r * CELL + CELL / 2, amt, start: performance.now(), dur };
+  }
+
   function triggerShake(magnitude, duration) {
     shakeMagnitude = magnitude;
     shakeDuration = duration;

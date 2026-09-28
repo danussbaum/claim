@@ -556,6 +556,9 @@
     sndCapture(gained, combo);
     if (gained > 12) {
       triggerShake(Math.min(7, 2 + gained * 0.08), 220);
+      triggerHitStop(Math.min(90, 30 + gained));
+      triggerZoomPunch(x, y, Math.min(0.08, 0.02 + gained * 0.0008), 350);
+      vibrate(Math.min(60, 15 + gained));
       spawnEmote('💪', x, y);
     }
     if (gained > 2) spawnFireworkBurst(x * CELL + CELL / 2, y * CELL + CELL / 2, fx.fireworks);
