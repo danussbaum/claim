@@ -228,7 +228,7 @@
       for (let i = 0; i < s.land.length; i++) if (before[i] && before[i] !== p + 1) s.land[i] = before[i];
     }
     const c = vsSpawnCorner(p);
-    pl.x = c.x; pl.y = c.y;
+    pl.x = pl.prevX = c.x; pl.y = pl.prevY = c.y;
     pl.dir = pl.next = null;
     pl.stunUntil = now + stunMs;
     pl.stunMs = stunMs;
@@ -305,6 +305,7 @@
 
   function vsStepPlayer(s, p, now) {
     const pl = s.players[p];
+    pl.prevX = pl.x; pl.prevY = pl.y;
     if (now < (pl.stunUntil || 0)) { pl.next = null; return; } // nach Abschuss kurz eingefroren
     if (pl.next) { pl.dir = pl.next; pl.next = null; }
     if (!pl.dir) return;
@@ -422,6 +423,7 @@
         if (now >= g.deadUntil) s.guards[gi] = vsNewGuard(s);
         return;
       }
+      g.prevX = g.x; g.prevY = g.y;
       if (now < g.stunUntil || now < g.breakUntil) return;
 
       // Sieht er einen Spieler? Bei beiden jagt er den naeheren.
@@ -471,6 +473,33 @@
         if (pl.x === g.x && pl.y === g.y && !vsOnOwnLand(s, p)) vsKill(s, p, now);
       });
     });
+  }
+
+  // Zusaetzlich zur Feldpruefung: Abstand der gleitenden Positionen (wie
+  // checkContinuousCollision im 1-Spieler-Modus), damit Feldtausch und
+  // Beruehrungen zwischen zwei Feldern zaehlen.
+  function vsLerpPos(o, t) {
+    const x0 = o.prevX !== undefined ? o.prevX : o.x, y0 = o.prevY !== undefined ? o.prevY : o.y;
+    // Spruenge (Enterhaken, Respawn) nicht interpolieren
+    if (Math.abs(o.x - x0) + Math.abs(o.y - y0) > 1) return { x: o.x, y: o.y };
+    return { x: x0 + (o.x - x0) * t, y: y0 + (o.y - y0) * t };
+  }
+  function vsCheckTouch(s, now) {
+    const pos = s.players.map(pl => vsLerpPos(pl, Math.min(1, pl.stepT / vsPlayerInterval(pl, now))));
+    const gT = Math.min(1, s.guardT / VS_GUARD_MS);
+    s.guards.forEach(g => {
+      if (g.deadUntil || now < g.stunUntil) return;
+      const gp = vsLerpPos(g, gT);
+      s.players.forEach((pl, p) => {
+        if (Math.hypot(gp.x - pos[p].x, gp.y - pos[p].y) < TOUCH_RADIUS && !vsOnOwnLand(s, p)) vsKill(s, p, now);
+      });
+    });
+    if (s.over) return;
+    if (Math.hypot(pos[0].x - pos[1].x, pos[0].y - pos[1].y) < TOUCH_RADIUS) {
+      const off0 = !vsOnOwnLand(s, 0), off1 = !vsOnOwnLand(s, 1);
+      if (off1) vsKill(s, 1, now);
+      if (off0) vsKill(s, 0, now);
+    }
   }
 
   // Flugzeit der Axt wie im 1-Spieler-Modus (shotProjectiles in shoot())
@@ -575,6 +604,8 @@
         vsStepGuards(s, now);
       }
     }
+    vsCheckTouch(s, now);
+    if (s.over) return;
     s.puT += delta;
     if (s.puT >= VS_PU_INTERVAL) {
       s.puT = 0;

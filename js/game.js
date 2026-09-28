@@ -236,6 +236,28 @@
     }
   }
 
+  // Zusaetzlich zur Feldpruefung: Abstand der animierten Positionen,
+  // damit Beruehrungen zwischen zwei Feldern (und Feldtausch) zaehlen.
+  const TOUCH_RADIUS = 0.6;
+  function checkContinuousCollision(now) {
+    if (!running || gameOver || dying) return;
+    const pT = Math.min(1, (now - playerStepTime) / currentPlayerInterval());
+    const dpx = prevPx + (px - prevPx) * pT;
+    const dpy = prevPy + (py - prevPy) * pT;
+    const eT = Math.min(1, (now - enemyStepTime) / enemyInterval);
+    for (const e of enemies.slice()) {
+      if (now < (e.stunnedUntil || 0)) continue;
+      const pc = e.prevC !== undefined ? e.prevC : e.c;
+      const pr = e.prevR !== undefined ? e.prevR : e.r;
+      const ec = pc + (e.c - pc) * eT, er = pr + (e.r - pr) * eT;
+      if (Math.hypot(ec - dpx, er - dpy) >= TOUCH_RADIUS) continue;
+      if (now < shieldUntil) continue;
+      if (now < spikesUntil) { killEnemyByShot(e, 'spikes'); continue; }
+      endGame('A guard caught you.', '😈');
+      return;
+    }
+  }
+
   function triggerDeathFlash() {
     const flash = document.getElementById('deathFlash');
     flash.classList.remove('active');
