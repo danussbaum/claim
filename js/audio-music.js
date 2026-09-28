@@ -101,7 +101,9 @@
     if (now < freezeUntil) bpm *= 0.5;
     const stepDur = 60 / bpm / 2;
 
-    while (audioCtx.currentTime >= musicNextNoteTime) {
+    if (audioCtx.currentTime - musicNextNoteTime > 0.25) musicNextNoteTime = audioCtx.currentTime + 0.05;
+    while (musicNextNoteTime < audioCtx.currentTime + MUSIC_LOOKAHEAD) {
+      const at = Math.max(0, musicNextNoteTime - audioCtx.currentTime);
       const dist = nearestEnemyDist();
       const danger = Math.max(0, Math.min(1, 1 - dist / 9));
       const isTrailing = trail.length > 0;
@@ -110,17 +112,17 @@
       const levelOffset = Math.floor((level - 1) / 2);
 
       if (step === 0 || step === 4) {
-        tone(musicFreq(0 + levelOffset, -1), stepDur * 1.7, 'triangle', 0.05 + danger * 0.03, 0, undefined, 'music');
+        tone(musicFreq(0 + levelOffset, -1), stepDur * 1.7, 'triangle', 0.05 + danger * 0.03, at, undefined, 'music');
       }
       if (step % 2 === 0) {
         const idx = (step / 2 + levelOffset) % MUSIC_SCALE.length;
-        tone(musicFreq(idx, 0), stepDur * 0.9, 'sine', 0.045 + danger * 0.035, 0, undefined, 'music');
+        tone(musicFreq(idx, 0), stepDur * 0.9, 'sine', 0.045 + danger * 0.035, at, undefined, 'music');
       }
       if (!frozen && danger > 0.4 && (step === 2 || step === 6)) {
-        tone(musicFreq((step + levelOffset) % MUSIC_SCALE.length, 1), stepDur * 0.5, 'square', 0.03 + danger * 0.04, 0, undefined, 'music');
+        tone(musicFreq((step + levelOffset) % MUSIC_SCALE.length, 1), stepDur * 0.5, 'square', 0.03 + danger * 0.04, at, undefined, 'music');
       }
       if (isTrailing && step % 2 === 1) {
-        tone(musicFreq((step + 3 + levelOffset) % MUSIC_SCALE.length, 1), stepDur * 0.4, 'triangle', 0.025, 0, undefined, 'music');
+        tone(musicFreq((step + 3 + levelOffset) % MUSIC_SCALE.length, 1), stepDur * 0.4, 'triangle', 0.025, at, undefined, 'music');
       }
 
       musicNextNoteTime += stepDur;

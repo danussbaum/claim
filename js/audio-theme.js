@@ -44,10 +44,11 @@
   // fuer den Biss und ein Klick obendrauf. Alles durch die Saettigung und danach durch
   // einen kurzen Kompressor - der faengt die Spitzen ab, damit die Kette hart gefahren
   // werden kann, ohne dass das Signal clippt.
-  function technoKick(delay) {
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime + (delay || 0);
-
+  // Saettigung und Kompressor einmal fuer alle Kicks: ein eigener Kompressor pro Schlag
+  // ist auf dem Handy zu teuer und fuehrt zu Knacken
+  let kickBusIn = null;
+  function kickBus() {
+    if (kickBusIn) return kickBusIn;
     const shaper = audioCtx.createWaveShaper();
     shaper.curve = kickSaturation();
     const comp = audioCtx.createDynamicsCompressor();
@@ -59,6 +60,13 @@
     const out = audioCtx.createGain();
     out.gain.value = 0.62;
     shaper.connect(comp); comp.connect(out); out.connect(musicOut());
+    return (kickBusIn = shaper);
+  }
+  function technoKick(delay) {
+    if (!audioCtx) return;
+    const t0 = audioCtx.currentTime + (delay || 0);
+
+    const shaper = kickBus();
 
     // Koerper: 260 Hz faellt in 25 ms auf 55 Hz (der Schlag), danach traeger weiter
     // auf 38 Hz (das Nachsacken). Je schneller der erste Sturz, desto haerter der Anschlag.
@@ -70,8 +78,11 @@
     const bodyGain = audioCtx.createGain();
     bodyGain.gain.setValueAtTime(0.62, t0);
     bodyGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.42);
+    // Zum Schluss ganz auf null: die Saettigung verstaerkt leise Reste, ein harter
+    // Stopp bei 0.001 waere als Knacken am Ende des Kicks hoerbar
+    bodyGain.gain.linearRampToValueAtTime(0, t0 + 0.45);
     body.connect(bodyGain); bodyGain.connect(shaper);
-    body.start(t0); body.stop(t0 + 0.44);
+    body.start(t0); body.stop(t0 + 0.47);
 
     // Sub: fester Ton unter dem Koerper, kurz verzoegert eingeblendet, damit er den
     // Anschlag nicht verwaschen laesst. Er traegt das Fundament.
@@ -82,8 +93,9 @@
     subGainNode.gain.setValueAtTime(0.0001, t0);
     subGainNode.gain.exponentialRampToValueAtTime(0.46, t0 + 0.012);
     subGainNode.gain.exponentialRampToValueAtTime(0.001, t0 + 0.36);
+    subGainNode.gain.linearRampToValueAtTime(0, t0 + 0.39);
     sub.connect(subGainNode); subGainNode.connect(shaper);
-    sub.start(t0); sub.stop(t0 + 0.38);
+    sub.start(t0); sub.stop(t0 + 0.41);
 
     // Knock: kurzer Rechteckimpuls in den Mitten. Das ist der Anteil, den man als
     // Haerte hoert - er verschwindet nach 55 ms wieder komplett.
@@ -98,8 +110,9 @@
     const knockGain = audioCtx.createGain();
     knockGain.gain.setValueAtTime(0.40, t0);
     knockGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.055);
+    knockGain.gain.linearRampToValueAtTime(0, t0 + 0.065);
     knock.connect(knockFilt); knockFilt.connect(knockGain); knockGain.connect(shaper);
-    knock.start(t0); knock.stop(t0 + 0.07);
+    knock.start(t0); knock.stop(t0 + 0.08);
 
     // Klick: zwei Rauschstoesse - einer hoch fuer die Spitze, einer in den oberen
     // Mitten fuer den Schlag des Schlegels.
@@ -236,7 +249,11 @@
     const stepDur = 60 / bpm / 4;
     const root = 220; // A
 
-    while (audioCtx.currentTime >= menuNextStepTime) {
+    // Zu weit hinten (Tab im Hintergrund, Handy ausgelastet): nicht alles nachholen, neu einsetzen
+    if (audioCtx.currentTime - menuNextStepTime > 0.25) menuNextStepTime = audioCtx.currentTime + 0.05;
+    // Mit Vorlauf planen: die Noten liegen exakt im Raster, auch wenn ein Frame spaet kommt
+    while (menuNextStepTime < audioCtx.currentTime + MUSIC_LOOKAHEAD) {
+      const at = Math.max(0, menuNextStepTime - audioCtx.currentTime);
       const step = menuStepIndex % 16;
       const bar = Math.floor(menuStepIndex / 16);
       const cycleBar = bar % 16;
@@ -257,17 +274,17 @@
       const bellOn = cycleBar >= 8;
       const dropped = breakBar && step >= 8;
 
-      if (step % 4 === 0 && !dropped) technoKick(0);
-      if (step % 4 === 2) technoHat(0, true, 0.05);
-      else if (step % 2 === 0) technoHat(0, false, 0.03);
-      else if (cycleBar >= 6 && (step === 7 || step === 15)) technoHat(0, false, 0.016);
-      if (clapOn && (step === 4 || step === 12)) clap808(0, 0.075);
+      if (step % 4 === 0 && !dropped) technoKick(at);
+      if (step % 4 === 2) technoHat(at, true, 0.05);
+      else if (step % 2 === 0) technoHat(at, false, 0.03);
+      else if (cycleBar >= 6 && (step === 7 || step === 15)) technoHat(at, false, 0.016);
+      if (clapOn && (step === 4 || step === 12)) clap808(at, 0.075);
 
       // Rollender Bass; auf den Oktavspruengen rutscht die Note hinein.
       if (MENU_BASS_STEPS.indexOf(step) !== -1 && !dropped) {
         const up = (step === 6 || step === 14);
         const f = chordRoot / 2 * (up ? 2 : 1);
-        acidBass(f, stepDur * 1.6, 0, bassCutoff, 0.085, up ? chordRoot / 2 : 0);
+        acidBass(f, stepDur * 1.6, at, bassCutoff, 0.085, up ? chordRoot / 2 : 0);
       }
 
       // Arpeggio in Sechzehnteln - der hypnotische Kern des Stuecks.
@@ -275,7 +292,7 @@
         const t = chord.tones;
         const scale = [t[0], t[1], t[2], t[3], t[0] + 12, t[1] + 12];
         const semis = scale[MENU_ARP[step] % scale.length];
-        polyVoice(chordRoot * Math.pow(2, semis / 12), stepDur * 1.5, 0,
+        polyVoice(chordRoot * Math.pow(2, semis / 12), stepDur * 1.5, at,
                   arpCutoff, 0.036, 11);
       }
 
@@ -283,17 +300,17 @@
       if (padOn && step === 0) {
         for (const semis of chord.tones) {
           polyVoice(chordRoot * Math.pow(2, semis / 12) / 2, stepDur * 15,
-                    0, 700 + sweep * 900, 0.022, 14);
+                    at, 700 + sweep * 900, 0.022, 14);
         }
       }
 
       // Glocken-Akzente in der zweiten Zyklushaelfte.
       if (bellOn && (step === 6 || (cycleBar % 4 === 3 && step === 14))) {
-        fmBell(chordRoot * 4, 0.9, 0, 0.035);
+        fmBell(chordRoot * 4, 0.9, at, 0.035);
       }
 
       // Uebergang zurueck auf Eins.
-      if (breakBar && step === 8) riser(stepDur * 8, 0, 0.06);
+      if (breakBar && step === 8) riser(stepDur * 8, at, 0.06);
 
       menuNextStepTime += stepDur;
       menuStepIndex++;
