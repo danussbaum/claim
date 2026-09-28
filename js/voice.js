@@ -40,7 +40,8 @@
   const voiceWebAudio = location.protocol !== 'file:';
   const voiceBuffers = {};   // Pfad -> AudioBuffer | Promise | 'fail'
   const voicePacks = {};     // Paket-URL -> Promise<ArrayBuffer>
-  let voiceCurrent = null;   // { playing(), stop() }
+  const VOICE_MAX_GUARDS = 3;      // so viele Waechterstimmen duerfen sich hoechstens ueberlagern
+  let voiceActive = [];      // laufende Stimmen: { playing(), stop(), guard, id }
   let voiceReverbIR = null;
   let voiceGuardVoiceIds = null;
   let countdownStyle = null, countdownStyleName = '';
@@ -61,10 +62,11 @@
     const p = voicePackUrl(path).split('?')[0].split('/');
     return p[p.length - 1].replace(/\.[^.]+$/, '');
   }
-  function voiceBusy() { return !!(voiceCurrent && voiceCurrent.playing()); }
+  function voicePrune() { voiceActive = voiceActive.filter(v => v.playing()); return voiceActive; }
+  function voiceBusy() { return voicePrune().length > 0; }
   function voiceStop() {
-    if (voiceCurrent) voiceCurrent.stop();
-    voiceCurrent = null;
+    voiceActive.forEach(v => v.stop());
+    voiceActive = [];
   }
 
   // Jeder Waechter bekommt einmalig eine feste Stimme (passend zum Namen) und Tonhoehe
@@ -249,7 +251,8 @@
     if (!audioCtx) return false;
     voiceResume();
     const rate = (fx.rate || 1) * (opt.rate || 1);
-    voiceStop();
+    // Waechter ueberlagern sich, alles andere (Countdown, Ansager) unterbricht
+    if (!opt.guard) voiceStop();
 
     // Ohne fetch (file://) lassen sich Zeilen nicht aus dem Paket schneiden: speechSynthesis
     if (!voiceWebAudio) return false;
@@ -257,10 +260,11 @@
     const requested = performance.now();
     let src = null, playing = true;
     const cur = {
+      guard: !!opt.guard, id: opt.id || '',
       playing: () => playing,
       stop: () => { playing = false; if (src) try { src.stop(); } catch (err) { /* ignore */ } }
     };
-    voiceCurrent = cur;
+    voiceActive.push(cur);
     voiceLoad(path).then(buf => {
       // Zu spaet geladen oder inzwischen abgebrochen: weglassen
       if (!playing || buf === 'fail' || performance.now() - requested > 1500) { playing = false; return; }
@@ -303,10 +307,17 @@
     const dog = e.personality === 'dog';
     const files = scream ? voiceFiles('guard_scream', text) : (dog ? voiceFiles('dog', text) : voiceGuardFiles(text));
     if (!files || !files.length) return false;
-    if (!scream && voiceBusy()) return true; // laeuft schon ein Spruch
     voiceAssign(e);
+    const active = voicePrune();
+    if (active.some(v => !v.guard)) return true;              // Countdown/Ansager hat Vorrang
+    if (active.some(v => v.id === e.voiceFileId)) return true; // dieselbe Stimme nicht doppelt
+    if (active.length >= VOICE_MAX_GUARDS) {
+      if (!scream) return true;
+      active[0].stop(); // Schrei verdraengt die aelteste Stimme
+      voicePrune();
+    }
     const path = files.find(p => voiceIdOf(p) === e.voiceFileId) || files[0];
-    const opt = { rate: dog ? 1 : e.voiceFileRate };
+    const opt = { rate: dog ? 1 : e.voiceFileRate, guard: true, id: e.voiceFileId };
     if (VOICE_DISTANCE_ON && typeof px === 'number' && typeof py === 'number') {
       const d = Math.hypot(e.c - px, e.r - py);
       opt.vol = Math.max(0.45, 1 - d / 30);
