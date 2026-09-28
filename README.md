@@ -60,6 +60,27 @@ You choose before starting:
 - **Grapple Hook** (🪝) – Yank yourself 2 cells forward through open ground. 6 s cooldown.
 - **Smoke Bomb** (💨) – Disappear from every guard's sight for 2.5 s. 10 s cooldown.
 
+## 2 Player versus
+
+The **⚔️ 2 Player** button in the menu opens the versus lobby. Two players claim ground on the same 14 x 20 board, with one guard in the middle.
+
+**Connecting:**
+
+- **Host a match** shows a QR code. The rival scans it with the phone camera and joins in the browser: no account, no app. The devices connect directly peer-to-peer (WebRTC); public MQTT brokers are only used to find each other. The host runs the simulation, the guest sends inputs.
+- **Network requirement:** the direct connection only works when both devices are on the **same Wi-Fi**, or when one player opens a **mobile hotspot** and the other connects to it. With both players on mobile data it does not work (there is no relay server).
+- **Play vs CPU** starts a match against a computer rival on the same device. The CPU makes short loops out of its land, heads home when threatened and shoots at whatever is in line.
+
+**Rules:**
+
+- Each player starts with a border strip: player 1 the top and left edge, player 2 the bottom and right edge.
+- Closing a loop claims every enclosed area that holds neither the guard nor the rival – **including the rival's land** ("stolen" cells). The largest open area always stays open, so the board never flips at once.
+- A match lasts **2 minutes**. Whoever reaches **50 %** first wins at once; otherwise the larger share wins when time is up (equal share = draw).
+- **Series:** first to **3 wins with a 2-win lead** (like tennis), shown as MATCHES instead of lives.
+- **No lives:** crossing your own line, getting your line cut or being caught by the guard sends you back to your start corner, your line is lost and you stand still for 1.5 s. Being shot by the rival costs 0.8 s. A short invulnerability follows. Whoever loses all land gets their free start edges back.
+- **Attacking:** run over the rival's line to cut it (they are sent home), shoot them (axe, 8 cells) or shoot their line – the piece from their land up to the hit falls away. Meeting head-on outside your own land sends you home.
+- Deep inside your own land you are hidden from the guard, like in single player. It hunts whichever player it sees and is closer; shot down, it returns after 3 s.
+- Power-ups: Speed, Shield, Freeze and Rapid Fire, plus Slow as the bad one (30 %). Each player has 3 boosts per match and their chosen gadget (the CPU uses the Grapple Hook).
+
 ## Controls
 
 | Input | Action |
@@ -112,6 +133,8 @@ The "Slow burn" perk extends all bonuses by 50 %.
 | 🪩 | Disco | Guards dance: they move only every other beat, and their cones sweep around like disco lights | 4 s |
 | 🍌 | Banana | You slide 3 cells without control. The peel stays behind; a guard stepping on it slips and is stunned for 1.5 s | instant |
 
+**Guard voices** (option "Guard voices" before the start): *Gibberish* (synthesized babble), *Speech* or *Off*. With Speech, guards, countdown and announcer (multikills, trick shots) use pre-recorded voice lines generated with Kokoro TTS: every guard gets its own voice and pitch through a radio filter, distant guards sound quieter and muffled, the announcer sounds like a megaphone and every countdown gets a random style (arena, radio, epic, robot, dry). Missing files fall back to the browser's speech synthesis.
+
 **Guard personality:** guards comment on what happens in speech bubbles, can trip into pits while chasing you (stunned 1 s), occasionally take a coffee break (blind for 3 s; sneaking past within 2 cells pays +25) and block each other in narrow corridors.
 
 ## Perks and level-end shop
@@ -160,6 +183,9 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 ## Tech notes
 
 - No build, no framework, no dependencies: `index.html` (markup), `css/claim.css` (styles) and classic scripts in `js/` sharing one global scope.
-- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `gameplay.js` → `game.js` → `render.js` → `ui.js` → `tutorial.js` → `splash.js`. See `AGENTS.md`.
-- Rendering: HTML5 Canvas with a requestAnimationFrame loop; audio is synthesized via the WebAudio API (no sound files needed).
+- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `audio/voice/manifest.js` → `voice.js` → `gameplay.js` → `game.js` → `render.js` → `ui.js` → `tutorial.js` → `qr.js` → `net.js` → `versus.js` → `splash.js` → `pwa.js`. See `AGENTS.md`.
+- Rendering: HTML5 Canvas with a requestAnimationFrame loop; music and sound effects are synthesized via the WebAudio API. Only the voice lines are audio files (`audio/voice/`, MP3).
 - All state persists in `localStorage` – no server.
+- **Voice lines** are generated locally with `tools/kokoro_voices.py` (Kokoro TTS, see the script header for setup). It reads all lines from the JS files, renders them with several voices and writes `audio/voice/manifest.js`. Existing files are skipped; `--manifest-only` only rebuilds the manifest.
+- **Local server:** opened directly as a file, voices play without filters and there is no offline mode. For the full experience serve the folder, e.g. `py -m http.server 8000` → `http://localhost:8000`.
+- **Offline and home screen:** over https (or localhost) a service worker (`sw.js`) caches the game and downloads 5 guard voices plus countdown and announcer in the background (not on metered connections). The game can be added to the home screen and then runs full screen, also offline.
