@@ -199,6 +199,13 @@
     else { hideOverlay(); resetMusicTiming(); }
   }
 
+  // Browser minimiert oder Tab gewechselt: automatisch Pause, weiter geht es nur per Klick.
+  // Nicht im 2-Spieler-Modus, dort laeuft das Match beim Gegner weiter.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden || paused || vsActive) return;
+    togglePause();
+  });
+
   let modeSelectOpen = false;
 
   function updateModeBadge() {
