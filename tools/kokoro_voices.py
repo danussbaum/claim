@@ -18,6 +18,7 @@ Usage (from the repo root):
     python tools/kokoro_voices.py --format ogg     # convert via ffmpeg
     python tools/kokoro_voices.py --only countdown announcer
     python tools/kokoro_voices.py --guard-voices am_adam am_onyx bf_emma
+    python tools/kokoro_voices.py --format mp3 --manifest-only   # only rebuild manifest.js
 
 Output: audio/voice/<category>/<voice>/<slug>.<ext> plus audio/voice/manifest.json,
 which maps every text to its files (for a player in the game later).
@@ -127,6 +128,8 @@ def main():
     ap.add_argument("--guard-voices", nargs="+", default=DEFAULT_GUARD_VOICES)
     ap.add_argument("--only", nargs="+", help="only these categories (e.g. countdown guard_spotted)")
     ap.add_argument("--speed", type=float, default=1.0)
+    ap.add_argument("--manifest-only", action="store_true",
+                    help="only clean up and write manifest.js from the existing files, render nothing")
     ap.add_argument("--list", action="store_true", help="only print the lines, render nothing")
     args = ap.parse_args()
 
@@ -139,6 +142,16 @@ def main():
             print(f"[{cat}] {len(texts)}")
             for t in texts:
                 print("   ", t)
+        return
+
+    if args.manifest_only:
+        out = Path(args.out)
+        cleanup(out, args.format)
+        mp = out / "manifest.json"
+        if not mp.exists():
+            sys.exit(f"{mp} not found")
+        write_manifest_js(json.loads(mp.read_text(encoding="utf-8")), out)
+        print(f"Wrote {out / 'manifest.js'}")
         return
 
     if args.format != "wav" and not shutil.which("ffmpeg"):
