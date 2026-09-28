@@ -65,7 +65,8 @@ def js_array(file, name):
     src = (JS / file).read_text(encoding="utf-8")
     m = re.search(r"const\s+" + name + r"\s*=\s*\[(.*?)\];", src, re.S)
     if not m:
-        sys.exit(f"Array {name} not found in js/{file}")
+        print(f"Warning: array {name} not found in js/{file}, skipped (is your checkout up to date?)")
+        return []
     return [s for s in js_strings(m.group(1)) if s]
 
 
@@ -73,7 +74,8 @@ def guard_lines():
     src = (JS / "gadgets.js").read_text(encoding="utf-8")
     m = re.search(r"const\s+GUARD_LINES\s*=\s*\{(.*?)\n\s*\};", src, re.S)
     if not m:
-        sys.exit("GUARD_LINES not found in js/gadgets.js")
+        print("Warning: GUARD_LINES not found in js/gadgets.js, skipped")
+        return {}
     lines = {}
     for km in re.finditer(r"(\w+)\s*:\s*\[(.*?)\]", m.group(1), re.S):
         lines[km.group(1)] = js_strings(km.group(2))
@@ -86,6 +88,8 @@ def collect():
     names = js_array("gadgets.js", "GUARD_NAMES")
     react = js_array("gadgets.js", "REACT_LINES")
     cats = {}
+    if not names or not react:
+        react, names = [], []
     for kind, texts in lines.items():
         cats["guard_" + kind] = (texts, None)
     cats["guard_scream"] = (js_array("gadgets.js", "GUARD_SCREAMS"), None)
@@ -95,7 +99,7 @@ def collect():
     cats["dog"] = (js_array("gadgets.js", "DOG_LINES"), [DOG_VOICE])
     cats["countdown"] = (js_array("ui.js", "COUNTDOWN_WORDS"), [COUNTDOWN_VOICE])
     cats["announcer"] = (js_array("gameplay.js", "MULTIKILL_NAMES") + ["Trick shot!"], [ANNOUNCER_VOICE])
-    return cats
+    return {k: v for k, v in cats.items() if v[0]}
 
 
 # --- Rendering ---
