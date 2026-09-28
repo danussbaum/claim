@@ -78,8 +78,11 @@
     const bodyGain = audioCtx.createGain();
     bodyGain.gain.setValueAtTime(0.62, t0);
     bodyGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.42);
+    // Zum Schluss ganz auf null: die Saettigung verstaerkt leise Reste, ein harter
+    // Stopp bei 0.001 waere als Knacken am Ende des Kicks hoerbar
+    bodyGain.gain.linearRampToValueAtTime(0, t0 + 0.45);
     body.connect(bodyGain); bodyGain.connect(shaper);
-    body.start(t0); body.stop(t0 + 0.44);
+    body.start(t0); body.stop(t0 + 0.47);
 
     // Sub: fester Ton unter dem Koerper, kurz verzoegert eingeblendet, damit er den
     // Anschlag nicht verwaschen laesst. Er traegt das Fundament.
@@ -90,8 +93,9 @@
     subGainNode.gain.setValueAtTime(0.0001, t0);
     subGainNode.gain.exponentialRampToValueAtTime(0.46, t0 + 0.012);
     subGainNode.gain.exponentialRampToValueAtTime(0.001, t0 + 0.36);
+    subGainNode.gain.linearRampToValueAtTime(0, t0 + 0.39);
     sub.connect(subGainNode); subGainNode.connect(shaper);
-    sub.start(t0); sub.stop(t0 + 0.38);
+    sub.start(t0); sub.stop(t0 + 0.41);
 
     // Knock: kurzer Rechteckimpuls in den Mitten. Das ist der Anteil, den man als
     // Haerte hoert - er verschwindet nach 55 ms wieder komplett.
@@ -106,8 +110,9 @@
     const knockGain = audioCtx.createGain();
     knockGain.gain.setValueAtTime(0.40, t0);
     knockGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.055);
+    knockGain.gain.linearRampToValueAtTime(0, t0 + 0.065);
     knock.connect(knockFilt); knockFilt.connect(knockGain); knockGain.connect(shaper);
-    knock.start(t0); knock.stop(t0 + 0.07);
+    knock.start(t0); knock.stop(t0 + 0.08);
 
     // Klick: zwei Rauschstoesse - einer hoch fuer die Spitze, einer in den oberen
     // Mitten fuer den Schlag des Schlegels.
