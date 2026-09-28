@@ -642,10 +642,6 @@ function draw(now) {
       }
     }
 
-    // Feine Koernung ueber dem Feld, damit die Flaechen nicht steril wirken
-    ctx.fillStyle = getNoisePattern();
-    ctx.fillRect(0, 0, COLS * CELL, ROWS * CELL);
-
     for (const f of flashCells) {
       const t = (now - f.time - (f.delay || 0)) / 400;
       if (t < 0) continue;
@@ -1725,23 +1721,6 @@ function draw(now) {
       }
     }
   }
-let noisePattern = null;
-function getNoisePattern() {
-  if (noisePattern) return noisePattern;
-  const n = document.createElement('canvas');
-  n.width = n.height = 96;
-  const nc = n.getContext('2d');
-  const img = nc.createImageData(96, 96);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = Math.random() < 0.5 ? 0 : 255;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = Math.random() * 14;
-  }
-  nc.putImageData(img, 0, 0);
-  noisePattern = ctx.createPattern(n, 'repeat');
-  return noisePattern;
-}
-
 function drawVignette(vw, vh) {
   const vcx = vw / 2, vcy = vh / 2;
   const vOuter = Math.sqrt(vcx * vcx + vcy * vcy);
