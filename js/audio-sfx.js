@@ -28,7 +28,10 @@
         limiter.ratio.value = 20;
         limiter.attack.value = 0.002;
         limiter.release.value = 0.1;
-        limiter.connect(audioCtx.destination);
+        masterOut = audioCtx.createGain();
+        masterOut.gain.value = 1;
+        limiter.connect(masterOut);
+        masterOut.connect(audioCtx.destination);
         musicGain.connect(limiter);
         sfxGain = audioCtx.createGain();
         sfxGain.gain.value = 1;
@@ -111,6 +114,33 @@
       requestAnimationFrame(audioLoop);
     }
   }
+
+  // Beim Minimieren/Wegwechseln kurz ausblenden und dann anhalten. Haelt der Browser
+  // das Audio mitten in einem Ton an, knackt es auf dem Handy.
+  let masterOut = null, audioHiddenTimer = null;
+  function audioFadeOut() {
+    if (!audioCtx || !masterOut || audioCtx.state !== 'running') return;
+    const t = audioCtx.currentTime;
+    masterOut.gain.cancelScheduledValues(t);
+    masterOut.gain.setValueAtTime(masterOut.gain.value, t);
+    masterOut.gain.linearRampToValueAtTime(0, t + 0.06);
+    clearTimeout(audioHiddenTimer);
+    audioHiddenTimer = setTimeout(() => { if (document.hidden) audioCtx.suspend().catch(() => {}); }, 90);
+  }
+  function audioFadeIn() {
+    clearTimeout(audioHiddenTimer);
+    if (!audioCtx || !masterOut) return;
+    const start = () => {
+      const t = audioCtx.currentTime;
+      masterOut.gain.cancelScheduledValues(t);
+      masterOut.gain.setValueAtTime(0, t);
+      masterOut.gain.linearRampToValueAtTime(1, t + 0.15);
+    };
+    if (audioCtx.state === 'running') start();
+    else audioCtx.resume().then(start).catch(() => {});
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) audioFadeOut(); else audioFadeIn(); });
+  window.addEventListener('pagehide', audioFadeOut);
 
   let audioLoopStarted = false;
   function audioLoop(t) {
