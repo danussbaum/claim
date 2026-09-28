@@ -20,9 +20,12 @@ Usage (from the repo root):
     python tools/kokoro_voices.py --guard-voices am_adam am_onyx bf_emma
     python tools/kokoro_voices.py --format mp3 --manifest-only   # only rebuild manifest.js
 
-Output: audio/voice/<category>/<voice>/<slug>.<ext> plus audio/voice/manifest.json,
-which maps every text to its files (for a player in the game later).
-Existing files are skipped, so the script can be re-run after adding lines.
+Output: single lines in tools/voice_src/<category>/<voice>/<slug>.<ext> plus
+tools/voice_src/manifest.json (every text -> its files). Existing files are skipped,
+so the script can be re-run after adding lines.
+The game only loads packs: all lines of one category and voice concatenated into
+audio/voice/<category>/<voice>.mp3, listed with byte ranges in audio/voice/manifest.js.
+This keeps the shipped game small in file count (itch.io allows at most 1000 files).
 """
 
 import argparse
@@ -125,7 +128,8 @@ def spoken(text, category):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=str(ROOT / "audio" / "voice"))
+    ap.add_argument("--out", default=str(ROOT / "tools" / "voice_src"), help="single lines (source)")
+    ap.add_argument("--packs", default=str(ROOT / "audio" / "voice"), help="packs + manifest.js for the game")
     ap.add_argument("--format", choices=["wav", "mp3", "ogg"], default="wav")
     ap.add_argument("--guard-voices", nargs="+", default=DEFAULT_GUARD_VOICES)
     ap.add_argument("--only", nargs="+", help="only these categories (e.g. countdown guard_spotted)")
@@ -152,8 +156,8 @@ def main():
         mp = out / "manifest.json"
         if not mp.exists():
             sys.exit(f"{mp} not found")
-        write_manifest_js(json.loads(mp.read_text(encoding="utf-8")), out)
-        print(f"Wrote {out / 'manifest.js'}")
+        write_manifest_js(json.loads(mp.read_text(encoding="utf-8")), Path(args.packs))
+        print(f"Wrote {Path(args.packs) / 'manifest.js'}")
         return
 
     if args.format != "wav" and not shutil.which("ffmpeg"):
@@ -216,9 +220,8 @@ def main():
                     wav.unlink()
             # Save after every voice, so an interrupted run keeps its progress
             manifest_path.write_text(json.dumps(manifest, indent=1, ensure_ascii=False), encoding="utf-8")
-            write_manifest_js(manifest, out)
 
-    write_manifest_js(manifest, out)
+    write_manifest_js(manifest, Path(args.packs))
     print(f"Done. Manifest: {manifest_path}")
 
 
@@ -240,20 +243,45 @@ def cleanup(out, fmt):
         print(f"Removed {removed} incomplete file(s) from an interrupted run")
 
 
-def write_manifest_js(manifest, out):
-    """manifest.js is what the game loads (a <script> also works when index.html is opened as a file).
-    Only files that exist on disk are listed. Each path gets a content hash (?v=...), so browsers
-    and the offline cache pick up a regenerated file."""
-    existing = {}
+def write_manifest_js(manifest, packs):
+    """Concatenate the single lines into one pack per category and voice
+    (packs/<category>/<voice>.<ext>) and write packs/manifest.js, which the game loads
+    (a <script> also works when index.html is opened as a file).
+    Each entry is "<pack>?v=<hash>#<start>,<length>": the byte range of one line inside
+    the pack. Every slice is a complete file, so the game decodes it on its own.
+    The hash (?v=...) makes browsers and the offline cache pick up a regenerated pack."""
+    groups = {}  # pack path -> list of (cat, text, source file)
     for cat, texts in manifest.items():
         for text, files in texts.items():
-            ok = [f + "?v=" + hashlib.md5((ROOT / f).read_bytes()).hexdigest()[:8]
-                  for f in files if (ROOT / f).exists()]
-            if ok:
-                existing.setdefault(cat, {})[text] = ok
-    (out / "manifest.js").write_text(
+            for f in files:
+                src = ROOT / f
+                if src.exists():
+                    groups.setdefault(packs / cat / (src.parent.name + src.suffix), []).append((cat, text, src))
+    existing = {}
+    for pack, items in groups.items():
+        data, ranges = bytearray(), []
+        for cat, text, src in items:
+            b = src.read_bytes()
+            ranges.append((cat, text, len(data), len(b)))
+            data += b
+        pack.parent.mkdir(parents=True, exist_ok=True)
+        if not pack.exists() or pack.read_bytes() != data:
+            pack.write_bytes(data)
+        url = pack.relative_to(ROOT).as_posix() + "?v=" + hashlib.md5(data).hexdigest()[:8]
+        for cat, text, start, length in ranges:
+            existing.setdefault(cat, {}).setdefault(text, []).append(f"{url}#{start},{length}")
+    # Packs that no longer exist in the manifest
+    if packs.exists():
+        for f in packs.rglob("*"):
+            if f.is_file() and f.parent != packs and f not in groups:
+                f.unlink()
+    # Keep the order of the texts as in the manifest
+    ordered = {cat: {t: existing[cat][t] for t in texts if t in existing.get(cat, {})}
+               for cat, texts in manifest.items() if cat in existing}
+    packs.mkdir(parents=True, exist_ok=True)
+    (packs / "manifest.js").write_text(
         "// Generated by tools/kokoro_voices.py\nwindow.CLAIM_VOICES = "
-        + json.dumps(existing, indent=1, ensure_ascii=False) + ";\n",
+        + json.dumps(ordered, indent=1, ensure_ascii=False) + ";\n",
         encoding="utf-8")
 
 
