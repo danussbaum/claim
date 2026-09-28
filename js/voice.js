@@ -29,6 +29,8 @@
   const VOICE_VOLUME = 0.55;       // Gesamtlautstaerke aller Stimmen im Verhaeltnis zur Musik
   const VOICE_FILTERS_ON = true;   // false = Dateien ohne Filter abspielen
   const VOICE_DISTANCE_ON = true;  // Waechter weiter weg: leiser, dumpfer, seitlich
+  // Diese Waechterstimmen laedt js/pwa.js im Hintergrund fuer offline; ohne Netz nur diese verwenden
+  const VOICE_OFFLINE_IDS = ['am_adam', 'bm_george', 'am_fenrir', 'af_bella', 'bf_emma'];
   const VOICE_FEMALE_NAMES = ['Karen', 'Brenda', 'Linda', 'Doris', 'Sandra'];
 
   const voiceManifest = window.CLAIM_VOICES || null;
@@ -68,8 +70,13 @@
       voiceGuardVoiceIds = Object.keys(set);
     }
     const female = VOICE_FEMALE_NAMES.includes(e.name);
-    let pool = voiceGuardVoiceIds.filter(v => (v[1] === 'f') === female);
-    if (!pool.length) pool = voiceGuardVoiceIds;
+    let ids = voiceGuardVoiceIds;
+    if (!navigator.onLine) {
+      const off = ids.filter(v => VOICE_OFFLINE_IDS.includes(v));
+      if (off.length) ids = off;
+    }
+    let pool = ids.filter(v => (v[1] === 'f') === female);
+    if (!pool.length) pool = ids;
     e.voiceFileId = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '';
     e.voiceFileRate = 0.88 + Math.random() * 0.22;
   }
