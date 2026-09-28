@@ -157,7 +157,7 @@
     if (voiceReverbBus) return voiceReverbBus;
     const conv = audioCtx.createConvolver();
     conv.buffer = voiceReverb();
-    conv.connect(sfxGain || audioCtx.destination);
+    conv.connect(voiceOut());
     return (voiceReverbBus = conv);
   }
   function voiceReverb() {
@@ -215,7 +215,7 @@
     if (audioCtx.createStereoPanner && opt.pan) {
       const p = audioCtx.createStereoPanner(); p.pan.value = opt.pan; g.connect(p); out = p; nodes.push(p);
     }
-    out.connect(sfxGain || audioCtx.destination);
+    out.connect(voiceOut());
     if (VOICE_FILTERS_ON && fx.reverb) {
       const wet = audioCtx.createGain(); wet.gain.value = fx.reverb;
       g.connect(wet); wet.connect(voiceReverbInput()); nodes.push(wet);
@@ -225,7 +225,7 @@
       const fb = audioCtx.createGain(); fb.gain.value = fx.echo.feedback;
       const wet = audioCtx.createGain(); wet.gain.value = fx.echo.mix;
       g.connect(d); d.connect(fb); fb.connect(d); d.connect(wet);
-      wet.connect(out === g ? (sfxGain || audioCtx.destination) : out);
+      wet.connect(out === g ? (voiceOut()) : out);
       nodes.push(d, fb, wet);
     }
     return { ringOsc, nodes };

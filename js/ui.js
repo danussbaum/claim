@@ -142,7 +142,7 @@
       u.lang = voice ? voice.lang : 'en-US';
       u.rate = 1.1;
       u.pitch = 0.5; // tiefe Stimme
-      u.volume = 1;
+      u.volume = volumes.voice;
       speechSynthesis.speak(u);
     }, i * COUNTDOWN_STEP_MS));
   }
@@ -256,6 +256,19 @@
       b.textContent = VOICE_MODES[key].label;
       b.addEventListener('click', () => { setVoiceMode(key); refreshModeSelect(); });
       voiceRow.appendChild(b);
+    });
+    const volumeRows = document.getElementById('volumeRows');
+    [['music', 'Music'], ['sfx', 'Effects'], ['voice', 'Voices']].forEach(([key, label]) => {
+      const row = document.createElement('label');
+      row.className = 'volumeRow';
+      const name = document.createElement('span');
+      name.textContent = label;
+      const slider = document.createElement('input');
+      slider.type = 'range'; slider.min = '0'; slider.max = '100'; slider.step = '5';
+      slider.value = String(Math.round(volumes[key] * 100));
+      slider.addEventListener('input', () => { ensureAudio(); setVolume(key, slider.value / 100); });
+      row.appendChild(name); row.appendChild(slider);
+      volumeRows.appendChild(row);
     });
     document.getElementById('optionsToggle').addEventListener('click', () => {
       document.getElementById('runOptions').classList.toggle('hidden');

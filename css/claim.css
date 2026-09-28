@@ -468,6 +468,10 @@ button.primary:active { background: var(--primary-dark); }
   font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px;
   text-transform: uppercase; color: #6c8578; margin-top: 4px;
 }
+#volumeRows { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.volumeRow { display: flex; align-items: center; gap: 10px; color: #9ab5a2; font-size: 13px; font-weight: 600; }
+.volumeRow span { width: 58px; text-align: right; }
+.volumeRow input { flex: 1; accent-color: #2f8f5c; }
 .pillRow { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .pill {
   background: #17201a; border: 1px solid #2c3a27; border-radius: 999px;

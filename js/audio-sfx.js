@@ -1,7 +1,16 @@
   // --- Sound ---
   let audioCtx = null;
-  let musicGain = null, sfxGain = null;
+  let musicGain = null, sfxGain = null, voiceGain = null;
   let musicMuted = false;
+  // Lautstaerke je Kanal (0..1), im Browser gespeichert
+  const volumes = { music: 1, sfx: 1, voice: 1 };
+  for (const k in volumes) {
+    try {
+      const v = parseFloat(localStorage.getItem('claim_vol_' + k));
+      if (v >= 0 && v <= 1) volumes[k] = v;
+    } catch (e) { /* ignore */ }
+  }
+  function voiceOut() { return voiceGain || sfxGain || audioCtx.destination; }
   let padOsc1 = null, padOsc2 = null, padFilter = null, padGain = null;
   let subOsc = null, subGain = null;
   let shimmerOsc = null, shimmerGain = null, shimmerLFO = null, shimmerLFOGain = null;
@@ -19,7 +28,7 @@
         const AC = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AC();
         musicGain = audioCtx.createGain();
-        musicGain.gain.value = musicMuted ? 0 : 1;
+        musicGain.gain.value = musicMuted ? 0 : volumes.music;
         // Limiter vor dem Ausgang: Spitzen aus Musik, Effekten und Stimmen uebersteuern sonst
         // (auf Handylautsprechern als Knistern hoerbar)
         const limiter = audioCtx.createDynamicsCompressor();
@@ -34,8 +43,11 @@
         masterOut.connect(audioCtx.destination);
         musicGain.connect(limiter);
         sfxGain = audioCtx.createGain();
-        sfxGain.gain.value = 1;
+        sfxGain.gain.value = volumes.sfx;
         sfxGain.connect(limiter);
+        voiceGain = audioCtx.createGain();
+        voiceGain.gain.value = volumes.voice;
+        voiceGain.connect(limiter);
 
         // Atmosphaerische Dauer-Drone: Pad + Sub-Bass, laufend per Gain/Filter moduliert
         padFilter = audioCtx.createBiquadFilter();
@@ -152,10 +164,19 @@
   function setMusicMuted(muted) {
     musicMuted = muted;
     if (audioCtx && musicGain) {
-      musicGain.gain.setValueAtTime(muted ? 0 : 1, audioCtx.currentTime);
+      musicGain.gain.setValueAtTime(muted ? 0 : volumes.music, audioCtx.currentTime);
     }
     const btn = document.getElementById('musicBtn');
     if (btn) btn.textContent = muted ? '🔇' : '🔊';
+  }
+
+  function setVolume(kind, v) {
+    volumes[kind] = v;
+    try { localStorage.setItem('claim_vol_' + kind, String(v)); } catch (e) { /* ignore */ }
+    const node = kind === 'music' ? musicGain : kind === 'sfx' ? sfxGain : voiceGain;
+    if (!audioCtx || !node) return;
+    if (kind === 'music' && musicMuted) return;
+    node.gain.setTargetAtTime(v, audioCtx.currentTime, 0.03);
   }
 
   function tone(freq, dur, type, vol, delay, glideTo, channel) {

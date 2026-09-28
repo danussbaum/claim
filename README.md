@@ -183,7 +183,7 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 ## Tech notes
 
 - No build, no framework, no dependencies: `index.html` (markup), `css/claim.css` (styles) and classic scripts in `js/` sharing one global scope.
-- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `audio/voice/manifest.js` → `voice.js` → `gameplay.js` → `game.js` → `render.js` → `ui.js` → `tutorial.js` → `qr.js` → `net.js` → `versus.js` → `splash.js` → `pwa.js`. See `AGENTS.md`.
+- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `audio/voice/manifest.js` → `voice.js` → `gameplay.js` → `game.js` → `render.js` → `ui.js` → `tutorial.js` → `input.js` → `qr.js` → `net.js` → `versus.js` → `splash.js` → `pwa.js`. See `AGENTS.md`.
 - Rendering: HTML5 Canvas with a requestAnimationFrame loop; music and sound effects are synthesized via the WebAudio API. Only the voice lines are audio files (`audio/voice/`, MP3).
 - All state persists in `localStorage` – no server.
 - **Voice lines** are generated locally with `tools/kokoro_voices.py` (Kokoro TTS, see the script header for setup). It reads all lines from the JS files, renders them with several voices into `tools/voice_src/`, then packs them into one MP3 per category and voice under `audio/voice/` and writes `audio/voice/manifest.js`. For itch.io, zip everything except `tools/`. Existing files are skipped; `--manifest-only` only rebuilds the manifest.
