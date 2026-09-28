@@ -119,9 +119,19 @@
     }
     return curve;
   }
+  // Ein gemeinsamer Hall fuer alle Stimmen: ein Faltungshall pro Satz ist auf dem Handy
+  // zu teuer (Knacken, danach bleibt der Ton ganz weg)
+  let voiceReverbBus = null;
+  function voiceReverbInput() {
+    if (voiceReverbBus) return voiceReverbBus;
+    const conv = audioCtx.createConvolver();
+    conv.buffer = voiceReverb();
+    conv.connect(sfxGain || audioCtx.destination);
+    return (voiceReverbBus = conv);
+  }
   function voiceReverb() {
     if (voiceReverbIR) return voiceReverbIR;
-    const len = Math.floor(audioCtx.sampleRate * 1.4);
+    const len = Math.floor(audioCtx.sampleRate * 0.9);
     const ir = audioCtx.createBuffer(2, len, audioCtx.sampleRate);
     for (let ch = 0; ch < 2; ch++) {
       const d = ir.getChannelData(ch);
@@ -131,9 +141,11 @@
   }
 
   // Filterkette: Quelle -> Hochpass -> Mitten -> Bass -> Verzerrung -> Tiefpass -> Lautstaerke -> Panorama
+  // Gibt alle erzeugten Knoten zurueck, damit sie nach dem Satz wieder getrennt werden
   function voiceChain(src, fx, opt) {
     let node = src;
-    const link = n => { node.connect(n); node = n; };
+    const nodes = [];
+    const link = n => { node.connect(n); node = n; nodes.push(n); };
     if (VOICE_FILTERS_ON) {
       if (fx.highpass) {
         const f = audioCtx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = fx.highpass; link(f);
@@ -145,7 +157,7 @@
         const f = audioCtx.createBiquadFilter(); f.type = 'lowshelf'; f.frequency.value = 180; f.gain.value = fx.bass; link(f);
       }
       if (fx.drive) {
-        const w = audioCtx.createWaveShaper(); w.curve = voiceDriveCurve(fx.drive); w.oversample = '2x'; link(w);
+        const w = audioCtx.createWaveShaper(); w.curve = voiceDriveCurve(fx.drive); w.oversample = 'none'; link(w);
       }
     }
     let ringOsc = null;
@@ -153,6 +165,7 @@
       const ring = audioCtx.createGain(); ring.gain.value = 0;
       ringOsc = audioCtx.createOscillator(); ringOsc.frequency.value = fx.ring;
       ringOsc.connect(ring.gain); ringOsc.start();
+      nodes.push(ringOsc);
       link(ring);
     }
     const lp = Math.min(VOICE_FILTERS_ON ? fx.lowpass || 20000 : 20000, opt.lowpass || 20000);
@@ -169,31 +182,43 @@
     link(g);
     let out = g;
     if (audioCtx.createStereoPanner && opt.pan) {
-      const p = audioCtx.createStereoPanner(); p.pan.value = opt.pan; g.connect(p); out = p;
+      const p = audioCtx.createStereoPanner(); p.pan.value = opt.pan; g.connect(p); out = p; nodes.push(p);
     }
     out.connect(sfxGain || audioCtx.destination);
     if (VOICE_FILTERS_ON && fx.reverb) {
-      const conv = audioCtx.createConvolver(); conv.buffer = voiceReverb();
       const wet = audioCtx.createGain(); wet.gain.value = fx.reverb;
-      g.connect(conv); conv.connect(wet); wet.connect(out === g ? (sfxGain || audioCtx.destination) : out);
+      g.connect(wet); wet.connect(voiceReverbInput()); nodes.push(wet);
     }
     if (VOICE_FILTERS_ON && fx.echo) {
       const d = audioCtx.createDelay(1); d.delayTime.value = fx.echo.time;
       const fb = audioCtx.createGain(); fb.gain.value = fx.echo.feedback;
       const wet = audioCtx.createGain(); wet.gain.value = fx.echo.mix;
       g.connect(d); d.connect(fb); fb.connect(d); d.connect(wet);
-      setTimeout(() => fb.disconnect(), 4000); // Rueckkopplung aufloesen, sobald das Echo verklungen ist
       wet.connect(out === g ? (sfxGain || audioCtx.destination) : out);
+      nodes.push(d, fb, wet);
     }
-    return ringOsc;
+    return { ringOsc, nodes };
   }
+  // Nach dem Satz (plus Zeit fuer Echo und Hall) alles trennen, sonst sammeln sich Knoten an
+  function voiceRelease(chain, delayMs) {
+    setTimeout(() => {
+      if (chain.ringOsc) try { chain.ringOsc.stop(); } catch (err) { /* ignore */ }
+      chain.nodes.forEach(n => { try { n.disconnect(); } catch (err) { /* ignore */ } });
+    }, delayMs);
+  }
+  // Handy: Audio wird bei Anrufen, Sperrbildschirm oder Tab-Wechsel angehalten ('interrupted')
+  function voiceResume() {
+    if (audioCtx && audioCtx.state !== 'running' && audioCtx.state !== 'closed') audioCtx.resume().catch(() => {});
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) voiceResume(); });
+  window.addEventListener('touchend', voiceResume, { passive: true });
 
   // Spielt eine Datei; gibt false zurueck, wenn nichts abgespielt werden kann
   function voicePlay(path, fx, opt) {
     opt = opt || {};
     ensureAudio();
     if (!audioCtx) return false;
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    voiceResume();
     const rate = (fx.rate || 1) * (opt.rate || 1);
     voiceStop();
 
@@ -232,17 +257,19 @@
         const og = audioCtx.createGain(); og.gain.value = fx.octave;
         oct.connect(og); og.connect(input);
       }
-      const ringOsc = voiceChain(input, fx, opt);
+      const chain = voiceChain(input, fx, opt);
+      chain.nodes.push(src, input);
+      if (oct) chain.nodes.push(oct);
+      // Laeuft auch nach stop(): Echo ausklingen lassen, dann alles trennen
       src.onended = () => {
         playing = false;
         if (oct) try { oct.stop(); } catch (err) { /* ignore */ }
-        if (ringOsc) ringOsc.stop();
+        voiceRelease(chain, fx.echo ? 1500 : 200);
       };
       const stopSrc = cur.stop;
       cur.stop = () => {
         stopSrc();
         if (oct) try { oct.stop(); } catch (err) { /* ignore */ }
-        if (ringOsc) try { ringOsc.stop(); } catch (err) { /* ignore */ }
       };
       src.start();
       if (oct) oct.start();
