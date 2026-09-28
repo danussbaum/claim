@@ -34,7 +34,12 @@
   // --- Overlay / Lobby ---
   function vsPanel() { return document.getElementById('vsPanel'); }
 
+  let vsLastPanel = null; // zuletzt gezeigtes Panel, fuer "Keep playing" beim Verlassen
+  let vsQuitOpen = false;
+
   function vsShowPanel(title, text, buttons, showQr) {
+    vsQuitOpen = false; // ein neues Panel (z. B. Matchende) ersetzt die Frage
+    vsLastPanel = [title, text, buttons, showQr];
     const overlay = document.getElementById('overlay');
     Array.from(overlay.children).forEach(el => {
       if (el.id !== 'overlayTitle' && el.id !== 'vsPanel') el.classList.add('vsHide');
@@ -121,6 +126,7 @@
 
   function vsLeave() {
     vsActive = false;
+    vsQuitOpen = false;
     vsStopLoop();
     Net.onClose = () => {};
     Net.close();
@@ -1268,7 +1274,21 @@
     togglePause = function () { if (!vsActive) origTogglePause(); };
     openQuitConfirm = function () {
       if (!vsActive) { origOpenQuit(); return; }
-      if (window.confirm('Leave the 2 player match?')) vsLeave();
+      if (vsQuitOpen) return;
+      const wasHidden = document.getElementById('overlay').classList.contains('hidden') ||
+        vsPanel().classList.contains('hidden');
+      const prev = vsLastPanel;
+      vsShowPanel('Leave this match?', 'The 2 player match ends for both players.', [
+        { label: '↩ Back to menu', primary: true, onClick: () => { vsQuitOpen = false; vsLeave(); } },
+        { label: 'Keep playing', onClick: () => {
+          vsQuitOpen = false;
+          if (!vsActive) return;
+          if (wasHidden || !prev) { vsHidePanel(); document.getElementById('overlay').classList.add('hidden'); }
+          else vsShowPanel.apply(null, prev);
+        } }
+      ], false);
+      vsLastPanel = prev;
+      vsQuitOpen = true;
     };
     openModeSelect = function () {
       origOpenModeSelect();
