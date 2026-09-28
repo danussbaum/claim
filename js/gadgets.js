@@ -127,6 +127,22 @@
       'Just resting my eyes.', 'Break time!', 'Need caffeine.', 'Not my shift.', 'Do not disturb.',
       'Mmm, decaf.', 'Donut time.'
     ],
+    nap: [
+      'Just five more minutes...', 'zzz... mommy...', 'So... sleepy...', 'I\'m not sleeping, I\'m guarding.',
+      'Yawn...', 'Night night.', 'Counting sheep...', 'Sleeping on the job!'
+    ],
+    wake: [
+      'I WASN\'T SLEEPING!', 'Wha-? Who? Where?!', 'I was awake the whole time!', 'AAAH!',
+      'Not the face!', 'Five more min- HEY!', 'Huh?! Intruder!'
+    ],
+    bump: [
+      'Ow! Watch it!', 'My nose!', 'Oops, sorry!', 'Who put you there?!', 'Bonk!',
+      'Why are you here?!', 'Excuse YOU!', 'I saw stars!'
+    ],
+    whoopee: [
+      'Ewww!', 'Who did that?!', 'Was that you?!', 'Gross!', 'My eyes are watering!',
+      'Not cool!', 'Smells like defeat!', 'I need air!'
+    ],
     jam: [
       'Move!', 'You move!', 'After you.', 'Hey, my spot!', 'Excuse me?!',
       'Get out of my way!', 'Traffic jam!', 'I was here first!', 'Rude!', 'Budge over!',
@@ -139,6 +155,10 @@
   const GUARD_BREAK_CHANCE = 0.004; // pro Waechterschritt, nur wenn ruhig
   const GUARD_BREAK_MS = 3000;
   const BREAK_SNEAK_BONUS = 25;
+  const GUARD_NAP_CHANCE = 0.003;   // pro Waechterschritt, nur wenn ruhig: schlaeft ein
+  const GUARD_NAP_MS = 4500;
+  const GUARD_BUMP_MS = 900;        // zwei Waechter laufen ineinander
+  const GUARD_BUMP_BONUS = 10;
   let guardBubbles = []; // { e, x, y, text, start }
   let lastGuardLine = '';
   const GUARD_NAMES = ['Kevin', 'Gary', 'Steve', 'Bob', 'Dave', 'Karen', 'Brenda', 'Frank',
@@ -225,7 +245,7 @@
       o.enragedUntil = now + ENRAGE_MS;
       o.huntingActive = true;
       o.lastSeenAt = now + ENRAGE_MS - VISION_MEMORY; // jagt eine Weile auch ohne Sicht weiter
-      o.stunnedUntil = 0; o.breakUntil = 0;
+      o.stunnedUntil = 0; o.breakUntil = 0; o.sleepUntil = 0;
       spawnEmote('😡', o.c, o.r);
       guardShout(o, line);
     }, 1100);
@@ -295,21 +315,26 @@
   }
   // Benommen oder in der Pause: sieht nichts
   function guardBlind(e, now) {
-    return now < (e.stunnedUntil || 0) || now < (e.breakUntil || 0);
+    return now < (e.stunnedUntil || 0) || now < (e.breakUntil || 0) || now < (e.sleepUntil || 0);
   }
   let shotCooldownUntil = 0;
   let enemyDeathAnims = [];
   let shotProjectiles = [];
-  const POWERUP_TYPES = ['speed', 'shield', 'freeze', 'trailguard', 'rapidfire', 'spikes', 'decoy'];
+  const POWERUP_TYPES = ['speed', 'shield', 'freeze', 'trailguard', 'rapidfire', 'spikes', 'decoy', 'lullaby', 'whoopee'];
+  // Schlaflied: alle Waechter schlafen ein (wer zu nahe kommt, weckt sie).
+  // Furzkissen: Waechter in der Naehe sind kurz benommen.
+  const LULLABY_MS = 4500, WHOOPEE_MS = 2500, WHOOPEE_RADIUS = 5;
   // Grunddauer der Effekte in ms (1-Spieler und Versus)
   const POWER_MS = { speed: 4000, shield: 4000, freeze: 3000, trailguard: 5000, rapidfire: 5000, spikes: 5000, slow: 4000 };
   const POWERUP_COLORS = {
     speed: '#f5d347', shield: '#4f7ee5', freeze: '#7fdcff', trailguard: '#3fd6b0',
-    rapidfire: '#ff7a3d', spikes: '#c9752e', decoy: '#a89f8c'
+    rapidfire: '#ff7a3d', spikes: '#c9752e', decoy: '#a89f8c',
+    lullaby: '#9b8cff', whoopee: '#8fbf5a'
   };
   const POWERUP_SYMBOLS = {
     speed: '⚡', shield: '◆', freeze: '❄', trailguard: '🔗',
-    rapidfire: '🔫', spikes: '🦔', decoy: '🪨'
+    rapidfire: '🔫', spikes: '🦔', decoy: '🪨',
+    lullaby: '🎵', whoopee: '💨'
   };
   const POWERDOWN_TYPES = ['confuse', 'fog', 'alarm', 'slow', 'swarm', 'drunk', 'psylo'];
   const CHAOS_POWERDOWN_TYPES = ['duck', 'helium', 'disco', 'banana'];
@@ -328,6 +353,7 @@
   const ALL_ICON_NAMES = {
     speed: 'Speed Boost', shield: 'Shield', freeze: 'Freeze', trailguard: 'Trail Guard',
     rapidfire: 'Rapid Fire', spikes: 'Spikes', decoy: 'Decoy x2',
+    lullaby: 'Lullaby', whoopee: 'Whoopee cushion',
     confuse: 'Confused!', fog: 'Fog', alarm: 'Alarm!',
     slow: 'Slowed!', swarm: 'Reinforcements!', drunk: 'Drunk!', psylo: 'PSYLO!',
     duck: 'Quack!', helium: 'Helium head!', disco: 'Disco!', banana: 'Banana!'
@@ -374,8 +400,30 @@
     first_level: { emoji: '🎯', title: 'First Taste of Blood' },
     speed_demon: { emoji: '⚡', title: 'Speed Rush' },
     untouchable: { emoji: '🛡️', title: 'Untouchable' },
-    gambler: { emoji: '💰', title: 'Gambler' }
+    gambler: { emoji: '💰', title: 'Gambler' },
+    bumper_cars: { emoji: '🤕', title: 'Bumper Cars' },
+    sneaky_nap: { emoji: '💤', title: 'Tiptoe Master' }
   };
+  // Huete fuer die Figur: jeder wird durch ein Achievement freigeschaltet
+  const HATS = {
+    none:   { emoji: '',   label: 'No hat' },
+    cap:    { emoji: '🧢', label: 'Cap',       ach: 'first_level' },
+    helmet: { emoji: '🪖', label: 'Helmet',    ach: 'speed_demon' },
+    crown:  { emoji: '👑', label: 'Crown',     ach: 'untouchable' },
+    tophat: { emoji: '🎩', label: 'Top hat',   ach: 'gambler' },
+    bow:    { emoji: '🎀', label: 'Bow',       ach: 'bumper_cars' },
+    grad:   { emoji: '🎓', label: 'Grad cap',  ach: 'sneaky_nap' }
+  };
+  let hatChoice = 'none';
+  try { const h = localStorage.getItem('claim_hat'); if (h && HATS[h]) hatChoice = h; } catch (e) { /* ignore */ }
+  function hatUnlocked(key) { return !HATS[key].ach || !!unlockedAchievements[HATS[key].ach]; }
+  function setHatChoice(key) {
+    if (!HATS[key] || !hatUnlocked(key)) return;
+    hatChoice = key;
+    try { localStorage.setItem('claim_hat', key); } catch (e) { /* ignore */ }
+  }
+  // Ragdoll-Flug beim Verlust eines Lebens
+  let deathFlight = null; // { start, vx, spin }
   let unlockedAchievements = {};
   try { unlockedAchievements = JSON.parse(localStorage.getItem('claim_achievements') || '{}'); } catch (e) { unlockedAchievements = {}; }
 
@@ -387,6 +435,8 @@
     unlockedAchievements[id] = true;
     try { localStorage.setItem('claim_achievements', JSON.stringify(unlockedAchievements)); } catch (e) { /* ignore */ }
     achievementQueue.push(id);
+    // Neuer Hut wird gleich aufgesetzt
+    for (const k in HATS) if (HATS[k].ach === id) { hatChoice = k; try { localStorage.setItem('claim_hat', k); } catch (e) { /* ignore */ } }
     processAchievementQueue();
   }
 
@@ -397,7 +447,9 @@
     const a = ACHIEVEMENTS[id];
     const banner = document.getElementById('achievementBanner');
     document.getElementById('achEmoji').textContent = a.emoji;
-    document.getElementById('achTitle').textContent = 'Achievement: ' + a.title;
+    const hatKey = Object.keys(HATS).find(k => HATS[k].ach === id);
+    document.getElementById('achTitle').textContent = 'Achievement: ' + a.title +
+      (hatKey ? ' · New hat ' + HATS[hatKey].emoji : '');
     sndAchievement();
     requestAnimationFrame(() => banner.classList.add('show'));
     setTimeout(() => {

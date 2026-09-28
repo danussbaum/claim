@@ -1214,6 +1214,13 @@ function draw(now) {
 
     ctx.save();
     ctx.translate(pcx, pcy);
+    // Ragdoll: Figur fliegt drehend im Bogen davon
+    const flightT = dying && deathFlight ? (now - deathFlight.start) / 1000 : 0;
+    if (flightT > 0) {
+      ctx.translate(deathFlight.vx * flightT * CELL, (-7 * flightT + 16 * flightT * flightT) * CELL);
+      ctx.rotate(deathFlight.spin * flightT);
+      emotion = 'startled';
+    }
     // Streckung entlang der Blickrichtung, damit die Drehung mitlaeuft
     ctx.rotate(playerHeadingDisp);
     ctx.scale(stretch, squeeze);
@@ -1289,6 +1296,23 @@ function draw(now) {
       drawPlayerFace(R, emotion, lookX, lookY);
     }
     } // Ende Kopf (else-Zweig der Ente)
+
+    // Hut (fliegt beim Ragdoll-Sturz davon)
+    const hat = HATS[hatChoice] && HATS[hatChoice].emoji;
+    if (hat && now >= duckUntil) {
+      ctx.save();
+      ctx.rotate(-playerLeanDisp * 0.5);
+      if (flightT > 0) {
+        ctx.translate(-deathFlight.vx * flightT * CELL * 0.6, -flightT * CELL * 3);
+        ctx.rotate(-deathFlight.spin * flightT * 0.4);
+      }
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = Math.floor(R * 1.15) + 'px sans-serif';
+      ctx.fillText(hat, 0, -R * 1.05);
+      ctx.restore();
+    }
 
     ctx.restore();
 
@@ -1612,7 +1636,8 @@ function draw(now) {
     ctx.textBaseline = 'middle';
     for (const e of enemies) {
       const stunned = now < (e.stunnedUntil || 0), onBreak = now < (e.breakUntil || 0);
-      if (!stunned && !onBreak) continue;
+      const asleep = now < (e.sleepUntil || 0);
+      if (!stunned && !onBreak && !asleep) continue;
       const ex = (e.prevC + (e.c - e.prevC) * enemyT) * CELL + CELL / 2;
       const ey = (e.prevR + (e.r - e.prevR) * enemyT) * CELL + CELL / 2;
       ctx.font = Math.floor(CELL * 0.42) + 'px "Space Grotesk", -apple-system, sans-serif';
@@ -1621,6 +1646,20 @@ function draw(now) {
           const a = now / 180 + k * Math.PI * 2 / 3;
           ctx.fillText('⭐', ex + Math.cos(a) * CELL * 0.4, ey - CELL * 0.45 + Math.sin(a) * CELL * 0.12);
         }
+      } else if (asleep) {
+        // Schnarchen: Zs steigen auf, Blase pulsiert
+        for (let k = 0; k < 2; k++) {
+          const z = ((now / 900 + k * 0.5) % 1);
+          ctx.globalAlpha = 1 - z;
+          ctx.fillText('Z', ex + CELL * (0.25 + z * 0.35), ey - CELL * (0.45 + z * 0.6));
+        }
+        ctx.globalAlpha = 1;
+        const bub = 0.5 + 0.5 * Math.sin(now / 350);
+        ctx.fillStyle = 'rgba(190,225,255,0.55)';
+        ctx.beginPath();
+        ctx.arc(ex - CELL * 0.3, ey - CELL * 0.05, CELL * (0.06 + bub * 0.12), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
       } else {
         ctx.fillText('☕', ex + CELL * 0.35, ey + CELL * 0.1);
         const z = ((now / 700) % 1);

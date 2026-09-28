@@ -334,10 +334,24 @@
       for (let i = 0; i < 4; i++) tone(950 - i * 40, 0.05, 'square', 0.08, i * 0.05);
     }
     else if (type === 'decoy') { playNoise(0.06, 900, 'lowpass', 0.1, 0); playNoise(0.06, 900, 'lowpass', 0.1, 0.1); tone(660, 0.1, 'triangle', 0.06, 0.18); }
+    else if (type === 'lullaby') {
+      [660, 550, 440, 550, 440].forEach((f, i) => tone(f, 0.22, 'triangle', 0.08, i * 0.16));
+    }
+    else if (type === 'whoopee') {
+      tone(140, 0.55, 'sawtooth', 0.12, 0, 60);
+      tone(95, 0.45, 'square', 0.06, 0.08, 55);
+      playNoise(0.4, 350, 'lowpass', 0.08, 0.02);
+    }
     else if (type === 'spikes') {
       tone(200, 0.1, 'sawtooth', 0.12, 0, 140);
       tone(140, 0.18, 'square', 0.09, 0.08, 90);
     }
+  }
+  // Cartoon-Sturz: Pfeife nach unten, dann Plumps
+  function sndCartoonFall() {
+    tone(1500, 0.55, 'sine', 0.09, 0, 250);
+    tone(90, 0.18, 'triangle', 0.14, 0.55, 45);
+    playNoise(0.12, 500, 'lowpass', 0.1, 0.56);
   }
   function sndPowerDown(type) {
     if (type === 'confuse') {

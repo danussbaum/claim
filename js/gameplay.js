@@ -309,6 +309,26 @@
     else if (type === 'rapidfire') rapidfireUntil = now + POWER_MS.rapidfire * f;
     else if (type === 'spikes') spikesUntil = now + POWER_MS.spikes * f;
     else if (type === 'decoy') decoyCharges = Math.min(DECOY_MAX, decoyCharges + DECOY_CHARGES);
+    else if (type === 'lullaby') {
+      for (const e of enemies) {
+        e.sleepUntil = now + LULLABY_MS * f; e.sleepSneaked = false;
+        e.huntingActive = false; e.breakUntil = 0;
+        spawnEmote('😴', e.c, e.r);
+      }
+      if (enemies.length) guardSay(enemies[Math.floor(Math.random() * enemies.length)], 'nap', true);
+    } else if (type === 'whoopee') {
+      spawnEmote('💨', px, py);
+      addRipple(px, py, WHOOPEE_RADIUS, 650, '143,191,90', 0.7);
+      triggerShake(3, 180);
+      let said = false;
+      for (const e of enemies) {
+        if (Math.hypot(e.c - px, e.r - py) > WHOOPEE_RADIUS) continue;
+        e.stunnedUntil = now + WHOOPEE_MS * f;
+        e.huntingActive = false;
+        spawnEmote('🤢', e.c, e.r);
+        if (!said) { guardSay(e, 'whoopee', true); said = true; }
+      }
+    }
     score += 15;
     updateStats();
     sndPowerUp(type);

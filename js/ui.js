@@ -257,6 +257,14 @@
       b.addEventListener('click', () => { setVoiceMode(key); refreshModeSelect(); });
       voiceRow.appendChild(b);
     });
+    const hatRow = document.getElementById('hatRow');
+    Object.keys(HATS).forEach(key => {
+      const b = document.createElement('button');
+      b.className = 'pill';
+      b.dataset.hat = key;
+      b.addEventListener('click', () => { setHatChoice(key); refreshModeSelect(); });
+      hatRow.appendChild(b);
+    });
     document.getElementById('optionsToggle').addEventListener('click', () => {
       document.getElementById('runOptions').classList.toggle('hidden');
     });
@@ -287,6 +295,13 @@
     });
     document.querySelectorAll('#voiceRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.voice === voiceMode);
+    });
+    // Gesperrte Huete zeigen, welches Achievement sie freischaltet
+    document.querySelectorAll('#hatRow .pill').forEach(b => {
+      const h = HATS[b.dataset.hat], open = hatUnlocked(b.dataset.hat);
+      b.textContent = open ? ((h.emoji ? h.emoji + ' ' : '') + h.label) : '🔒 ' + ACHIEVEMENTS[h.ach].title;
+      b.disabled = !open;
+      b.classList.toggle('active', b.dataset.hat === hatChoice);
     });
     document.getElementById('optionsSummary').textContent = [MODES[gameMode].label, CAMERAS[cameraMode].label,
       GADGETS[gadgetChoice].icon + ' ' + GADGETS[gadgetChoice].label, VOICE_MODES[voiceMode].label].join(' · ');

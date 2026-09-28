@@ -118,6 +118,35 @@
         }
         continue;
       }
+      // Schlaeft: wer sich vorbeischleicht, kriegt Punkte - wer zu nahe kommt, weckt ihn
+      if (nowP < (e.sleepUntil || 0)) {
+        const d = Math.abs(e.c - px) + Math.abs(e.r - py);
+        if (d <= 1) {
+          e.sleepUntil = 0;
+          e.stunnedUntil = nowP + 350; // kurz erschrocken, dann Jagd
+          e.huntingActive = true; e.lastSeenAt = nowP;
+          spawnEmote('😳', e.c, e.r);
+          guardSay(e, 'wake', true);
+          sndHunterAlert();
+          continue;
+        }
+        if (!e.sleepSneaked && d <= 2) {
+          e.sleepSneaked = true;
+          score += BREAK_SNEAK_BONUS;
+          updateStats();
+          milestonePopups.push({ x: e.c, y: e.r - 1, text: '💤 Tiptoe +' + BREAK_SNEAK_BONUS, startTime: nowP });
+          unlockAchievement('sneaky_nap');
+        }
+        continue;
+      }
+      if (!e.huntingActive && nowP >= alarmUntil && nowP >= (e.distractedUntil || 0) &&
+          !tutorialActive && Math.random() < GUARD_NAP_CHANCE) {
+        e.sleepUntil = nowP + GUARD_NAP_MS;
+        e.sleepSneaked = false;
+        spawnEmote('💤', e.c, e.r);
+        guardSay(e, 'nap', true);
+        continue;
+      }
       if (!e.huntingActive && nowP >= alarmUntil && nowP >= (e.distractedUntil || 0) &&
           !tutorialActive && Math.random() < GUARD_BREAK_CHANCE) {
         e.breakUntil = nowP + GUARD_BREAK_MS;
@@ -180,6 +209,27 @@
 
       e.dc0 = choice[0]; e.dr0 = choice[1];
       e.c += choice[0]; e.r += choice[1];
+
+      // Zusammenstoss: zwei ahnungslose Waechter laufen ineinander
+      if (!isHuntingNow && !tutorialActive) {
+        const other = enemies.find(o => o !== e && o.c === e.c && o.r === e.r);
+        if (other && now - (e.lastBumpAt || 0) > 4000 && now - (other.lastBumpAt || 0) > 4000) {
+          e.lastBumpAt = now; other.lastBumpAt = now;
+          e.stunnedUntil = now + GUARD_BUMP_MS; other.stunnedUntil = now + GUARD_BUMP_MS;
+          // Prallt zurueck auf das alte Feld
+          e.c = e.prevC; e.r = e.prevR;
+          spawnEmote('🤕', e.c, e.r);
+          spawnEmote('🤕', other.c, other.r);
+          guardSay(e, 'bump', true);
+          sndGuardTrip();
+          triggerShake(2, 120);
+          score += GUARD_BUMP_BONUS;
+          updateStats();
+          milestonePopups.push({ x: other.c, y: other.r - 1, text: '💥 Bonk +' + GUARD_BUMP_BONUS, startTime: now });
+          unlockAchievement('bumper_cars');
+          continue;
+        }
+      }
 
       // Bananenschale: Waechter rutscht aus und fliegt
       const peel = bananaPeels.findIndex(b => b.c === e.c && b.r === e.r);
@@ -262,6 +312,8 @@
     updateStats();
     gameOverEmoji = emoji || '💀';
     sndGameOver(gameOverEmoji);
+    deathFlight = { start: performance.now(), vx: Math.random() < 0.5 ? -2.2 : 2.2, spin: (Math.random() < 0.5 ? -1 : 1) * 9 };
+    sndCartoonFall();
     triggerShake(9, 380);
     triggerDeathFlash();
     document.getElementById('board-wrap').classList.add('dimming');
@@ -293,7 +345,7 @@
         lifeLostFlag = true;
         showOverlay(gameOverEmoji + ' Life lost!', reason + ' ' + lives + ' lives left. Level restarts.', 'Continue');
       }
-    }, 420);
+    }, 950); // Zeit fuer den Ragdoll-Flug
   }
 
   // Klickton fuer alle Menueknoepfe (nicht fuer die Spielsteuerung)
