@@ -1,7 +1,7 @@
 // Service Worker: makes claim playable offline.
 // - Game files (HTML, JS, CSS, icons): network first, cached copy when offline,
 //   so updates show up immediately when online.
-// - Voice MP3s: cache first. Their URLs carry a content hash (?v=...), so a
+// - Voice packs (MP3, one per category and voice): cache first. Their URLs carry a content hash (?v=...), so a
 //   regenerated file gets a new URL. js/pwa.js fills this cache in the background.
 const CORE_CACHE = 'claim-core-v1';
 const VOICE_CACHE = 'claim-voice';

@@ -23,7 +23,9 @@ service worker need http(s), e.g. `py -m http.server 8000` (the user starts it, 
   - splash.js: splash screen
   - pwa.js: service worker registration, background download of voices for offline play
 - sw.js (root): service worker; manifest.webmanifest + icons/: home screen app
-- audio/voice/: generated MP3 voice lines (one folder per category and voice) + manifest
+- audio/voice/: generated voice packs (<category>/<voice>.mp3, all lines concatenated) + manifest.js with byte ranges
+- tools/voice_src/: single generated lines + manifest.json (generator source, not shipped)
+- itch.io upload: zip everything except tools/ (max 1000 files)
 - tools/kokoro_voices.py: local generator for the voice lines (Kokoro TTS, Python venv in tools/.venv).
   Reads the lines from the JS files; after changing spoken texts, the user re-runs it.
 

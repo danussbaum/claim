@@ -5,14 +5,14 @@
 
   // Alle Dateien fuer offline: Waechter nur mit den Offline-Stimmen, alles andere komplett
   function pwaVoiceUrls() {
-    const all = [], offline = [];
+    const all = new Set(), offline = new Set();
     if (!voiceManifest) return { all, offline };
     for (const cat in voiceManifest) {
       for (const t in voiceManifest[cat]) {
         for (const p of voiceManifest[cat][t]) {
-          const url = new URL(p, location.href).href;
-          all.push(url);
-          if (cat.indexOf('guard_') !== 0 || VOICE_OFFLINE_IDS.includes(voiceIdOf(p))) offline.push(url);
+          const url = new URL(voicePackUrl(p), location.href).href;
+          all.add(url);
+          if (cat.indexOf('guard_') !== 0 || VOICE_OFFLINE_IDS.includes(voiceIdOf(p))) offline.add(url);
         }
       }
     }
@@ -29,7 +29,7 @@
     if (!window.caches || !voiceManifest || pwaMeteredConnection()) return;
     const { all, offline } = pwaVoiceUrls();
     const cache = await caches.open('claim-voice');
-    const wanted = new Set(all);
+    const wanted = all;
     const have = new Set();
     for (const req of await cache.keys()) {
       // Veraltete Dateien (neu generiert oder entfernt) wegraeumen

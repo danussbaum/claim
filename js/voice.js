@@ -1,5 +1,7 @@
   // --- Sprachausgabe aus MP3-Dateien (erzeugt mit tools/kokoro_voices.py) ---
   // Die Liste der Dateien kommt aus audio/voice/manifest.js (window.CLAIM_VOICES).
+  // Eintrag: "<pack>.mp3?v=<hash>#<start>,<laenge>" = Byte-Bereich einer Zeile im Paket
+  // (ein Paket pro Kategorie und Stimme, damit das Spiel wenige Dateien hat).
   // Fehlt eine Datei, sprechen die Aufrufer wie bisher per speechSynthesis.
 
   // Klang-Einstellungen pro Sprechertyp. Filter in Hz, 0 = aus.
@@ -34,9 +36,10 @@
   const VOICE_FEMALE_NAMES = ['Karen', 'Brenda', 'Linda', 'Doris', 'Sandra'];
 
   const voiceManifest = window.CLAIM_VOICES || null;
-  // Direkt geoeffnete index.html (file://): fetch ist blockiert, dann nur <audio> ohne Filter
+  // Direkt geoeffnete index.html (file://): fetch ist blockiert, dann speechSynthesis
   const voiceWebAudio = location.protocol !== 'file:';
   const voiceBuffers = {};   // Pfad -> AudioBuffer | Promise | 'fail'
+  const voicePacks = {};     // Paket-URL -> Promise<ArrayBuffer>
   let voiceCurrent = null;   // { playing(), stop() }
   let voiceReverbIR = null;
   let voiceGuardVoiceIds = null;
@@ -53,7 +56,11 @@
     }
     return null;
   }
-  function voiceIdOf(path) { const p = path.split('/'); return p[p.length - 2]; }
+  function voicePackUrl(path) { return path.split('#')[0]; }
+  function voiceIdOf(path) {
+    const p = voicePackUrl(path).split('?')[0].split('/');
+    return p[p.length - 1].replace(/\.[^.]+$/, '');
+  }
   function voiceBusy() { return !!(voiceCurrent && voiceCurrent.playing()); }
   function voiceStop() {
     if (voiceCurrent) voiceCurrent.stop();
@@ -79,13 +86,35 @@
     if (!pool.length) pool = ids;
     e.voiceFileId = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '';
     e.voiceFileRate = 0.88 + Math.random() * 0.22;
+    voicePrefetchGuard(e.voiceFileId);
   }
 
+  function voicePackFetch(url) {
+    if (!voicePacks[url]) {
+      voicePacks[url] = fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
+      voicePacks[url].catch(() => { delete voicePacks[url]; });
+    }
+    return voicePacks[url];
+  }
+  // Pakete einer Waechterstimme vorladen, damit der erste Satz nicht zu spaet kommt
+  function voicePrefetchGuard(id) {
+    if (!voiceWebAudio || !voiceManifest || !id) return;
+    for (const cat in voiceManifest) {
+      if (cat.indexOf('guard_') !== 0) continue;
+      for (const t in voiceManifest[cat]) {
+        const p = voiceManifest[cat][t].find(f => voiceIdOf(f) === id);
+        if (p) voicePackFetch(voicePackUrl(p)).catch(() => {});
+        break; // ein Eintrag pro Kategorie genuegt, alle liegen im selben Paket
+      }
+    }
+  }
   function voiceLoad(path) {
     const b = voiceBuffers[path];
     if (b) return b instanceof Promise ? b : Promise.resolve(b);
-    const p = fetch(path)
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    const url = voicePackUrl(path);
+    const range = (path.split('#')[1] || '').split(',').map(Number);
+    const p = voicePackFetch(url)
+      .then(pack => (range.length === 2 ? pack.slice(range[0], range[0] + range[1]) : pack.slice(0)))
       .then(data => new Promise((res, rej) => audioCtx.decodeAudioData(data, res, rej)))
       .then(buf => (voiceBuffers[path] = buf))
       .catch(() => (voiceBuffers[path] = 'fail'));
@@ -222,16 +251,8 @@
     const rate = (fx.rate || 1) * (opt.rate || 1);
     voiceStop();
 
-    if (!voiceWebAudio) {
-      const a = new Audio(path);
-      a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false;
-      a.playbackRate = rate;
-      a.volume = Math.max(0, Math.min(1, VOICE_VOLUME * (opt.vol == null ? 1 : opt.vol)));
-      a.play().catch(() => {});
-      voiceCurrent = { playing: () => !a.paused && !a.ended, stop: () => a.pause() };
-      return true;
-    }
-
+    // Ohne fetch (file://) lassen sich Zeilen nicht aus dem Paket schneiden: speechSynthesis
+    if (!voiceWebAudio) return false;
     if (voiceBuffers[path] === 'fail') return false;
     const requested = performance.now();
     let src = null, playing = true;
