@@ -60,6 +60,26 @@ You choose before starting:
 - **Grapple Hook** (🪝) – Yank yourself 2 cells forward through open ground. 6 s cooldown.
 - **Smoke Bomb** (💨) – Disappear from every guard's sight for 2.5 s. 10 s cooldown.
 
+## 2 Player versus
+
+The **⚔️ 2 Player** button in the menu opens the versus lobby. Two players claim ground on the same 14 x 20 board, with one guard in the middle.
+
+**Connecting:**
+
+- **Host a match** shows a QR code. The rival scans it with the phone camera and joins in the browser: no account, no app. The devices connect directly peer-to-peer (WebRTC); public MQTT brokers are only used to find each other. The host runs the simulation, the guest sends inputs.
+- **Play vs CPU** starts a match against a computer rival on the same device. The CPU makes short loops out of its land, heads home when threatened and shoots at whatever is in line.
+
+**Rules:**
+
+- Each player starts with a border strip: player 1 the top and left edge, player 2 the bottom and right edge.
+- Closing a loop claims every enclosed area that holds neither the guard nor the rival – **including the rival's land** ("stolen" cells). The largest open area always stays open, so the board never flips at once.
+- A match lasts **2 minutes**. Whoever reaches **50 %** first wins at once; otherwise the larger share wins when time is up (equal share = draw).
+- **Series:** first to **3 wins with a 2-win lead** (like tennis), shown as MATCHES instead of lives.
+- **No lives:** crossing your own line, getting your line cut or being caught by the guard sends you back to your start corner, your line is lost and you stand still for 1.5 s. Being shot by the rival costs 0.8 s. A short invulnerability follows. Whoever loses all land gets their free start edges back.
+- **Attacking:** run over the rival's line to cut it (they are sent home), shoot them (axe, 8 cells) or shoot their line – the piece from their land up to the hit falls away. Meeting head-on outside your own land sends you home.
+- Deep inside your own land you are hidden from the guard, like in single player. It hunts whichever player it sees and is closer; shot down, it returns after 3 s.
+- Power-ups: Speed, Shield, Freeze and Rapid Fire, plus Slow as the bad one (30 %). Each player has 3 boosts per match and their chosen gadget (the CPU uses the Grapple Hook).
+
 ## Controls
 
 | Input | Action |
