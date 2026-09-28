@@ -905,7 +905,7 @@
     powerUps = []; swarmEnemies = []; decoys = []; bananaPeels = []; movingBlocks = [];
     bonusCells = []; flashCells = []; guardBubbles = []; enemyDeathAnims = []; shotProjectiles = [];
     nearMissPopups = []; comboPopups = []; revealPopups = []; milestonePopups = []; emotePopups = [];
-    fireworkParticles = []; dustParticles = []; smokeParticles = []; bgRipples = [];
+    fireworkParticles = []; sparkParticles = []; dustParticles = []; smokeParticles = []; bgRipples = [];
     countdownActive = false; dying = false; gameOver = false; paused = false;
     playerInterval = VS_STEP_MS; enemyInterval = VS_GUARD_MS;
     level = 1;

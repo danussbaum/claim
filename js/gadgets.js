@@ -446,6 +446,10 @@
   let comboPopups = [];
   let revealPopups = [];
   let fireworkParticles = [];
+  // Funken mit Luftwiderstand (Eroberung, Abschuesse, Richtungswechsel)
+  let sparkParticles = [];
+  // Squash & Stretch des Spielers: gedaempftes Nachwippen nach Kurve/Eroberung
+  let playerSquashTime = 0, playerSquashAmt = 0;
   let levelReadyToComplete = false;
   let lifeLostThisLevel = false;
   let gamblerStreak = 0;

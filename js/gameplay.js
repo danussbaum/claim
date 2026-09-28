@@ -106,6 +106,8 @@
       startTime: performance.now()
     });
     sndEnemyDeath();
+    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, PERSONALITY_COLORS[e.personality] || '#e3574a', 14, 160, 0);
+    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, '#fff2c0', 6, 120, 0);
     guardScream(e);
     guardReactToDeath(e);
     statKills++;
@@ -227,6 +229,7 @@
     comboPopups = [];
     revealPopups = [];
     fireworkParticles = [];
+    sparkParticles = [];
     dustParticles = [];
     emotePopups = [];
     milestonePopups = [];
@@ -508,7 +511,14 @@
   function stepPlayer() {
     prevPx = px; prevPy = py;
     playerStepTime = performance.now();
-    if (bananaSlide > 0) bananaSlide--; else dir = nextDir;
+    if (bananaSlide > 0) bananaSlide--;
+    else {
+      if (nextDir !== dir) {
+        playerSquashTime = playerStepTime; playerSquashAmt = 0.16;
+        spawnSparks(px * CELL + CELL / 2, py * CELL + CELL / 2, 'rgba(210,230,220,0.7)', 4, 40, 0);
+      }
+      dir = nextDir;
+    }
     const [dx, dy] = dirDelta(dir);
     const nx = px + dx, ny = py + dy;
     // Rutschen endet an Saeulen und Gruben statt hineinzufallen
@@ -526,10 +536,18 @@
     if (!gained) return;
     const now = performance.now();
     let sumR = 0, sumC = 0;
-    for (const [r, c] of cells) {
-      flashCells.push({ r, c, time: now });
+    // Flaeche waechst wellenfoermig von der Figur aus; Gesamtdauer begrenzt
+    let maxD = 1;
+    for (const [r, c] of cells) maxD = Math.max(maxD, Math.hypot(c - x, r - y));
+    const stepMs = Math.min(35, 450 / maxD);
+    const sparkEvery = Math.max(1, Math.ceil(gained / 40));
+    cells.forEach(([r, c], i) => {
+      const delay = Math.hypot(c - x, r - y) * stepMs;
+      flashCells.push({ r, c, time: now, delay });
+      if (i % sparkEvery === 0) spawnSparks(c * CELL + CELL / 2, r * CELL + CELL / 2, fx.fireworks[i % 2], 2, 70, delay);
       sumR += r; sumC += c;
-    }
+    });
+    playerSquashTime = now; playerSquashAmt = Math.min(0.3, 0.12 + gained * 0.004);
     // Welle aus dem Schwerpunkt der eroberten Flaeche - je groesser der Claim,
     // desto weiter laeuft sie.
     addRipple(sumC / gained, sumR / gained, Math.min(14, 2.5 + Math.sqrt(gained) * 1.4),
@@ -656,6 +674,17 @@
     if (freshPct >= 100 && !celebrating) {
       triggerLevelCompleteFireworks();
     }
+  }
+
+  function spawnSparks(cx, cy, color, count, speed, delay) {
+    const t0 = performance.now() + (delay || 0);
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = speed * (0.4 + Math.random() * 0.8);
+      sparkParticles.push({ x0: cx, y0: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        color, startTime: t0, life: 350 + Math.random() * 350, size: 0.08 + Math.random() * 0.08 });
+    }
+    if (sparkParticles.length > 400) sparkParticles.splice(0, sparkParticles.length - 400);
   }
 
   function spawnFireworkBurst(cx, cy, customPalette) {

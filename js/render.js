@@ -515,8 +515,11 @@ function draw(now) {
     ctx.lineWidth = 1;
 
     for (let i = flashCells.length - 1; i >= 0; i--) {
-      if (now - flashCells[i].time > 400) flashCells.splice(i, 1);
+      if (now - flashCells[i].time - (flashCells[i].delay || 0) > 400) flashCells.splice(i, 1);
     }
+    // Eroberung: Zellen, deren Welle noch nicht angekommen ist, bleiben leer
+    const growCells = new Map();
+    for (const f of flashCells) if (f.delay) growCells.set(f.r * COLS + f.c, f);
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -569,10 +572,29 @@ function draw(now) {
           continue;
         }
         if (v === TERRITORY) {
+          const gf = growCells.get(r * COLS + c);
+          if (gf) {
+            const ga = now - gf.time - gf.delay;
+            if (ga < 0) continue;
+            if (ga < 220) {
+              // Aufpoppen mit leichtem Ueberschwingen
+              const t = ga / 220, k = 1.7;
+              const s = 1 + (k + 1) * Math.pow(t - 1, 3) + k * Math.pow(t - 1, 2);
+              const h = CELL * s / 2;
+              ctx.fillStyle = '#2f8f5c';
+              ctx.fillRect(c*CELL + CELL/2 - h, r*CELL + CELL/2 - h, h * 2, h * 2);
+              continue;
+            }
+          }
           ctx.fillStyle = '#2f8f5c';
           ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
           ctx.fillStyle = 'rgba(255,255,255,0.08)';
           ctx.fillRect(c*CELL, r*CELL, CELL, 2);
+          // Tiefe: Kante nach unten, wo die Flaeche endet
+          if (r + 1 >= ROWS || grid[r + 1][c] !== TERRITORY) {
+            ctx.fillStyle = 'rgba(0,0,0,0.28)';
+            ctx.fillRect(c*CELL, (r+1)*CELL - Math.max(2, CELL * 0.12), CELL, Math.max(2, CELL * 0.12));
+          }
         } else if (v === RIVAL_TERRITORY) {
           ctx.fillStyle = '#2f5f9f';
           ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
@@ -608,8 +630,21 @@ function draw(now) {
       }
     }
 
+    // Tiefe: Schlagschatten der Saeulen nach rechts unten
+    const shOff = Math.max(2, Math.round(CELL * 0.18));
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c] !== BLOCK) continue;
+        if (c + 1 < COLS && grid[r][c + 1] !== BLOCK) ctx.fillRect((c+1)*CELL, r*CELL + shOff, shOff, CELL - shOff);
+        if (r + 1 < ROWS && grid[r + 1][c] !== BLOCK) ctx.fillRect(c*CELL + shOff, (r+1)*CELL, CELL - shOff, shOff);
+        if (c + 1 < COLS && r + 1 < ROWS && grid[r + 1][c + 1] !== BLOCK) ctx.fillRect((c+1)*CELL, (r+1)*CELL, shOff, shOff);
+      }
+    }
+
     for (const f of flashCells) {
-      const t = (now - f.time) / 400;
+      const t = (now - f.time - (f.delay || 0)) / 400;
+      if (t < 0) continue;
       ctx.fillStyle = 'rgba(255,255,255,' + (0.5 * (1 - t)) + ')';
       ctx.fillRect(f.c*CELL, f.r*CELL, CELL, CELL);
     }
@@ -795,6 +830,19 @@ function draw(now) {
       ctx.fillStyle = p.color;
       ctx.fillRect(Math.round(px2 - size / 2), Math.round(py2 - size / 2), size, size);
     }
+    for (let i = sparkParticles.length - 1; i >= 0; i--) {
+      const p = sparkParticles[i];
+      const age = now - p.startTime;
+      if (age < 0) continue;
+      if (age > p.life) { sparkParticles.splice(i, 1); continue; }
+      // Luftwiderstand: Weg = v * (1 - e^-kt) / k
+      const k = 4, t = age / 1000, d = (1 - Math.exp(-k * t)) / k;
+      const f = 1 - age / p.life;
+      const size = Math.max(1.5, CELL * p.size * (0.4 + f * 0.6));
+      ctx.globalAlpha = f;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x0 + p.vx * d - size / 2, p.y0 + p.vy * d - size / 2, size, size);
+    }
     ctx.globalAlpha = 1;
 
     for (let i = shotProjectiles.length - 1; i >= 0; i--) {
@@ -931,8 +979,11 @@ function draw(now) {
     const [pdx, pdy] = dirDelta(dir);
     const R = CELL * 0.38;
     const bounce = Math.sin(Math.min(1, playerT) * Math.PI);
-    const stretch = 1 + bounce * 0.18;
-    const squeeze = 1 - bounce * 0.13;
+    // Nachwippen nach Kurve oder Eroberung (gedaempfte Schwingung)
+    const sqAge = (now - playerSquashTime) / 1000;
+    const wobble = sqAge < 0.6 ? playerSquashAmt * Math.exp(-sqAge * 7) * Math.cos(sqAge * 28) : 0;
+    const stretch = (1 + bounce * 0.18) * (1 - wobble);
+    const squeeze = (1 - bounce * 0.13) * (1 + wobble);
     const headX = Math.cos(playerHeadingDisp), headY = Math.sin(playerHeadingDisp);
 
     const pcx = dispPx * CELL + CELL / 2, pcy = dispPy * CELL + CELL / 2;
@@ -1139,6 +1190,12 @@ function draw(now) {
     else if (trail.length > 0) emotion = 'determined';
     else emotion = 'relaxed';
 
+    // Tiefe: weicher Bodenschatten unter dem Spieler
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(pcx + CELL * 0.06, pcy + R * 0.85, R * 0.85 * stretch, R * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.save();
     ctx.translate(pcx, pcy);
     // Streckung entlang der Blickrichtung, damit die Drehung mitlaeuft
@@ -1334,6 +1391,12 @@ function draw(now) {
       else if (frozen) { pulseFreq = 900; pulseAmp = 0.015; }
       const pulse = 1 + Math.sin(now / pulseFreq + e.c * 1.7 + e.r) * pulseAmp;
       const R = CELL * 0.36 * pulse;
+
+      // Tiefe: Bodenschatten
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(ecx + CELL * 0.06, ecy + R * 0.85, R * 0.85, R * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.save();
       ctx.translate(ecx, ecy);
