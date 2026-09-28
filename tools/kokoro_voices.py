@@ -116,6 +116,8 @@ def spoken(text, category):
     if category.startswith("guard_") and category != "guard_scream":
         if not re.search(r"[!?]$|\.\.\.$", text):
             text = text.rstrip(".") + "!"
+    if category == "countdown":
+        text = text.rstrip("!.") + "!"  # shouted numbers sound more energetic
     if category == "announcer":
         text = text.capitalize()  # "DOUBLE KILL!" would be spelled out letter by letter
     return text

@@ -10,7 +10,7 @@
     scream:    { rate: 1.12, highpass: 120, lowpass: 9000,  drive: 0,    reverb: 0.18, peak: 0,    bass: 0, gain: 1.0 },
     dog:       { rate: 1.0,  highpass: 200, lowpass: 5000,  drive: 0.1,  reverb: 0,    peak: 0,    bass: 0, gain: 1.0 },
     announcer: { rate: 0.95, highpass: 450, lowpass: 4500,  drive: 0.6,  reverb: 0.35, peak: 1800, bass: 0, gain: 1.0 }, // Megafon
-    countdown: { rate: 0.94, highpass: 0,   lowpass: 12000, drive: 0,    reverb: 0.3,  peak: 0,    bass: 7, gain: 1.1 }
+    countdown: { rate: 1.06, highpass: 90,  lowpass: 12000, drive: 0.15, reverb: 0.2,  peak: 2200, bass: 5, gain: 1.2 }
   };
   const VOICE_VOLUME = 0.55;       // Gesamtlautstaerke aller Stimmen im Verhaeltnis zur Musik
   const VOICE_FILTERS_ON = true;   // false = Dateien ohne Filter abspielen
