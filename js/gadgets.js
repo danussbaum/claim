@@ -192,6 +192,7 @@
     voiceMode = v;
     try { localStorage.setItem('claim_voice', v); } catch (e) { /* ignore */ }
     if (v !== 'speech' && window.speechSynthesis) speechSynthesis.cancel();
+    if (v !== 'speech') voiceStop();
   }
   // Todesschrei beim Abschuss: unterbricht einen laufenden Spruch
   const GUARD_SCREAMS = ['Aaaaargh!', 'Noooooo!', 'Aaaaah!', 'Argh!', 'Waaaah!', 'Uaaaargh!'];
@@ -199,8 +200,8 @@
     const text = GUARD_SCREAMS[Math.floor(Math.random() * GUARD_SCREAMS.length)];
     if (voiceMode === 'gibberish') {
       sndGibberish(text, e.personality, (e.voiceShift || 1) * 1.3);
-    } else if (voiceMode === 'speech' && window.speechSynthesis) {
-      speechSynthesis.cancel();
+    } else if (voiceMode === 'speech') {
+      if (window.speechSynthesis) speechSynthesis.cancel();
       guardSpeak(e, text, true);
     }
   }
@@ -232,11 +233,13 @@
 
   // Ansager fuer Multikills und Trickschuesse
   function announce(text) {
-    if (voiceMode !== 'speech' || !window.speechSynthesis) return;
+    if (voiceMode !== 'speech') return;
     // Kurz warten, damit der Todesschrei noch zu hoeren ist
     setTimeout(() => announceNow(text), 650);
   }
   function announceNow(text) {
+    if (voicePlayAnnouncer(text)) return;
+    if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
@@ -254,6 +257,7 @@
     return en.length ? en : all;
   }
   function guardSpeak(e, text, scream) {
+    if (voicePlayGuard(e, text, scream)) return; // MP3-Datei vorhanden
     const synth = window.speechSynthesis;
     if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
     // Laeuft schon ein Spruch, wird der neue unterdrueckt
