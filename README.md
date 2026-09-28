@@ -112,6 +112,8 @@ The "Slow burn" perk extends all bonuses by 50 %.
 | 🪩 | Disco | Guards dance: they move only every other beat, and their cones sweep around like disco lights | 4 s |
 | 🍌 | Banana | You slide 3 cells without control. The peel stays behind; a guard stepping on it slips and is stunned for 1.5 s | instant |
 
+**Guard voices** (option "Guard voices" before the start): *Gibberish* (synthesized babble), *Speech* or *Off*. With Speech, guards, countdown and announcer (multikills, trick shots) use pre-recorded voice lines generated with Kokoro TTS: every guard gets its own voice and pitch through a radio filter, distant guards sound quieter and muffled, the announcer sounds like a megaphone and every countdown gets a random style (arena, radio, epic, robot, dry). Missing files fall back to the browser's speech synthesis.
+
 **Guard personality:** guards comment on what happens in speech bubbles, can trip into pits while chasing you (stunned 1 s), occasionally take a coffee break (blind for 3 s; sneaking past within 2 cells pays +25) and block each other in narrow corridors.
 
 ## Perks and level-end shop
@@ -160,6 +162,9 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 ## Tech notes
 
 - No build, no framework, no dependencies: `index.html` (markup), `css/claim.css` (styles) and classic scripts in `js/` sharing one global scope.
-- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `gameplay.js` → `game.js` → `render.js` → `ui.js` → `tutorial.js` → `splash.js`. See `AGENTS.md`.
-- Rendering: HTML5 Canvas with a requestAnimationFrame loop; audio is synthesized via the WebAudio API (no sound files needed).
+- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `audio/voice/manifest.js` → `voice.js` → `gameplay.js` → `game.js` → `render.js` → `ui.js` → `tutorial.js` → `qr.js` → `net.js` → `versus.js` → `splash.js` → `pwa.js`. See `AGENTS.md`.
+- Rendering: HTML5 Canvas with a requestAnimationFrame loop; music and sound effects are synthesized via the WebAudio API. Only the voice lines are audio files (`audio/voice/`, MP3).
 - All state persists in `localStorage` – no server.
+- **Voice lines** are generated locally with `tools/kokoro_voices.py` (Kokoro TTS, see the script header for setup). It reads all lines from the JS files, renders them with several voices and writes `audio/voice/manifest.js`. Existing files are skipped; `--manifest-only` only rebuilds the manifest.
+- **Local server:** opened directly as a file, voices play without filters and there is no offline mode. For the full experience serve the folder, e.g. `py -m http.server 8000` → `http://localhost:8000`.
+- **Offline and home screen:** over https (or localhost) a service worker (`sw.js`) caches the game and downloads 5 guard voices plus countdown and announcer in the background (not on metered connections). The game can be added to the home screen and then runs full screen, also offline.

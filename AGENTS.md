@@ -1,6 +1,7 @@
 # Project
 Browser game "claim": canvas-based, vanilla JavaScript, no build step, no dependencies.
-Run it by opening index.html in a browser.
+Run it by opening index.html in a browser. Voice filters, offline mode and the
+service worker need http(s), e.g. `py -m http.server 8000` (the user starts it, not the agent).
 
 # Structure
 - index.html: markup only, loads the scripts in a fixed order
@@ -16,9 +17,15 @@ Run it by opening index.html in a browser.
   - render.js: draw(), all canvas rendering (one large function, largest file)
   - ui.js: main loop, action buttons, start/pause/retry, mode select, quit
   - tutorial.js: tutorial
+  - qr.js: minimal QR code generator (2-player invite link)
+  - net.js: peer-to-peer connection for 2-player mode (MQTT signaling, WebRTC)
+  - versus.js: 2-player versus mode, own simulation, drawn with draw()
   - splash.js: splash screen
   - pwa.js: service worker registration, background download of voices for offline play
 - sw.js (root): service worker; manifest.webmanifest + icons/: home screen app
+- audio/voice/: generated MP3 voice lines (one folder per category and voice) + manifest
+- tools/kokoro_voices.py: local generator for the voice lines (Kokoro TTS, Python venv in tools/.venv).
+  Reads the lines from the JS files; after changing spoken texts, the user re-runs it.
 
 # Code rules
 - No ES modules, no import/export. All scripts share the global scope.
