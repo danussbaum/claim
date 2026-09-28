@@ -189,3 +189,17 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 - **Voice lines** are generated locally with `tools/kokoro_voices.py` (Kokoro TTS, see the script header for setup). It reads all lines from the JS files, renders them with several voices into `tools/voice_src/`, then packs them into one MP3 per category and voice under `audio/voice/` and writes `audio/voice/manifest.js`. For itch.io, zip everything except `tools/`. Existing files are skipped; `--manifest-only` only rebuilds the manifest.
 - **Local server:** opened directly as a file, voices play without filters and there is no offline mode. For the full experience serve the folder, e.g. `py -m http.server 8000` → `http://localhost:8000`.
 - **Offline and home screen:** over https (or localhost) a service worker (`sw.js`) caches the game and downloads 5 guard voices plus countdown and announcer in the background (not on metered connections). The game can be added to the home screen and then runs full screen, also offline.
+
+## itch.io (butler)
+
+One-time setup (Windows):
+1. Download butler: https://itchio.itch.io/butler (or `https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default`),
+   unzip e.g. to `C:\Tools\butler` and add that folder to PATH.
+2. In a new terminal: `butler login` (opens the browser once).
+3. `butler -V` should print the version.
+
+Publish: double-click `tools\publish-itch.cmd` (or run `tools\publish-itch.ps1`).
+On the first run it asks for the target (`user/game`, from the itch.io URL) and saves it in `tools/itch-target.txt`.
+Options: `-Channel html5`, `-DryRun`.
+The first push creates the `html5` upload; on itch.io, edit the game once and tick
+"This file will be played in the browser" for that upload.
