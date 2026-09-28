@@ -10,6 +10,9 @@
   let menuNextStepTime = 0, menuStepIndex = 0;
   let smoothedTension = 0;
 
+  // Musik wird so weit im Voraus geplant (s), damit spaete Frames nicht zu Knacken fuehren
+  const MUSIC_LOOKAHEAD = 0.12;
+
   function ensureAudio() {
     if (!audioCtx) {
       try {
@@ -17,10 +20,19 @@
         audioCtx = new AC();
         musicGain = audioCtx.createGain();
         musicGain.gain.value = musicMuted ? 0 : 1;
-        musicGain.connect(audioCtx.destination);
+        // Limiter vor dem Ausgang: Spitzen aus Musik, Effekten und Stimmen uebersteuern sonst
+        // (auf Handylautsprechern als Knistern hoerbar)
+        const limiter = audioCtx.createDynamicsCompressor();
+        limiter.threshold.value = -3;
+        limiter.knee.value = 0;
+        limiter.ratio.value = 20;
+        limiter.attack.value = 0.002;
+        limiter.release.value = 0.1;
+        limiter.connect(audioCtx.destination);
+        musicGain.connect(limiter);
         sfxGain = audioCtx.createGain();
         sfxGain.gain.value = 1;
-        sfxGain.connect(audioCtx.destination);
+        sfxGain.connect(limiter);
 
         // Atmosphaerische Dauer-Drone: Pad + Sub-Bass, laufend per Gain/Filter moduliert
         padFilter = audioCtx.createBiquadFilter();
@@ -93,7 +105,7 @@
         menuStepIndex = 0;
       } catch (e) { audioCtx = null; }
     }
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx && (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted')) audioCtx.resume().catch(() => {});
     if (!audioLoopStarted) {
       audioLoopStarted = true;
       requestAnimationFrame(audioLoop);
