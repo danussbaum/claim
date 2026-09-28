@@ -42,6 +42,7 @@
         if (swarmEnemies.length && performance.now() >= swarmUntil) clearSwarmEnemies();
         updateMusicScheduler();
         checkNearMiss(performance.now());
+        checkContinuousCollision(performance.now());
       }
     }
     updateActionButtonsUI();
