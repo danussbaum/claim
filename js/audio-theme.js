@@ -570,3 +570,16 @@
     }
   }
 
+
+  // Menue: kurzer Klick beim Druecken eines Knopfs
+  function sndUiClick() {
+    tone(1250, 0.03, 'triangle', 0.05, 0, 900);
+  }
+  // Hochzaehlen der Punkte, Tonhoehe steigt mit dem Fortschritt (0..1)
+  function sndScoreTick(t) {
+    tone(620 + t * 520, 0.035, 'square', 0.035, 0);
+  }
+  // Einzelne Zeile im Levelabschluss poppt auf
+  function sndOverlayPop(i) {
+    tone(520 * Math.pow(1.19, i), 0.09, 'triangle', 0.08, 0);
+  }

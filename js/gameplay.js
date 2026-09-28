@@ -2,6 +2,7 @@
 
   function resetLevel(newLevel) {
     level = newLevel;
+    scoreAtLevelStart = score || 0;
     initGrid();
     if (!tutorialActive) placeObstacles(level);
     else { bonusCells = []; bonusClaimed = false; movingBlocks = []; }
@@ -774,8 +775,11 @@
       setTimeout(() => sndHighscoreSting(), 100);
     }
 
-    const bonusText = bonusPct > 0 ? (' Risk bonus: +' + bonusPct + '%!') : '';
-    const highText = isNewHigh ? '🏆 NEW HIGH SCORE! ' : '';
+    const pops = [];
+    if (isNewHigh) pops.push('🏆 NEW HIGH SCORE!');
+    pops.push('✅ Territory secured');
+    if (bonusPct > 0) pops.push('🎲 Risk bonus: +' + bonusPct + '%');
+    const scoreFrom = scoreAtLevelStart, scoreTo = score;
 
     setTimeout(() => {
       celebrating = false;
@@ -784,7 +788,8 @@
       resetLevel(lv);
       running = false;
       openShop('Level ' + lv + ' - choose your edge', () => {
-        showOverlay('Level ' + lv + '!', highText + 'Territory secured.' + bonusText + ' Onward - faster and with more guards.', 'Continue');
+        showOverlay('Level ' + lv + '!', 'Onward - faster and with more guards.', 'Continue',
+                    { scoreFrom, scoreTo, pops });
       });
     }, 1900);
   }

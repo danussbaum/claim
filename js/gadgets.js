@@ -339,6 +339,7 @@
   const ROULETTE_STEP_MS = 55;
   const REVEAL_HOLD_MS = 700;
   let score, level, capturedPct, gameOver, paused, running;
+  let scoreAtLevelStart = 0; // fuer das Hochzaehlen im Levelabschluss
   let prevStatsScore = 0;
   let lives = 3;
   let highScore = 0;

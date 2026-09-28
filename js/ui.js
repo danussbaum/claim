@@ -101,6 +101,7 @@
   }
 
   function triggerStartCountdown() {
+    playLevelWipe();
     countdownActive = true;
     // Anzeige und Piepser starten etwas spaeter als die Sprache, damit alles gleichzeitig ankommt
     countdownStartTime = performance.now() + COUNTDOWN_SPEECH_LEAD_MS;

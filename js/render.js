@@ -127,7 +127,7 @@ function drawGuardDeath(a, now) {
     ctx.beginPath();
     ctx.ellipse(0, 0, R * (horiz ? sq : st), R * (horiz ? st : sq), 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.font = Math.floor(CELL * 0.3) + 'px -apple-system, sans-serif';
+    ctx.font = Math.floor(CELL * 0.3) + 'px "Space Grotesk", -apple-system, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let k = 0; k < 3; k++) {
       const ang = now / 150 + k * Math.PI * 2 / 3;
@@ -220,7 +220,7 @@ function drawGuardGear(e, R, faceAng, now) {
     if (now < (e.enragedUntil || 0)) {
       // Wuetend: Zornesader
       ctx.fillStyle = '#ff2a2a';
-      ctx.font = Math.floor(R * 0.9) + 'px -apple-system, sans-serif';
+      ctx.font = Math.floor(R * 0.9) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('💢', R * 0.7, -R * 0.9);
     }
@@ -642,6 +642,10 @@ function draw(now) {
       }
     }
 
+    // Feine Koernung ueber dem Feld, damit die Flaechen nicht steril wirken
+    ctx.fillStyle = getNoisePattern();
+    ctx.fillRect(0, 0, COLS * CELL, ROWS * CELL);
+
     for (const f of flashCells) {
       const t = (now - f.time - (f.delay || 0)) / 400;
       if (t < 0) continue;
@@ -679,7 +683,7 @@ function draw(now) {
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = '#ffd23f';
-      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
@@ -706,7 +710,7 @@ function draw(now) {
       ctx.scale(bounce, bounce);
 
       const size = Math.floor(CELL * (0.5 + Math.min(p.combo, 8) * 0.045));
-      ctx.font = '800 ' + size + 'px -apple-system, sans-serif';
+      ctx.font = '800 ' + size + 'px Orbitron, "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -733,7 +737,7 @@ function draw(now) {
       ctx.globalAlpha = alpha;
       ctx.translate(mx, my);
       ctx.scale(bounce, bounce);
-      ctx.font = '800 ' + Math.floor(CELL * 0.5) + 'px -apple-system, sans-serif';
+      ctx.font = '800 ' + Math.floor(CELL * 0.5) + 'px Orbitron, "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
@@ -755,7 +759,7 @@ function draw(now) {
         ctx.strokeRect(b.c*CELL+2, b.r*CELL+2, CELL-4, CELL-4);
       }
       const first = bonusCells[0];
-      ctx.font = '700 ' + Math.floor(CELL * 0.5) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.5) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(255,226,120,' + (0.5 + pulse * 0.5) + ')';
@@ -786,7 +790,7 @@ function draw(now) {
         ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = Math.max(1.5, CELL * 0.05);
         ctx.stroke();
-        ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px -apple-system, sans-serif';
+        ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px "Space Grotesk", -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#101414';
@@ -804,7 +808,7 @@ function draw(now) {
         ctx.globalAlpha = alpha;
         ctx.translate(rx, ry);
         ctx.scale(bounce, bounce);
-        ctx.font = '800 ' + Math.floor(CELL * 0.42) + 'px -apple-system, sans-serif';
+        ctx.font = '800 ' + Math.floor(CELL * 0.42) + 'px Orbitron, "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.strokeStyle = 'rgba(0,0,0,0.65)';
@@ -902,7 +906,7 @@ function draw(now) {
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#101414';
-      ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.4) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(MYSTERY_SYMBOL, 0, 1);
@@ -910,7 +914,7 @@ function draw(now) {
     }
 
     // Bananenschalen
-    ctx.font = Math.floor(CELL * 0.6) + 'px -apple-system, sans-serif';
+    ctx.font = Math.floor(CELL * 0.6) + 'px "Space Grotesk", -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const b of bananaPeels) ctx.fillText('🍌', b.c * CELL + CELL / 2, b.r * CELL + CELL / 2 + 1);
@@ -929,7 +933,7 @@ function draw(now) {
       ctx.arc(cx, cy, CELL * (0.35 + ring * 1.1), 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = Math.min(1, left * 3);
-      ctx.font = Math.floor(CELL * 0.6) + 'px -apple-system, sans-serif';
+      ctx.font = Math.floor(CELL * 0.6) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🪨', cx, cy + 1);
@@ -1297,7 +1301,7 @@ function draw(now) {
     if (activeIcon) {
       const bobY = Math.sin(now / 260) * R * 0.12;
       const iconY = pcy - R * 1.55 + bobY;
-      ctx.font = '700 ' + Math.floor(R * 1.1) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(R * 1.1) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = ALL_ICON_COLORS[activeIcon];
@@ -1319,7 +1323,7 @@ function draw(now) {
       ctx.globalAlpha = alpha;
       ctx.translate(ex, ey);
       ctx.scale(bounce, bounce);
-      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.floor(CELL * 0.55) + 'px "Space Grotesk", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(em.emoji, 0, 0);
@@ -1599,7 +1603,7 @@ function draw(now) {
       if (!stunned && !onBreak) continue;
       const ex = (e.prevC + (e.c - e.prevC) * enemyT) * CELL + CELL / 2;
       const ey = (e.prevR + (e.r - e.prevR) * enemyT) * CELL + CELL / 2;
-      ctx.font = Math.floor(CELL * 0.42) + 'px -apple-system, sans-serif';
+      ctx.font = Math.floor(CELL * 0.42) + 'px "Space Grotesk", -apple-system, sans-serif';
       if (stunned) {
         for (let k = 0; k < 3; k++) {
           const a = now / 180 + k * Math.PI * 2 / 3;
@@ -1623,7 +1627,7 @@ function draw(now) {
       const pop = t < 0.1 ? 0.6 + t * 4 : 1;
       ctx.save();
       ctx.globalAlpha = t > 0.8 ? (1 - t) / 0.2 : 1;
-      ctx.font = '700 ' + Math.max(10, Math.floor(CELL * 0.42)) + 'px -apple-system, sans-serif';
+      ctx.font = '700 ' + Math.max(10, Math.floor(CELL * 0.42)) + 'px "Space Grotesk", -apple-system, sans-serif';
       const w = ctx.measureText(b.text).width + CELL * 0.4, h = CELL * 0.62;
       let bx = b.x * CELL + CELL / 2;
       bx = Math.max(w / 2, Math.min(COLS * CELL - w / 2, bx));
@@ -1721,6 +1725,23 @@ function draw(now) {
       }
     }
   }
+let noisePattern = null;
+function getNoisePattern() {
+  if (noisePattern) return noisePattern;
+  const n = document.createElement('canvas');
+  n.width = n.height = 96;
+  const nc = n.getContext('2d');
+  const img = nc.createImageData(96, 96);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = Math.random() < 0.5 ? 0 : 255;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = Math.random() * 14;
+  }
+  nc.putImageData(img, 0, 0);
+  noisePattern = ctx.createPattern(n, 'repeat');
+  return noisePattern;
+}
+
 function drawVignette(vw, vh) {
   const vcx = vw / 2, vcy = vh / 2;
   const vOuter = Math.sqrt(vcx * vcx + vcy * vcy);
