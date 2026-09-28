@@ -107,8 +107,8 @@
       startTime: performance.now()
     });
     sndEnemyDeath();
-    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, PERSONALITY_COLORS[e.personality] || '#e3574a', 14, 160, 0);
-    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, '#fff2c0', 6, 120, 0);
+    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, PERSONALITY_COLORS[e.personality] || '#e3574a', 22, 260, 0);
+    spawnSparks(e.c * CELL + CELL / 2, e.r * CELL + CELL / 2, '#fff2c0', 10, 200, 0);
     guardScream(e);
     guardReactToDeath(e);
     statKills++;
@@ -516,7 +516,7 @@
     else {
       if (nextDir !== dir) {
         playerSquashTime = playerStepTime; playerSquashAmt = 0.16;
-        spawnSparks(px * CELL + CELL / 2, py * CELL + CELL / 2, 'rgba(210,230,220,0.7)', 4, 40, 0);
+        spawnSparks(px * CELL + CELL / 2, py * CELL + CELL / 2, 'rgba(220,240,228,0.9)', 7, 75, 0);
       }
       dir = nextDir;
     }
@@ -545,7 +545,7 @@
     cells.forEach(([r, c], i) => {
       const delay = Math.hypot(c - x, r - y) * stepMs;
       flashCells.push({ r, c, time: now, delay });
-      if (i % sparkEvery === 0) spawnSparks(c * CELL + CELL / 2, r * CELL + CELL / 2, fx.fireworks[i % 2], 2, 70, delay);
+      if (i % sparkEvery === 0) spawnSparks(c * CELL + CELL / 2, r * CELL + CELL / 2, fx.fireworks[i % 3], 3, 130, delay);
       sumR += r; sumC += c;
     });
     playerSquashTime = now; playerSquashAmt = Math.min(0.3, 0.12 + gained * 0.004);
@@ -683,7 +683,7 @@
       const a = Math.random() * Math.PI * 2;
       const v = speed * (0.4 + Math.random() * 0.8);
       sparkParticles.push({ x0: cx, y0: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
-        color, startTime: t0, life: 350 + Math.random() * 350, size: 0.08 + Math.random() * 0.08 });
+        color, startTime: t0, life: 500 + Math.random() * 400, size: 0.14 + Math.random() * 0.12 });
     }
     if (sparkParticles.length > 400) sparkParticles.splice(0, sparkParticles.length - 400);
   }

@@ -830,6 +830,7 @@ function draw(now) {
       ctx.fillStyle = p.color;
       ctx.fillRect(Math.round(px2 - size / 2), Math.round(py2 - size / 2), size, size);
     }
+    ctx.globalCompositeOperation = 'lighter';
     for (let i = sparkParticles.length - 1; i >= 0; i--) {
       const p = sparkParticles[i];
       const age = now - p.startTime;
@@ -839,10 +840,15 @@ function draw(now) {
       const k = 4, t = age / 1000, d = (1 - Math.exp(-k * t)) / k;
       const f = 1 - age / p.life;
       const size = Math.max(1.5, CELL * p.size * (0.4 + f * 0.6));
-      ctx.globalAlpha = f;
+      const sx = p.x0 + p.vx * d, sy = p.y0 + p.vy * d;
       ctx.fillStyle = p.color;
-      ctx.fillRect(p.x0 + p.vx * d - size / 2, p.y0 + p.vy * d - size / 2, size, size);
+      // Leuchten ohne shadowBlur (teuer auf Handys): weicher Hof + heller Kern
+      ctx.globalAlpha = f * 0.3;
+      ctx.fillRect(sx - size, sy - size, size * 2, size * 2);
+      ctx.globalAlpha = f;
+      ctx.fillRect(sx - size / 2, sy - size / 2, size, size);
     }
+    ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
 
     for (let i = shotProjectiles.length - 1; i >= 0; i--) {
