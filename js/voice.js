@@ -9,8 +9,22 @@
     guard:     { rate: 1.0,  highpass: 380, lowpass: 3400,  drive: 0.35, reverb: 0,    peak: 0,    bass: 0, gain: 1.2 }, // Funkgeraet
     scream:    { rate: 1.12, highpass: 120, lowpass: 9000,  drive: 0,    reverb: 0.18, peak: 0,    bass: 0, gain: 1.0 },
     dog:       { rate: 1.0,  highpass: 200, lowpass: 5000,  drive: 0.1,  reverb: 0,    peak: 0,    bass: 0, gain: 1.0 },
-    announcer: { rate: 0.95, highpass: 450, lowpass: 4500,  drive: 0.6,  reverb: 0.35, peak: 1800, bass: 0, gain: 1.0 }, // Megafon
-    countdown: { rate: 1.06, highpass: 90,  lowpass: 12000, drive: 0.15, reverb: 0.2,  peak: 2200, bass: 5, gain: 0.75 }
+    announcer: { rate: 0.95, highpass: 450, lowpass: 4500,  drive: 0.6,  reverb: 0.35, peak: 1800, bass: 0, gain: 1.0 } // Megafon
+  };
+  // Countdown: jeder Countdown bekommt zufaellig einen Stil (nie zweimal derselbe hintereinander).
+  //   ring: Roboter-Ringmodulation in Hz, echo: Slapback-Echo, octave: Doppelung tiefer (Lautstaerke),
+  //   rise: Tonhoehe steigt pro Wort, goGain/goReverb: "Go!" hervorheben. Kompressor ist immer an.
+  const COUNTDOWN_STYLES = {
+    arena:  { rate: 1.04, highpass: 90,  lowpass: 12000, drive: 0.1,  reverb: 0.25, peak: 2000, bass: 4, gain: 0.8,
+              echo: { time: 0.12, feedback: 0.3, mix: 0.35 }, rise: 0.04, goGain: 1.25, goReverb: 0.5 },
+    radio:  { rate: 1.06, highpass: 420, lowpass: 3600,  drive: 0.4,  reverb: 0,    peak: 1800, bass: 0, gain: 0.85,
+              rise: 0.04, goGain: 1.2, goReverb: 0.2 },
+    epic:   { rate: 1.0,  highpass: 60,  lowpass: 10000, drive: 0.05, reverb: 0.3,  peak: 0,    bass: 6, gain: 0.7,
+              octave: 0.6, rise: 0.03, goGain: 1.25, goReverb: 0.55 },
+    robot:  { rate: 1.02, highpass: 150, lowpass: 8000,  drive: 0.2,  reverb: 0.15, peak: 1500, bass: 2, gain: 0.8,
+              ring: 55, rise: 0.05, goGain: 1.2, goReverb: 0.35 },
+    dry:    { rate: 1.06, highpass: 80,  lowpass: 14000, drive: 0,    reverb: 0,    peak: 2500, bass: 3, gain: 0.85,
+              rise: 0.04, goGain: 1.3, goReverb: 0.25 }
   };
   const VOICE_VOLUME = 0.55;       // Gesamtlautstaerke aller Stimmen im Verhaeltnis zur Musik
   const VOICE_FILTERS_ON = true;   // false = Dateien ohne Filter abspielen
@@ -24,6 +38,7 @@
   let voiceCurrent = null;   // { playing(), stop() }
   let voiceReverbIR = null;
   let voiceGuardVoiceIds = null;
+  let countdownStyle = null, countdownStyleName = '';
 
   function voiceFiles(cat, text) {
     const c = voiceManifest && voiceManifest[cat];
@@ -126,9 +141,21 @@
         const w = audioCtx.createWaveShaper(); w.curve = voiceDriveCurve(fx.drive); w.oversample = '2x'; link(w);
       }
     }
+    let ringOsc = null;
+    if (VOICE_FILTERS_ON && fx.ring) {
+      const ring = audioCtx.createGain(); ring.gain.value = 0;
+      ringOsc = audioCtx.createOscillator(); ringOsc.frequency.value = fx.ring;
+      ringOsc.connect(ring.gain); ringOsc.start();
+      link(ring);
+    }
     const lp = Math.min(VOICE_FILTERS_ON ? fx.lowpass || 20000 : 20000, opt.lowpass || 20000);
     if (lp < 20000) {
       const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; link(f);
+    }
+    if (VOICE_FILTERS_ON && fx.comp) {
+      const c = audioCtx.createDynamicsCompressor();
+      c.threshold.value = -22; c.knee.value = 8; c.ratio.value = 5; c.attack.value = 0.003; c.release.value = 0.15;
+      link(c);
     }
     const g = audioCtx.createGain();
     g.gain.value = VOICE_VOLUME * (fx.gain || 1) * (opt.vol == null ? 1 : opt.vol);
@@ -143,6 +170,15 @@
       const wet = audioCtx.createGain(); wet.gain.value = fx.reverb;
       g.connect(conv); conv.connect(wet); wet.connect(out === g ? (sfxGain || audioCtx.destination) : out);
     }
+    if (VOICE_FILTERS_ON && fx.echo) {
+      const d = audioCtx.createDelay(1); d.delayTime.value = fx.echo.time;
+      const fb = audioCtx.createGain(); fb.gain.value = fx.echo.feedback;
+      const wet = audioCtx.createGain(); wet.gain.value = fx.echo.mix;
+      g.connect(d); d.connect(fb); fb.connect(d); d.connect(wet);
+      setTimeout(() => fb.disconnect(), 4000); // Rueckkopplung aufloesen, sobald das Echo verklungen ist
+      wet.connect(out === g ? (sfxGain || audioCtx.destination) : out);
+    }
+    return ringOsc;
   }
 
   // Spielt eine Datei; gibt false zurueck, wenn nichts abgespielt werden kann
@@ -178,9 +214,31 @@
       src = audioCtx.createBufferSource();
       src.buffer = buf;
       src.playbackRate.value = rate;
-      src.onended = () => { playing = false; };
-      voiceChain(src, fx, opt);
+      const input = audioCtx.createGain();
+      src.connect(input);
+      // Doppelung: zweite Kopie eine Oktave tiefer, endet mit dem Original
+      let oct = null;
+      if (VOICE_FILTERS_ON && fx.octave) {
+        oct = audioCtx.createBufferSource();
+        oct.buffer = buf;
+        oct.playbackRate.value = rate * 0.5;
+        const og = audioCtx.createGain(); og.gain.value = fx.octave;
+        oct.connect(og); og.connect(input);
+      }
+      const ringOsc = voiceChain(input, fx, opt);
+      src.onended = () => {
+        playing = false;
+        if (oct) try { oct.stop(); } catch (err) { /* ignore */ }
+        if (ringOsc) ringOsc.stop();
+      };
+      const stopSrc = cur.stop;
+      cur.stop = () => {
+        stopSrc();
+        if (oct) try { oct.stop(); } catch (err) { /* ignore */ }
+        if (ringOsc) try { ringOsc.stop(); } catch (err) { /* ignore */ }
+      };
       src.start();
+      if (oct) oct.start();
     });
     return true;
   }
@@ -204,7 +262,23 @@
   }
   function voicePlayCountdown(word) {
     const files = voiceFiles('countdown', word);
-    return !!(files && voicePlay(files[0], VOICE_FX.countdown));
+    if (!files) return false;
+    const step = Math.max(0, COUNTDOWN_WORDS.indexOf(word));
+    const last = step === COUNTDOWN_WORDS.length - 1;
+    // Neuer Stil beim ersten Wort, nie derselbe wie beim letzten Countdown
+    if (step === 0 || !countdownStyle) {
+      const names = Object.keys(COUNTDOWN_STYLES).filter(n => n !== countdownStyleName);
+      countdownStyleName = names[Math.floor(Math.random() * names.length)];
+      countdownStyle = COUNTDOWN_STYLES[countdownStyleName];
+    }
+    const st = countdownStyle;
+    const fx = Object.assign({}, st, {
+      rate: st.rate * (1 + (st.rise || 0) * step), // Spannung steigt bis "Go!"
+      gain: st.gain * (last ? st.goGain || 1 : 1),
+      reverb: last && st.goReverb != null ? st.goReverb : st.reverb,
+      comp: true
+    });
+    return voicePlay(files[0], fx);
   }
   function voicePlayAnnouncer(text) {
     const files = voiceFiles('announcer', text);
