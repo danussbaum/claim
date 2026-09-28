@@ -1,3 +1,4 @@
 tools/.venv/
 __pycache__/
 tools/itch-target.txt
+tools/butler/

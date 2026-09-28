@@ -17,8 +17,12 @@ if (-not $Target) {
     Set-Content -Path $configFile -Value $Target
 }
 
-if (-not (Get-Command butler -ErrorAction SilentlyContinue)) {
-    throw "butler not found in PATH. See README.md (itch.io section)."
+# Prefer the local copy in tools\butler, fall back to PATH
+$butler = Join-Path $PSScriptRoot "butler\butler.exe"
+if (-not (Test-Path $butler)) {
+    $cmd = Get-Command butler -ErrorAction SilentlyContinue
+    if (-not $cmd) { throw "butler not found in tools\butler or PATH. See README.md (itch.io section)." }
+    $butler = $cmd.Source
 }
 
 # Stage everything except dev-only files (same as the manual zip without tools/)
@@ -43,6 +47,6 @@ if ($version) { $pushArgs += @("--userversion", $version) }
 if ($DryRun) { $pushArgs += "--dry-run" }
 
 Write-Host "butler $($pushArgs -join ' ')"
-& butler @pushArgs
+& $butler @pushArgs
 if ($LASTEXITCODE -ne 0) { throw "butler push failed ($LASTEXITCODE)" }
-if (-not $DryRun) { & butler status "${Target}:${Channel}" }
+if (-not $DryRun) { & $butler status "${Target}:${Channel}" }

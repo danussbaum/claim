@@ -194,9 +194,9 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 
 One-time setup (Windows):
 1. Download butler: https://itchio.itch.io/butler (or `https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default`),
-   unzip e.g. to `C:\Tools\butler` and add that folder to PATH.
-2. In a new terminal: `butler login` (opens the browser once).
-3. `butler -V` should print the version.
+   unzip into `tools\butler\` (butler.exe plus its DLLs; not committed). Alternatively put it in PATH.
+2. `tools\butler\butler.exe login` (opens the browser once).
+3. `tools\butler\butler.exe -V` should print the version.
 
 Publish: double-click `tools\publish-itch.cmd` (or run `tools\publish-itch.ps1`).
 On the first run it asks for the target (`user/game`, from the itch.io URL) and saves it in `tools/itch-target.txt`.
