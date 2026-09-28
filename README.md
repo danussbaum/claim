@@ -67,6 +67,7 @@ The **⚔️ 2 Player** button in the menu opens the versus lobby. Two players c
 **Connecting:**
 
 - **Host a match** shows a QR code. The rival scans it with the phone camera and joins in the browser: no account, no app. The devices connect directly peer-to-peer (WebRTC); public MQTT brokers are only used to find each other. The host runs the simulation, the guest sends inputs.
+- **Network requirement:** the direct connection only works when both devices are on the **same Wi-Fi**, or when one player opens a **mobile hotspot** and the other connects to it. With both players on mobile data it does not work (there is no relay server).
 - **Play vs CPU** starts a match against a computer rival on the same device. The CPU makes short loops out of its land, heads home when threatened and shoots at whatever is in line.
 
 **Rules:**
