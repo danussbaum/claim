@@ -242,11 +242,13 @@ def cleanup(out, fmt):
 
 def write_manifest_js(manifest, out):
     """manifest.js is what the game loads (a <script> also works when index.html is opened as a file).
-    Only files that exist on disk are listed."""
+    Only files that exist on disk are listed. Each path gets a content hash (?v=...), so browsers
+    and the offline cache pick up a regenerated file."""
     existing = {}
     for cat, texts in manifest.items():
         for text, files in texts.items():
-            ok = [f for f in files if (ROOT / f).exists()]
+            ok = [f + "?v=" + hashlib.md5((ROOT / f).read_bytes()).hexdigest()[:8]
+                  for f in files if (ROOT / f).exists()]
             if ok:
                 existing.setdefault(cat, {})[text] = ok
     (out / "manifest.js").write_text(

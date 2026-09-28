@@ -17,6 +17,8 @@ Run it by opening index.html in a browser.
   - ui.js: main loop, action buttons, start/pause/retry, mode select, quit
   - tutorial.js: tutorial
   - splash.js: splash screen
+  - pwa.js: service worker registration, background download of voices for offline play
+- sw.js (root): service worker; manifest.webmanifest + icons/: home screen app
 
 # Code rules
 - No ES modules, no import/export. All scripts share the global scope.
