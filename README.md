@@ -59,6 +59,7 @@ You choose before starting:
 
 - **Grapple Hook** (🪝) – Yank yourself 2 cells forward through open ground. 6 s cooldown.
 - **Smoke Bomb** (💨) – Disappear from every guard's sight for 2.5 s. 10 s cooldown.
+- **Mine** (💣) – Drop a mine where you stand (not on your own land in single player). Armed after 0.5 s; when a guard steps on it, it and all guards next to it die and claimed cells within about 2 cells become free again (the border stays). Max 3 mines, 8 s cooldown. In 2 player it also sends the rival home if they step on it, and frees both players' land in the crater.
 
 ## 2 Player versus
 
@@ -79,7 +80,7 @@ The **⚔️ 2 Player** button in the menu opens the versus lobby. Two players c
 - **No lives:** crossing your own line, getting your line cut or being caught by the guard sends you back to your start corner, your line is lost and you stand still for 1.5 s. Being shot by the rival costs 0.8 s. A short invulnerability follows. Whoever loses all land gets their free start edges back.
 - **Attacking:** run over the rival's line to cut it (they are sent home), shoot them (axe, 8 cells) or shoot their line – the piece from their land up to the hit falls away. Meeting head-on outside your own land sends you home.
 - Deep inside your own land you are hidden from the guard, like in single player. It hunts whichever player it sees and is closer; shot down, it returns after 3 s.
-- Power-ups: Speed, Shield, Freeze and Rapid Fire, plus Slow as the bad one (30 %). Each player has 3 boosts per match and their chosen gadget (the CPU uses the Grapple Hook).
+- Power-ups: Speed, Shield, Freeze and Rapid Fire, plus Slow as the bad one (30 %). Each player has 3 boosts per match and their chosen gadget (the CPU uses the Grapple Hook, mines are visible to both players).
 
 ## Controls
 
@@ -183,7 +184,7 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 ## Tech notes
 
 - No build, no framework, no dependencies: `index.html` (markup), `css/claim.css` (styles) and classic scripts in `js/` sharing one global scope.
-- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `audio/voice/manifest.js` → `voice.js` → `gameplay.js` → `game.js` → `render.js` → `ui.js` → `tutorial.js` → `input.js` → `qr.js` → `net.js` → `versus.js` → `splash.js` → `pwa.js`. See `AGENTS.md`.
+- Scripts load in a fixed order: `core.js` → `gadgets.js` → `level.js` → `audio-*.js` → `audio/voice/manifest.js` → `voice.js` → `gameplay.js` → `game.js` → `render-figures.js` → `render-world.js` → `render-actors.js` → `render-overlay.js` → `render.js` → `ui.js` → `tutorial.js` → `input.js` → `qr.js` → `net.js` → `versus-sim.js` → `versus-cpu.js` → `versus-render.js` → `versus.js` → `splash.js` → `pwa.js`. See `AGENTS.md`.
 - Rendering: HTML5 Canvas with a requestAnimationFrame loop; music and sound effects are synthesized via the WebAudio API. Only the voice lines are audio files (`audio/voice/`, MP3).
 - All state persists in `localStorage` – no server.
 - **Voice lines** are generated locally with `tools/kokoro_voices.py` (Kokoro TTS, see the script header for setup). It reads all lines from the JS files, renders them with several voices into `tools/voice_src/`, then packs them into one MP3 per category and voice under `audio/voice/` and writes `audio/voice/manifest.js`. For itch.io, zip everything except `tools/`. Existing files are skipped; `--manifest-only` only rebuilds the manifest.
