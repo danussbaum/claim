@@ -215,6 +215,14 @@
   function vsUseGadget(s, p, now) {
     const pl = s.players[p];
     if (!vsCanAct(s, pl, now) || now < pl.gadgetReadyAt) return;
+    // Mine auf ein Nachbarfeld ohne eigenes Land und ohne Linie (freies Feld oder Land des Gegners);
+    // gibt es keins, kein Wurf und kein Cooldown
+    const mineAt = pl.gadget === 'mine' ? mineDropCell(pl.x, pl.y, pl.dir || pl.lastDir, (x, y) => {
+      const i = vsIdx(x, y);
+      return s.land[i] !== p + 1 && !s.trail[i] && !s.mines.some(m => m.x === x && m.y === y) &&
+        !s.guards.some(g => !g.deadUntil && g.x === x && g.y === y) && !s.players.some(o => o.x === x && o.y === y);
+    }) : null;
+    if (pl.gadget === 'mine' && !mineAt) return;
     pl.gadgetReadyAt = now + GADGETS[pl.gadget].cooldown;
     if (pl.gadget === 'smoke') {
       pl.smokeUntil = now + GADGET_SMOKE_MS;
@@ -223,11 +231,11 @@
       return;
     }
     if (pl.gadget === 'mine') {
-      // Pro Spieler hoechstens MINE_MAX, die aelteste faellt weg; ein Feld hat nur eine Mine
+      // Pro Spieler hoechstens MINE_MAX, die aelteste faellt weg
       const own = s.mines.filter(m => m.p === p);
       if (own.length >= MINE_MAX) s.mines.splice(s.mines.indexOf(own[0]), 1);
-      if (!s.mines.some(m => m.x === pl.x && m.y === pl.y)) s.mines.push({ x: pl.x, y: pl.y, p, armedAt: now + MINE_ARM_MS });
-      s.events.push({ t: 'mine', p, x: pl.x, y: pl.y });
+      s.mines.push({ x: mineAt[0], y: mineAt[1], p, armedAt: now + MINE_ARM_MS });
+      s.events.push({ t: 'mine', p, x: mineAt[0], y: mineAt[1] });
       return;
     }
     // Enterhaken: bis zu GADGET_HOOK_PULL Felder in Blickrichtung

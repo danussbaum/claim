@@ -326,17 +326,19 @@
     if (decoyCharges > 0) { throwDecoy(); return; } // Decoy-Wuerfe haben Vorrang vor dem Gadget
     if (!gadgetReady()) return;
     const now = performance.now();
-    // Auf eigenem Gebiet waere eine Mine nutzlos (Waechter betreten es nie): kein Wurf, kein Cooldown
-    if (gadgetChoice === 'mine' && grid[py][px] === TERRITORY) return;
+    // Mine nur auf ein freies Feld daneben (dort laufen Waechter); sonst kein Wurf, kein Cooldown
+    const mineAt = gadgetChoice === 'mine' ? mineDropCell(px, py, dir, (c, r) => grid[r][c] === EMPTY &&
+      !mines.some(m => m.c === c && m.r === r) && !enemies.some(e => e.c === c && e.r === r)) : null;
+    if (gadgetChoice === 'mine' && !mineAt) return;
     gadgetCooldownUntil = now + GADGETS[gadgetChoice].cooldown;
 
     tutorialFlag('gadgetUsed');
     tutorialFlag(gadgetChoice === 'smoke' ? 'smokeUsed' : gadgetChoice === 'mine' ? 'mineUsed' : 'hookUsed');
     if (gadgetChoice === 'mine') {
       if (mines.length >= MINE_MAX) mines.shift();
-      mines.push({ c: px, r: py, armedAt: now + MINE_ARM_MS });
+      mines.push({ c: mineAt[0], r: mineAt[1], armedAt: now + MINE_ARM_MS });
       sndDecoyThrow();
-      spawnEmote('💣', px, py);
+      spawnEmote('💣', mineAt[0], mineAt[1]);
       return;
     }
     if (gadgetChoice === 'smoke') {
