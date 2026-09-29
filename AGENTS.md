@@ -17,6 +17,7 @@ service worker need http(s), e.g. `py -m http.server 8000` (the user starts it, 
   - render.js: draw(), all canvas rendering (one large function, largest file)
   - ui.js: main loop, action buttons, start/pause/retry, mode select, quit
   - tutorial.js: tutorial
+  - input.js: button, swipe and keyboard input, board background, resize, startup
   - qr.js: minimal QR code generator (2-player invite link)
   - net.js: peer-to-peer connection for 2-player mode (MQTT signaling, WebRTC)
   - versus.js: 2-player versus mode, own simulation, drawn with draw()

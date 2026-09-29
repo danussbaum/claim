@@ -142,7 +142,7 @@
       u.lang = voice ? voice.lang : 'en-US';
       u.rate = 1.1;
       u.pitch = 0.5; // tiefe Stimme
-      u.volume = 1;
+      u.volume = volumes.voice;
       speechSynthesis.speak(u);
     }, i * COUNTDOWN_STEP_MS));
   }
@@ -257,9 +257,21 @@
       b.addEventListener('click', () => { setVoiceMode(key); refreshModeSelect(); });
       voiceRow.appendChild(b);
     });
-    document.getElementById('optionsToggle').addEventListener('click', () => {
-      document.getElementById('runOptions').classList.toggle('hidden');
+    const volumeRows = document.getElementById('volumeRows');
+    [['music', 'Music'], ['sfx', 'Effects'], ['voice', 'Voices']].forEach(([key, label]) => {
+      const row = document.createElement('label');
+      row.className = 'volumeRow';
+      const name = document.createElement('span');
+      name.textContent = label;
+      const slider = document.createElement('input');
+      slider.type = 'range'; slider.min = '0'; slider.max = '100'; slider.step = '5';
+      slider.value = String(Math.round(volumes[key] * 100));
+      slider.addEventListener('input', () => { ensureAudio(); setVolume(key, slider.value / 100); });
+      row.appendChild(name); row.appendChild(slider);
+      volumeRows.appendChild(row);
     });
+    document.getElementById('optionsToggle').addEventListener('click', openOptionsScreen);
+    document.getElementById('optionsBackBtn').addEventListener('click', () => openModeSelect());
     modeSelectBuilt = true;
   }
 
@@ -361,6 +373,16 @@
     openModeSelect();
   }
 
+  // Eigener Bildschirm fuer die Einstellungen, erreichbar ueber den Options-Knopf im Hauptmenue
+  function openOptionsScreen() {
+    ensureAudio();
+    ['startBtn', 'vsBtn', 'tutorialBtn', 'optionsToggle'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('runOptions').classList.remove('hidden');
+    document.getElementById('overlayTitle').textContent = 'Options';
+    refreshModeSelect();
+    animateOverlayIn();
+  }
+
   function openModeSelect() {
     modeSelectOpen = true;
     shopOpen = false;
@@ -373,7 +395,8 @@
     document.getElementById('modeBtn').classList.add('hidden');
     document.getElementById('modeSelect').classList.remove('hidden');
     document.getElementById('overlayTitle').textContent = 'Claim';
-    document.getElementById('runOptions').classList.add('hidden'); // Einstellungen eingeklappt starten
+    document.getElementById('runOptions').classList.add('hidden');
+    document.getElementById('optionsToggle').classList.remove('hidden');
     const firstTime = !tutorialDone();
     const tutBtn = document.getElementById('tutorialBtn');
     tutBtn.classList.remove('hidden');

@@ -245,7 +245,7 @@
     u.lang = 'en-US';
     const voices = guardVoices();
     if (voices.length) { u.voice = voices[0]; if (/^en/i.test(u.voice.lang)) u.lang = u.voice.lang; }
-    u.pitch = 0.3; u.rate = 0.9; u.volume = 1;
+    u.pitch = 0.3; u.rate = 0.9; u.volume = volumes.voice;
     speechSynthesis.speak(u);
   }
 
@@ -290,7 +290,7 @@
     u.pitch = sv.pitch;
     u.rate = sv.rate;
     if (scream) { u.pitch = Math.min(2, sv.pitch + 0.8); u.rate = 1.1; }
-    u.volume = 1;
+    u.volume = volumes.voice;
     synth.speak(u);
   }
   // Benommen oder in der Pause: sieht nichts

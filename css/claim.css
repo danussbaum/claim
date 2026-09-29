@@ -448,7 +448,7 @@ button.primary:active { background: var(--primary-dark); }
   text-decoration: underline; margin-top: 4px; font-family: inherit;
 }
 #tutorialSkipBtn:active { color: #9ab5a2; }
-#tutorialBtn { color: var(--accent); text-decoration: none; border: 1px solid #2f6b48; border-radius: 8px; padding: 7px 14px; }
+#tutorialBtn { color: var(--accent); text-decoration: none; border: 1px solid var(--primary); border-radius: 8px; padding: 9px 22px; font-size: 15px; font-weight: 600; }
 #shop { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 300px; }
 #shop.hidden { display: none; }
 #shopRow { display: flex; flex-direction: column; gap: 8px; width: 100%; }
@@ -468,6 +468,10 @@ button.primary:active { background: var(--primary-dark); }
   font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px;
   text-transform: uppercase; color: #6c8578; margin-top: 4px;
 }
+#volumeRows { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.volumeRow { display: flex; align-items: center; gap: 10px; color: #9ab5a2; font-size: 13px; font-weight: 600; }
+.volumeRow span { width: 58px; text-align: right; }
+.volumeRow input { flex: 1; accent-color: #2f8f5c; }
 .pillRow { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .pill {
   background: #17201a; border: 1px solid #2c3a27; border-radius: 999px;
@@ -500,11 +504,19 @@ button.primary:active { background: var(--primary-dark); }
 
 /* Hauptmenue: Spielerwahl oben, Einstellungen eingeklappt unten */
 #modeSelect { order: 5; margin-top: 6px; }
-#optionsToggle {
-  background: none; border: none; color: #6c8578; font-size: 12px; padding: 6px 10px;
-  font-family: 'Space Grotesk', sans-serif; text-decoration: underline; text-underline-offset: 2px;
+#optionsToggle, #optionsBackBtn {
+  color: var(--accent); background: none; border: 1px solid var(--primary); border-radius: 8px;
+  padding: 9px 22px; font-size: 15px; font-weight: 600; font-family: 'Space Grotesk', sans-serif;
 }
-#optionsToggle:active { color: #9ab5a2; }
+#optionsToggle:active, #optionsBackBtn:active { background: rgba(47,143,92,0.18); }
+#optionsToggle.hidden { display: none; }
+#optionsSummary { display: none; } /* Modus steht schon im Badge oben links */
+/* Hauptmenue: alle Knoepfe gleich breit */
+#overlay #startBtn, #overlay #vsBtn, #overlay #tutorialBtn, #overlay #optionsToggle, #overlay #optionsBackBtn {
+  width: 230px; max-width: 80vw; box-sizing: border-box; padding-left: 12px; padding-right: 12px;
+}
+#modeSelect { margin-top: 0; }
+#optionsBackBtn { margin-top: 8px; }
 #runOptions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #runOptions.hidden { display: none; }
 
