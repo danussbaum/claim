@@ -187,6 +187,12 @@
         const m = mines.splice(mine, 1)[0];
         addRipple(m.c, m.r, 3, 500, '255,140,60', 0.8);
         triggerShake(8, 260);
+        // Eroberte Felder im Krater werden wieder frei
+        for (const [c, r] of mineCraterCells(m.c, m.r)) {
+          if (grid[r][c] !== TERRITORY) continue;
+          grid[r][c] = EMPTY;
+          flashCells.push({ r, c, time: now });
+        }
         for (const o of enemies.slice()) {
           if (Math.abs(o.c - m.c) <= 1 && Math.abs(o.r - m.r) <= 1) killEnemyByShot(o, 'shot', 0, 0);
         }

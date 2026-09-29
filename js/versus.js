@@ -500,7 +500,13 @@
       const foe = s.players[1 - m.p];
       const foeHere = foe.x === m.x && foe.y === m.y;
       if (!foeHere && !s.guards.some(g => !g.deadUntil && g.x === m.x && g.y === m.y)) return true;
-      s.events.push({ t: 'boom', x: m.x, y: m.y });
+      // Eroberte Felder (beider Spieler) im Krater werden wieder frei
+      const freed = [];
+      for (const [c, r] of mineCraterCells(m.x, m.y)) {
+        const i = vsIdx(c, r);
+        if (s.land[i]) { s.land[i] = 0; freed.push(i); }
+      }
+      s.events.push({ t: 'boom', x: m.x, y: m.y, cells: freed });
       s.guards.forEach((g, gi) => {
         if (g.deadUntil || Math.abs(g.x - m.x) > 1 || Math.abs(g.y - m.y) > 1) return;
         g.deadUntil = now + VS_GUARD_RESPAWN;
@@ -1159,6 +1165,7 @@
       spawnEmote('💣', ev.x, ev.y);
     } else if (ev.t === 'boom') {
       addRipple(ev.x, ev.y, 3, 500, '255,140,60', 0.8);
+      (ev.cells || []).forEach(i => flashCells.push({ r: Math.floor(i / COLS), c: i % COLS, time: now }));
       spawnSparks(ev.x * CELL + CELL / 2, ev.y * CELL + CELL / 2, '#ffb347', 24, 260, 0);
       triggerShake(8, 260);
     } else if (ev.t === 'boost') {

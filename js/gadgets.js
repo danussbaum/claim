@@ -2,12 +2,25 @@
   const GADGETS = {
     hook:  { label: 'Grapple Hook', icon: '🪝', desc: 'Yank yourself 2 cells forward through open ground.', cooldown: 6000 },
     smoke: { label: 'Smoke Bomb',   icon: '💨', desc: 'Vanish from every guard\'s sight for 2.5s.', cooldown: 10000 },
-    mine:  { label: 'Mine',         icon: '💣', desc: 'Drop a mine where you stand. It kills guards next to it, and the rival in 2 player. Max 3.', cooldown: 8000 }
+    mine:  { label: 'Mine',         icon: '💣', desc: 'Drop a mine where you stand. It kills guards next to it, frees claimed cells around it, and kills the rival in 2 player. Max 3.', cooldown: 8000 }
   };
   const GADGET_HOOK_PULL = 2;
   const GADGET_SMOKE_MS = 2500;
   const MINE_ARM_MS = 500, MINE_MAX = 3;
+  const MINE_CRATER = 2.2; // Radius, in dem eroberte Felder wieder frei werden
   let mines = []; // { c, r, armedAt, foe } - im 2-Spieler-Modus kommt die Liste aus dem Zustand
+  // Felder [c, r] im Explosionskrater; der Rand bleibt (Startland, nicht erobert)
+  function mineCraterCells(cx, cy) {
+    const out = [];
+    const R = Math.ceil(MINE_CRATER);
+    for (let r = cy - R; r <= cy + R; r++) {
+      for (let c = cx - R; c <= cx + R; c++) {
+        if (c < 1 || r < 1 || c > COLS - 2 || r > ROWS - 2) continue;
+        if (Math.hypot(c - cx, r - cy) <= MINE_CRATER) out.push([c, r]);
+      }
+    }
+    return out;
+  }
   let gadgetChoice = 'hook';
   let gadgetCooldownUntil = 0;
   let smokeUntil = 0;
