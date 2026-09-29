@@ -946,7 +946,7 @@
     countdownActive = false; dying = false; gameOver = false; paused = false;
     playerInterval = VS_STEP_MS; enemyInterval = VS_GUARD_MS;
     level = 1;
-    hasStarted = true;   // Titelmelodie aus, Spielmusik wie im 1-Spieler-Modus
+    setInGame(true);   // Titelmelodie aus, Spielmusik wie im 1-Spieler-Modus
     resetMusicTiming();
     enemies = []; vsGuardObjs = []; vsRival = null; vsHud = {};
     px = py = prevPx = prevPy = -99; // erste Position ohne Gleiten uebernehmen
@@ -962,7 +962,7 @@
       el.style.display = '';
     });
     vsSaved = null;
-    hasStarted = false; // zurueck im Menue: Titelmelodie wieder an
+    setInGame(false); // zurueck im Menue: Titelmelodie wieder an
     countdownActive = false; // bricht auch die Countdown-Ansage ab
     resetMenuThemeTiming();
     shieldUntil = speedUntil = slowUntil = rapidfireUntil = freezeUntil = 0;

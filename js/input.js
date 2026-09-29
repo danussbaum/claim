@@ -50,7 +50,7 @@
       modeSelectOpen = false;
       document.getElementById('modeSelect').classList.add('hidden');
       document.getElementById('modeBtn').classList.add('hidden');
-      hasStarted = true;
+      setInGame(true);
       startGame();
       return;
     }

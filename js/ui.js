@@ -358,7 +358,7 @@
     celebrating = false;
     cancelAnimationFrame(rafId);
     document.getElementById('board-wrap').classList.remove('dimming');
-    hasStarted = false; // laesst das Menue-Theme wieder anlaufen
+    setInGame(false); // laesst das Menue-Theme wieder anlaufen
     resetMenuThemeTiming();
     openModeSelect();
   }
@@ -375,6 +375,7 @@
 
   function openModeSelect() {
     modeSelectOpen = true;
+    document.body.classList.remove('inGame');
     shopOpen = false;
     document.getElementById('shop').classList.add('hidden');
     document.getElementById('startBtn').classList.remove('hidden');
