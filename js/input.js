@@ -257,7 +257,6 @@
     buildBoardBackground();
     if (grid) draw(performance.now());
   }
-  updateModeBadge();
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 250));
   if (window.visualViewport) {

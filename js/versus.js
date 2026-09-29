@@ -72,7 +72,6 @@
 
   function vsOpenLobby() {
     vsActive = true;
-    document.body.classList.add('vsActive');
     vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Win 3 matches with a 2-match lead. Cut their line or shoot them to send them back home.', [
       { label: '📡 Host a match', primary: true, onClick: vsStartHost },
       { label: '🤖 Play vs CPU', onClick: vsStartCpu },
@@ -100,7 +99,6 @@
 
   function vsStartGuest(room) {
     vsActive = true;
-    document.body.classList.add('vsActive');
     vsCpu = false;
     vsIsHost = false; vsMe = 1;
     vsBindNet();
@@ -128,7 +126,6 @@
 
   function vsLeave() {
     vsActive = false;
-    document.body.classList.remove('vsActive');
     vsQuitOpen = false;
     vsStopLoop();
     Net.onClose = () => {};

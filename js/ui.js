@@ -154,7 +154,6 @@
     hideTutorialBar();
     document.getElementById('tutorialBtn').classList.add('hidden');
     loadHighScoreForMode();
-    updateModeBadge();
     document.getElementById('modeBtn').classList.add('hidden');
     resetGame();
     hideOverlay();
@@ -209,14 +208,6 @@
   });
 
   let modeSelectOpen = false;
-
-  function updateModeBadge() {
-    const el = document.getElementById('modeBadge');
-    if (!el) return;
-    const parts = [MODES[gameMode].label];
-    if (cameraMode !== 'standard') parts.push(CAMERAS[cameraMode].label);
-    el.textContent = gameMode === 'normal' && cameraMode === 'standard' ? '' : parts.join(' · ');
-  }
 
   let modeSelectBuilt = false;
 
@@ -305,7 +296,6 @@
     document.getElementById('selectDesc').textContent =
       MODES[gameMode].desc + ' ' + CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
     updateGadgetButtonIcon();
-    updateModeBadge();
   }
 
   let quitConfirmOpen = false;

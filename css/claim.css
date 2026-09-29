@@ -483,10 +483,6 @@ button.primary:active { background: var(--primary-dark); }
   box-shadow: 0 0 10px rgba(127,224,160,0.35);
 }
 .selectDesc { font-size: 11.5px; color: #bbb; line-height: 1.4; min-height: 32px; margin-top: 6px; }
-.modeBadge {
-  font-family: 'Space Grotesk', sans-serif; font-size: 9px; letter-spacing: 1px;
-  text-transform: uppercase; color: #6c8578; display: block; margin-top: -2px;
-}
 
 /* 2-Spieler-Versus */
 #vsBtn {
@@ -562,6 +558,3 @@ button.primary:active { background: var(--primary-dark); }
   position: absolute; inset: 4px; pointer-events: none; border-radius: 6px; opacity: 0.07;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
-
-/* Im 2-Spieler-Modus gelten die 1-Spieler-Optionen nicht */
-body.vsActive #modeBadge { display: none; }
