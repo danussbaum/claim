@@ -504,11 +504,14 @@ button.primary:active { background: var(--primary-dark); }
 
 /* Hauptmenue: Spielerwahl oben, Einstellungen eingeklappt unten */
 #modeSelect { order: 5; margin-top: 6px; }
-#optionsToggle {
-  background: none; border: none; color: #6c8578; font-size: 12px; padding: 6px 10px;
-  font-family: 'Space Grotesk', sans-serif; text-decoration: underline; text-underline-offset: 2px;
+#optionsToggle, #optionsBackBtn {
+  color: var(--accent); background: none; border: 1px solid var(--primary); border-radius: 8px;
+  padding: 9px 22px; font-size: 15px; font-weight: 600; font-family: 'Space Grotesk', sans-serif;
 }
-#optionsToggle:active { color: #9ab5a2; }
+#optionsToggle:active, #optionsBackBtn:active { background: rgba(47,143,92,0.18); }
+#optionsToggle.hidden { display: none; }
+#optionsSummary { display: block; font-size: 11px; font-weight: 400; color: #6c8578; margin-top: 3px; }
+#optionsBackBtn { margin-top: 8px; }
 #runOptions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #runOptions.hidden { display: none; }
 

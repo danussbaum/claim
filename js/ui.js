@@ -270,9 +270,8 @@
       row.appendChild(name); row.appendChild(slider);
       volumeRows.appendChild(row);
     });
-    document.getElementById('optionsToggle').addEventListener('click', () => {
-      document.getElementById('runOptions').classList.toggle('hidden');
-    });
+    document.getElementById('optionsToggle').addEventListener('click', openOptionsScreen);
+    document.getElementById('optionsBackBtn').addEventListener('click', () => openModeSelect());
     modeSelectBuilt = true;
   }
 
@@ -374,6 +373,16 @@
     openModeSelect();
   }
 
+  // Eigener Bildschirm fuer die Einstellungen, erreichbar ueber den Options-Knopf im Hauptmenue
+  function openOptionsScreen() {
+    ensureAudio();
+    ['startBtn', 'vsBtn', 'tutorialBtn', 'optionsToggle'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('runOptions').classList.remove('hidden');
+    document.getElementById('overlayTitle').textContent = 'Options';
+    refreshModeSelect();
+    animateOverlayIn();
+  }
+
   function openModeSelect() {
     modeSelectOpen = true;
     shopOpen = false;
@@ -386,7 +395,8 @@
     document.getElementById('modeBtn').classList.add('hidden');
     document.getElementById('modeSelect').classList.remove('hidden');
     document.getElementById('overlayTitle').textContent = 'Claim';
-    document.getElementById('runOptions').classList.add('hidden'); // Einstellungen eingeklappt starten
+    document.getElementById('runOptions').classList.add('hidden');
+    document.getElementById('optionsToggle').classList.remove('hidden');
     const firstTime = !tutorialDone();
     const tutBtn = document.getElementById('tutorialBtn');
     tutBtn.classList.remove('hidden');
