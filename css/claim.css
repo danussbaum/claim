@@ -17,13 +17,19 @@ html, body {
   justify-content: center;
 }
 .topbar {
-  display: flex; justify-content: space-between; align-items: center;
-  width: 100%; padding: 4px 6px 8px;
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+  width: 100%; padding: 4px 0 8px; row-gap: 8px;
 }
+#musicBtn {
+  order: 2; width: 40px; height: 34px; padding: 0; font-size: 18px; line-height: 1;
+  background: #17201a; border: 1px solid #2c3a27; border-radius: 8px; color: #9ab5a2;
+}
+#musicBtn:active { background: rgba(47,143,92,0.18); }
+.topbar h1 { order: 1; }
 .topbar h1 { font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 800; margin: 0; letter-spacing: 2px; color: var(--accent); text-shadow: 0 0 12px rgba(127,224,160,0.55); cursor: pointer; }
 .topbar h1:active { color: #a8f0c4; }
-.stats { display: flex; gap: 8px; font-size: 12px; }
-.stat { position: relative; background: #17201a; border-radius: 8px; padding: 4px 8px; min-width: 50px; text-align: center; }
+.stats { order: 3; width: 100%; display: flex; gap: 8px; font-size: 12px; }
+.stat { position: relative; flex: 1; background: #17201a; border-radius: 8px; padding: 4px 8px; min-width: 0; text-align: center; }
 .stat span { display: block; font-size: 14px; font-weight: 700; color: #fff; }
 .main {
   display: flex; width: 100%; flex: 1 1 auto; min-height: 0;
