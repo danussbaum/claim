@@ -29,6 +29,11 @@ html, body {
 .topbar h1:active { color: #a8f0c4; }
 .stats { flex: 1; min-width: 0; display: flex; gap: 4px; font-size: 10px; }
 .stat { position: relative; flex: 1; background: #17201a; border-radius: 8px; padding: 3px 2px; min-width: 0; text-align: center; }
+.stats { transition: opacity 0.2s; }
+/* Im Hauptmenue, in den Optionen, im Onboarding und in der 2-Spieler-Lobby gibt es noch keine Werte */
+#app:has(#modeSelect:not(.hidden)) .stats,
+#app:has(#onboarding:not(.hidden)) .stats,
+#app:has(#vsPanel:not(.hidden)) .stats { opacity: 0; pointer-events: none; }
 .stat span { display: block; font-size: 14px; font-weight: 700; color: #fff; }
 .main {
   display: flex; width: 100%; flex: 1 1 auto; min-height: 0;
