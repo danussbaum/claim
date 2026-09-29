@@ -59,7 +59,7 @@ service worker need http(s), e.g. `py -m http.server 8000` (the user starts it, 
 - Do not try to run, open, or verify the game yourself (webfetch cannot execute JavaScript).
 - After a change, stop and tell the user what to check in the browser.
 - After every change: commit, push, and give the user the test link to the exact commit
-  (https://rawcdn.githack.com/danussbaum/claim/<full-sha>/index.html) so they can click and test right away.
+  (https://raw.githack.com/danussbaum/claim/<full-sha>/index.html, not rawcdn: no CDN cache) so they can click and test right away.
 
 # Communication
 - Reply to the user in German (Swiss spelling: use "ss", never "ß").
