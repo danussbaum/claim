@@ -11,10 +11,14 @@
   let mines = []; // { c, r, armedAt, foe } - im 2-Spieler-Modus kommt die Liste aus dem Zustand
   // Wohin die Mine faellt: nicht unter die Figur (dort liegt die eigene Linie, die beim
   // Schliessen zu Gebiet wird und die Mine nutzlos macht), sondern auf ein freies Nachbarfeld.
-  // Zuerst seitlich zur Laufrichtung, dann vorne, zuletzt hinten. null = kein freies Feld.
+  // Zuerst seitlich zur Laufrichtung, und zwar auf die Seite mit mehr Abstand zum Rand
+  // (dort bleibt beim Erobern meist die offene Flaeche), dann vorne, zuletzt hinten.
+  // null = kein freies Feld.
   function mineDropCell(x, y, d, isFree) {
     const [dx, dy] = dirDelta(d);
-    const order = [[-dy, dx], [dy, -dx], [dx, dy], [-dx, -dy]];
+    const room = ([ox, oy]) => ox > 0 ? COLS - 1 - x : ox < 0 ? x : oy > 0 ? ROWS - 1 - y : y;
+    const sides = [[-dy, dx], [dy, -dx]].sort((a, b) => room(b) - room(a));
+    const order = [sides[0], sides[1], [dx, dy], [-dx, -dy]];
     for (const [ox, oy] of order) {
       const c = x + ox, r = y + oy;
       if (c >= 0 && r >= 0 && c < COLS && r < ROWS && isFree(c, r)) return [c, r];
