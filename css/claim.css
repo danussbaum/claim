@@ -510,7 +510,12 @@ button.primary:active { background: var(--primary-dark); }
 }
 #optionsToggle:active, #optionsBackBtn:active { background: rgba(47,143,92,0.18); }
 #optionsToggle.hidden { display: none; }
-#optionsSummary { display: block; font-size: 11px; font-weight: 400; color: #6c8578; margin-top: 3px; }
+#optionsSummary { display: none; } /* Modus steht schon im Badge oben links */
+/* Hauptmenue: alle Knoepfe gleich breit */
+#overlay #startBtn, #overlay #vsBtn, #overlay #tutorialBtn, #overlay #optionsToggle, #overlay #optionsBackBtn {
+  width: 230px; max-width: 80vw; box-sizing: border-box; padding-left: 12px; padding-right: 12px;
+}
+#modeSelect { margin-top: 0; }
 #optionsBackBtn { margin-top: 8px; }
 #runOptions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #runOptions.hidden { display: none; }
