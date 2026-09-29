@@ -375,6 +375,25 @@
     }
   }
 
+  // Mine geht hoch: Waechter im Umkreis von 1 Feld sterben. freeLand: eroberte Felder im
+  // Krater werden wieder frei (nicht bei Blindgaengern, die man selbst eingeschlossen hat).
+  function explodeMine(m, freeLand) {
+    const now = performance.now();
+    addRipple(m.c, m.r, 3, 500, '255,140,60', 0.8);
+    spawnSparks(m.c * CELL + CELL / 2, m.r * CELL + CELL / 2, '#ffb347', 24, 260, 0);
+    triggerShake(8, 260);
+    if (freeLand) {
+      for (const [c, r] of mineCraterCells(m.c, m.r)) {
+        if (grid[r][c] !== TERRITORY) continue;
+        grid[r][c] = EMPTY;
+        flashCells.push({ r, c, time: now });
+      }
+    }
+    for (const o of enemies.slice()) {
+      if (Math.abs(o.c - m.c) <= 1 && Math.abs(o.r - m.r) <= 1) killEnemyByShot(o, 'shot', 0, 0);
+    }
+  }
+
   // Stein in Blickrichtung werfen (bis DECOY_RANGE Zellen, stoppt vor Saeulen).
   // Waechter im Umkreis, die dich gerade nicht jagen, laufen zur Aufschlagstelle.
   function throwDecoy() {
@@ -615,6 +634,12 @@
       }
     }
     const gained = gainedCells.length;
+    // Minen, die jetzt im eigenen Gebiet liegen, sind nutzlos: sie gehen gleich hoch
+    const duds = mines.filter(m => grid[m.r][m.c] === TERRITORY);
+    if (duds.length) {
+      mines = mines.filter(m => !duds.includes(m));
+      duds.forEach(m => explodeMine(m, false));
+    }
     if (!bonusClaimed && bonusCells.length) {
       const allClaimed = bonusCells.every(b => grid[b.r][b.c] === TERRITORY);
       if (allClaimed) {
