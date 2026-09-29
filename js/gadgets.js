@@ -25,13 +25,13 @@
     }
     return null;
   }
-  // Felder [c, r] im Explosionskrater; der Rand bleibt (Startland, nicht erobert)
+  // Felder [c, r] im Explosionskrater, auch am Rand
   function mineCraterCells(cx, cy) {
     const out = [];
     const R = Math.ceil(MINE_CRATER);
     for (let r = cy - R; r <= cy + R; r++) {
       for (let c = cx - R; c <= cx + R; c++) {
-        if (c < 1 || r < 1 || c > COLS - 2 || r > ROWS - 2) continue;
+        if (c < 0 || r < 0 || c > COLS - 1 || r > ROWS - 1) continue;
         if (Math.hypot(c - cx, r - cy) <= MINE_CRATER) out.push([c, r]);
       }
     }
