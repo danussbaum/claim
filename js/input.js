@@ -50,7 +50,7 @@
       modeSelectOpen = false;
       document.getElementById('modeSelect').classList.add('hidden');
       document.getElementById('modeBtn').classList.add('hidden');
-      hasStarted = true;
+      setInGame(true);
       startGame();
       return;
     }
@@ -257,7 +257,6 @@
     buildBoardBackground();
     if (grid) draw(performance.now());
   }
-  updateModeBadge();
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 250));
   if (window.visualViewport) {

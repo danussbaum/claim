@@ -188,7 +188,7 @@
 
   function startTutorial() {
     tutorialActive = true;
-    hasStarted = true;
+    setInGame(true);
     modeSelectOpen = false;
     document.getElementById('modeSelect').classList.add('hidden');
     document.getElementById('tutorialBtn').classList.add('hidden');
@@ -221,7 +221,7 @@
     document.getElementById('board-wrap').classList.remove('dimming');
     dying = false;
     gameOver = false;
-    hasStarted = false;
+    setInGame(false);
     resetMenuThemeTiming();
     updateStats();
     updateActionButtonsUI();
@@ -238,7 +238,7 @@
     hideTutorialBar();
     running = false;
     cancelAnimationFrame(rafId);
-    hasStarted = false;
+    setInGame(false);
     sndVictoryFanfare();
     resetMenuThemeTiming();
     updateStats();
@@ -283,6 +283,11 @@
   }
 
   let hasStarted = false;
+  // hasStarted setzen und die Werte in der Kopfzeile nur im Spiel zeigen
+  function setInGame(v) {
+    hasStarted = v;
+    document.body.classList.toggle('inGame', v);
+  }
   let audioUnlocked = false;
   let obIndex = 0;
   let onboardingDone = false;
