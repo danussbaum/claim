@@ -59,7 +59,7 @@ You choose before starting:
 
 - **Grapple Hook** (🪝) – Yank yourself 2 cells forward through open ground. 6 s cooldown.
 - **Smoke Bomb** (💨) – Disappear from every guard's sight for 2.5 s. 10 s cooldown.
-- **Mine** (💣) – Drop a mine on a free cell next to you (sideways first, on the side with more room to the border, then ahead, then behind), where guards walk. Armed after 0.5 s; when a guard steps on it, it and all guards next to it die and claimed cells within about 2 cells become free again, the border included. A mine that ends up inside your own land after a capture explodes right away without freeing land. Max 3 mines, 8 s cooldown. In 2 player it also sends the rival home if they step on it (it can also go on the rival's land), and frees both players' land in the crater.
+- **Mine** (💣) – Drop a mine on a free cell next to you (sideways first, on the side that stays open when you capture, i.e. the larger free area, then ahead, then behind), where guards walk. Armed after 0.5 s; when a guard steps on it, it and all guards next to it die and claimed cells within about 2 cells become free again, the border included. A mine that ends up inside your own land after a capture explodes right away without freeing land. Max 3 mines, 8 s cooldown. In 2 player it also sends the rival home if they step on it (it can also go on the rival's land), and frees both players' land in the crater.
 
 ## 2 Player versus
 

@@ -221,7 +221,7 @@
       const i = vsIdx(x, y);
       return s.land[i] !== p + 1 && !s.trail[i] && !s.mines.some(m => m.x === x && m.y === y) &&
         !s.guards.some(g => !g.deadUntil && g.x === x && g.y === y) && !s.players.some(o => o.x === x && o.y === y);
-    }) : null;
+    }, (x, y) => s.land[vsIdx(x, y)] !== p + 1 && !s.trail[vsIdx(x, y)]) : null;
     if (pl.gadget === 'mine' && !mineAt) return;
     pl.gadgetReadyAt = now + GADGETS[pl.gadget].cooldown;
     if (pl.gadget === 'smoke') {

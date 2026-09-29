@@ -11,17 +11,42 @@
   let mines = []; // { c, r, armedAt, foe } - im 2-Spieler-Modus kommt die Liste aus dem Zustand
   // Wohin die Mine faellt: nicht unter die Figur (dort liegt die eigene Linie, die beim
   // Schliessen zu Gebiet wird und die Mine nutzlos macht), sondern auf ein freies Nachbarfeld.
-  // Zuerst seitlich zur Laufrichtung, und zwar auf die Seite mit mehr Abstand zum Rand
-  // (dort bleibt beim Erobern meist die offene Flaeche), dann vorne, zuletzt hinten.
-  // null = kein freies Feld.
-  function mineDropCell(x, y, d, isFree) {
+  // Zuerst seitlich zur Laufrichtung, und zwar auf die Seite, die beim Erobern offen bleibt:
+  // die groessere freie Flaeche (Linie und Gebiet als Wand). Haengen beide Seiten noch zusammen,
+  // entscheidet der freie Weg geradeaus bis zur naechsten Wand. Dann vorne, zuletzt hinten.
+  // open(c, r): offener Boden; isFree(c, r): dort darf die Mine liegen. null = kein freies Feld.
+  function mineDropCell(x, y, d, isFree, open) {
     const [dx, dy] = dirDelta(d);
-    const room = ([ox, oy]) => ox > 0 ? COLS - 1 - x : ox < 0 ? x : oy > 0 ? ROWS - 1 - y : y;
-    const sides = [[-dy, dx], [dy, -dx]].sort((a, b) => room(b) - room(a));
+    const inB = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS;
+    const region = (c0, r0) => {
+      const seen = new Set([r0 * COLS + c0]), stack = [[c0, r0]];
+      while (stack.length) {
+        const [c, r] = stack.pop();
+        for (const [ax, ay] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nc = c + ax, nr = r + ay, k = nr * COLS + nc;
+          if (!inB(nc, nr) || seen.has(k) || !open(nc, nr)) continue;
+          seen.add(k); stack.push([nc, nr]);
+        }
+      }
+      return seen;
+    };
+    const run = ([ox, oy]) => {
+      let n = 0, c = x + ox, r = y + oy;
+      while (inB(c, r) && open(c, r)) { n++; c += ox; r += oy; }
+      return n;
+    };
+    const sides = [[-dy, dx], [dy, -dx]];
+    const ok = sides.map(([ox, oy]) => inB(x + ox, y + oy) && open(x + ox, y + oy));
+    if (ok[0] && ok[1]) {
+      const regA = region(x + sides[0][0], y + sides[0][1]);
+      const joined = regA.has((y + sides[1][1]) * COLS + x + sides[1][0]);
+      const score = joined ? sides.map(run) : [regA.size, region(x + sides[1][0], y + sides[1][1]).size];
+      if (score[1] > score[0]) sides.reverse();
+    } else if (ok[1]) sides.reverse();
     const order = [sides[0], sides[1], [dx, dy], [-dx, -dy]];
     for (const [ox, oy] of order) {
       const c = x + ox, r = y + oy;
-      if (c >= 0 && r >= 0 && c < COLS && r < ROWS && isFree(c, r)) return [c, r];
+      if (inB(c, r) && isFree(c, r)) return [c, r];
     }
     return null;
   }
