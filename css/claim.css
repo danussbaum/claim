@@ -448,7 +448,7 @@ button.primary:active { background: var(--primary-dark); }
   text-decoration: underline; margin-top: 4px; font-family: inherit;
 }
 #tutorialSkipBtn:active { color: #9ab5a2; }
-#tutorialBtn { color: var(--accent); text-decoration: none; border: 1px solid #2f6b48; border-radius: 8px; padding: 7px 14px; }
+#tutorialBtn { color: var(--accent); text-decoration: none; border: 1px solid var(--primary); border-radius: 8px; padding: 9px 22px; font-size: 15px; font-weight: 600; }
 #shop { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 300px; }
 #shop.hidden { display: none; }
 #shopRow { display: flex; flex-direction: column; gap: 8px; width: 100%; }
