@@ -171,6 +171,7 @@
       trail: new Array(COLS * ROWS).fill(0),  // 0 keine, 1/2 Linie von Spieler 0/1
       players: [],
       guards: [],
+      mines: [],              // { x, y, p, armedAt }
       shots: [],              // fliegende Aexte (Treffer erst bei Ankunft)
       powerUps: [],
       events: [],             // Schuesse, Sprueche usw. fuer die Darstellung, reisen mit dem Zustand
@@ -356,6 +357,14 @@
       s.events.push({ t: 'smoke', p, x: pl.x, y: pl.y });
       return;
     }
+    if (pl.gadget === 'mine') {
+      // Pro Spieler hoechstens MINE_MAX, die aelteste faellt weg; ein Feld hat nur eine Mine
+      const own = s.mines.filter(m => m.p === p);
+      if (own.length >= MINE_MAX) s.mines.splice(s.mines.indexOf(own[0]), 1);
+      if (!s.mines.some(m => m.x === pl.x && m.y === pl.y)) s.mines.push({ x: pl.x, y: pl.y, p, armedAt: now + MINE_ARM_MS });
+      s.events.push({ t: 'mine', p, x: pl.x, y: pl.y });
+      return;
+    }
     // Enterhaken: bis zu GADGET_HOOK_PULL Felder in Blickrichtung
     const [dx, dy] = dirDelta(pl.dir || pl.lastDir);
     const ox = pl.x, oy = pl.y;
@@ -478,6 +487,27 @@
       s.players.forEach((pl, p) => {
         if (pl.x === g.x && pl.y === g.y && !vsOnOwnLand(s, p)) vsKill(s, p, now);
       });
+    });
+    vsCheckMines(s, now);
+  }
+
+  // Scharfe Mine, auf der ein Waechter oder der Gegner des Besitzers steht: sie geht hoch.
+  // Alle Waechter daneben sterben mit, der Gegner wird nur auf dem Feld selbst heimgeschickt.
+  function vsCheckMines(s, now) {
+    if (!s.mines.length) return;
+    s.mines = s.mines.filter(m => {
+      if (now < m.armedAt) return true;
+      const foe = s.players[1 - m.p];
+      const foeHere = foe.x === m.x && foe.y === m.y;
+      if (!foeHere && !s.guards.some(g => !g.deadUntil && g.x === m.x && g.y === m.y)) return true;
+      s.events.push({ t: 'boom', x: m.x, y: m.y });
+      s.guards.forEach((g, gi) => {
+        if (g.deadUntil || Math.abs(g.x - m.x) > 1 || Math.abs(g.y - m.y) > 1) return;
+        g.deadUntil = now + VS_GUARD_RESPAWN;
+        s.events.push({ t: 'guardDown', x: g.x, y: g.y, dx: 0, dy: 0, i: gi, pers: g.pers });
+      });
+      if (foeHere) vsShotDown(s, 1 - m.p, now);
+      return false;
     });
   }
 
@@ -638,6 +668,7 @@
       guards: s.guards.map(g => [g.x, g.y, g.deadUntil ? 1 : 0, g.hunting ? 1 : 0,
         now < g.stunUntil ? 1 : 0, now < g.breakUntil ? 1 : 0, g.pers, g.name]),
       powerUps: s.powerUps.map(u => [u.x, u.y, u.type, u.kind]),
+      mines: s.mines.map(m => [m.x, m.y, m.p, left(m.armedAt)]),
       freeze: left(s.freezeUntil),
       events: s.events,
       timeLeft: s.timeLeft, countdown: s.countdown, over: s.over, series: vsSeries,
@@ -804,6 +835,7 @@
       guards: msg.guards.map(g => ({ x: g[0], y: g[1], deadUntil: g[2], hunting: !!g[3],
         stunUntil: g[4] ? now + 300 : 0, breakUntil: g[5] ? now + 300 : 0, pers: g[6], name: g[7] })),
       powerUps: msg.powerUps.map(u => ({ x: u[0], y: u[1], type: u[2], kind: u[3] })),
+      mines: (msg.mines || []).map(m => ({ x: m[0], y: m[1], p: m[2], armedAt: now + m[3] })),
       freezeUntil: now + msg.freeze,
       events: [],
       timeLeft: msg.timeLeft, countdown: msg.countdown, over: msg.over, pct: msg.pct, series: msg.series,
@@ -939,7 +971,7 @@
     trailGuardUntil = rapidfireUntil = spikesUntil = slowUntil = swarmUntil = 0;
     drunkUntil = psyloUntil = duckUntil = heliumUntil = discoUntil = smokeUntil = 0;
     bananaSlide = 0; hookAnim = null; killCam = null;
-    powerUps = []; swarmEnemies = []; decoys = []; bananaPeels = []; movingBlocks = [];
+    powerUps = []; swarmEnemies = []; decoys = []; mines = []; bananaPeels = []; movingBlocks = [];
     bonusCells = []; flashCells = []; guardBubbles = []; enemyDeathAnims = []; shotProjectiles = [];
     nearMissPopups = []; comboPopups = []; revealPopups = []; milestonePopups = []; emotePopups = [];
     fireworkParticles = []; sparkParticles = []; dustParticles = []; smokeParticles = []; bgRipples = [];
@@ -1069,6 +1101,8 @@
     powerUps = s.powerUps.map(u => powerUps.find(o => o.c === u.x && o.r === u.y && o.type === u.type) ||
       { r: u.y, c: u.x, type: u.type, kind: u.kind, spawnTime: now });
 
+    mines = (s.mines || []).map(m => ({ c: m.x, r: m.y, armedAt: m.armedAt, foe: m.p !== me }));
+
     // Anzeige oben
     const pct = s.pct || [vsPct(s, 0), vsPct(s, 1)];
     const secs = Math.max(0, Math.ceil(s.timeLeft / 1000));
@@ -1120,6 +1154,13 @@
       sndGadgetSmoke();
       spawnEmote('💨', ev.x, ev.y);
       triggerShake(2, 150);
+    } else if (ev.t === 'mine') {
+      sndDecoyThrow();
+      spawnEmote('💣', ev.x, ev.y);
+    } else if (ev.t === 'boom') {
+      addRipple(ev.x, ev.y, 3, 500, '255,140,60', 0.8);
+      spawnSparks(ev.x * CELL + CELL / 2, ev.y * CELL + CELL / 2, '#ffb347', 24, 260, 0);
+      triggerShake(8, 260);
     } else if (ev.t === 'boost') {
       if (ev.p === vsMe) sndBoost();
     } else if (ev.t === 'cut') {

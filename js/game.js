@@ -181,6 +181,18 @@
       e.dc0 = choice[0]; e.dr0 = choice[1];
       e.c += choice[0]; e.r += choice[1];
 
+      // Mine: Waechter tritt drauf, er und alle Waechter daneben fliegen in die Luft
+      const mine = mines.findIndex(m => m.c === e.c && m.r === e.r && now >= m.armedAt);
+      if (mine >= 0) {
+        const m = mines.splice(mine, 1)[0];
+        addRipple(m.c, m.r, 3, 500, '255,140,60', 0.8);
+        triggerShake(8, 260);
+        for (const o of enemies.slice()) {
+          if (Math.abs(o.c - m.c) <= 1 && Math.abs(o.r - m.r) <= 1) killEnemyByShot(o, 'shot', 0, 0);
+        }
+        continue;
+      }
+
       // Bananenschale: Waechter rutscht aus und fliegt
       const peel = bananaPeels.findIndex(b => b.c === e.c && b.r === e.r);
       if (peel >= 0) {

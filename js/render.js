@@ -921,6 +921,26 @@ function draw(now) {
     ctx.textBaseline = 'middle';
     for (const b of bananaPeels) ctx.fillText('🍌', b.c * CELL + CELL / 2, b.r * CELL + CELL / 2 + 1);
 
+    // Minen: scharf mit pulsierendem Ring (rot = eigene, blau = die des Gegners)
+    for (const m of mines) {
+      const cx = m.c * CELL + CELL / 2, cy = m.r * CELL + CELL / 2;
+      const armed = now >= m.armedAt;
+      const pulse = 0.5 + 0.5 * Math.sin(now / 160);
+      ctx.save();
+      ctx.globalAlpha = armed ? 0.35 + 0.4 * pulse : 0.3;
+      ctx.strokeStyle = m.foe ? '#6aa8ff' : '#ff6a4a';
+      ctx.lineWidth = Math.max(1, CELL * 0.07);
+      ctx.beginPath();
+      ctx.arc(cx, cy, CELL * (0.4 + 0.12 * pulse), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = armed ? 1 : 0.5;
+      ctx.font = Math.floor(CELL * 0.6) + 'px "Space Grotesk", -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('💣', cx, cy + 1);
+      ctx.restore();
+    }
+
     // Decoy-Steine: Aufschlagstelle mit pulsierendem Ring, verblasst am Ende
     decoys = decoys.filter(d => now < d.until);
     for (const d of decoys) {

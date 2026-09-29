@@ -33,7 +33,7 @@
     smokeParticles = [];
     hookAnim = null;
     swarmEnemies = [];
-    decoyCharges = 0; decoys = []; trailSpotted = false; guardBubbles = [];
+    decoyCharges = 0; decoys = []; mines = []; trailSpotted = false; guardBubbles = [];
     duckUntil = 0; heliumUntil = 0; discoUntil = 0; bananaSlide = 0; bananaPeels = [];
     shotCooldownUntil = 0;
     boostsRemaining = 3 + perks.boosts * 2;
@@ -326,10 +326,19 @@
     if (decoyCharges > 0) { throwDecoy(); return; } // Decoy-Wuerfe haben Vorrang vor dem Gadget
     if (!gadgetReady()) return;
     const now = performance.now();
+    // Auf eigenem Gebiet waere eine Mine nutzlos (Waechter betreten es nie): kein Wurf, kein Cooldown
+    if (gadgetChoice === 'mine' && grid[py][px] === TERRITORY) return;
     gadgetCooldownUntil = now + GADGETS[gadgetChoice].cooldown;
 
     tutorialFlag('gadgetUsed');
-    tutorialFlag(gadgetChoice === 'smoke' ? 'smokeUsed' : 'hookUsed');
+    tutorialFlag(gadgetChoice === 'smoke' ? 'smokeUsed' : gadgetChoice === 'mine' ? 'mineUsed' : 'hookUsed');
+    if (gadgetChoice === 'mine') {
+      if (mines.length >= MINE_MAX) mines.shift();
+      mines.push({ c: px, r: py, armedAt: now + MINE_ARM_MS });
+      sndDecoyThrow();
+      spawnEmote('💣', px, py);
+      return;
+    }
     if (gadgetChoice === 'smoke') {
       smokeUntil = now + GADGET_SMOKE_MS;
       sndGadgetSmoke();

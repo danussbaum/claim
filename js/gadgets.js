@@ -1,10 +1,13 @@
   // --- Gadgets: einmal pro Run gewaehlt, mit eigenem Cooldown ---
   const GADGETS = {
     hook:  { label: 'Grapple Hook', icon: '🪝', desc: 'Yank yourself 2 cells forward through open ground.', cooldown: 6000 },
-    smoke: { label: 'Smoke Bomb',   icon: '💨', desc: 'Vanish from every guard\'s sight for 2.5s.', cooldown: 10000 }
+    smoke: { label: 'Smoke Bomb',   icon: '💨', desc: 'Vanish from every guard\'s sight for 2.5s.', cooldown: 10000 },
+    mine:  { label: 'Mine',         icon: '💣', desc: 'Drop a mine where you stand. It kills guards next to it, and the rival in 2 player. Max 3.', cooldown: 8000 }
   };
   const GADGET_HOOK_PULL = 2;
   const GADGET_SMOKE_MS = 2500;
+  const MINE_ARM_MS = 500, MINE_MAX = 3;
+  let mines = []; // { c, r, armedAt, foe } - im 2-Spieler-Modus kommt die Liste aus dem Zustand
   let gadgetChoice = 'hook';
   let gadgetCooldownUntil = 0;
   let smokeUntil = 0;
