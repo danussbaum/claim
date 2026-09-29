@@ -329,7 +329,7 @@
     // Mine nur auf ein freies Feld daneben (dort laufen Waechter); sonst kein Wurf, kein Cooldown
     const mineAt = gadgetChoice === 'mine' ? mineDropCell(px, py, dir, (c, r) => grid[r][c] === EMPTY &&
       !mines.some(m => m.c === c && m.r === r) && !enemies.some(e => e.c === c && e.r === r),
-      (c, r) => grid[r][c] === EMPTY || grid[r][c] === PIT) : null;
+      (c, r) => grid[r][c] === EMPTY || grid[r][c] === PIT, enemies) : null;
     if (gadgetChoice === 'mine' && !mineAt) return;
     gadgetCooldownUntil = now + GADGETS[gadgetChoice].cooldown;
 

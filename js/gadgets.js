@@ -14,8 +14,10 @@
   // Zuerst seitlich zur Laufrichtung, und zwar auf die Seite, die beim Erobern offen bleibt:
   // die groessere freie Flaeche (Linie und Gebiet als Wand). Haengen beide Seiten noch zusammen,
   // entscheidet der freie Weg geradeaus bis zur naechsten Wand. Dann vorne, zuletzt hinten.
+  // targets (optional, 1-Spieler): Waechter [{c, r}] - dann gewinnt die Seite, die naeher am
+  // naechsten Waechter liegt; nur bei Gleichstand oder ohne Waechter zaehlt die Flaeche.
   // open(c, r): offener Boden; isFree(c, r): dort darf die Mine liegen. null = kein freies Feld.
-  function mineDropCell(x, y, d, isFree, open) {
+  function mineDropCell(x, y, d, isFree, open, targets) {
     const [dx, dy] = dirDelta(d);
     const inB = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS;
     const region = (c0, r0) => {
@@ -37,7 +39,11 @@
     };
     const sides = [[-dy, dx], [dy, -dx]];
     const ok = sides.map(([ox, oy]) => inB(x + ox, y + oy) && open(x + ox, y + oy));
-    if (ok[0] && ok[1]) {
+    const near = ([ox, oy]) => Math.min(...targets.map(t => Math.abs(t.c - x - ox) + Math.abs(t.r - y - oy)));
+    const nearGap = ok[0] && ok[1] && targets && targets.length ? near(sides[1]) - near(sides[0]) : 0;
+    if (nearGap) {
+      if (nearGap < 0) sides.reverse();
+    } else if (ok[0] && ok[1]) {
       const regA = region(x + sides[0][0], y + sides[0][1]);
       const joined = regA.has((y + sides[1][1]) * COLS + x + sides[1][0]);
       const score = joined ? sides.map(run) : [regA.size, region(x + sides[1][0], y + sides[1][1]).size];
