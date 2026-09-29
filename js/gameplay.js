@@ -33,7 +33,7 @@
     smokeParticles = [];
     hookAnim = null;
     swarmEnemies = [];
-    decoyCharges = 0; decoys = []; trailSpotted = false; guardBubbles = [];
+    decoyCharges = 0; decoys = []; mines = []; trailSpotted = false; guardBubbles = [];
     duckUntil = 0; heliumUntil = 0; discoUntil = 0; bananaSlide = 0; bananaPeels = [];
     shotCooldownUntil = 0;
     boostsRemaining = 3 + perks.boosts * 2;
@@ -326,10 +326,21 @@
     if (decoyCharges > 0) { throwDecoy(); return; } // Decoy-Wuerfe haben Vorrang vor dem Gadget
     if (!gadgetReady()) return;
     const now = performance.now();
+    // Mine nur auf ein freies Feld daneben (dort laufen Waechter); sonst kein Wurf, kein Cooldown
+    const mineAt = gadgetChoice === 'mine' ? mineDropCell(px, py, dir, (c, r) => grid[r][c] === EMPTY &&
+      !mines.some(m => m.c === c && m.r === r) && !enemies.some(e => e.c === c && e.r === r)) : null;
+    if (gadgetChoice === 'mine' && !mineAt) return;
     gadgetCooldownUntil = now + GADGETS[gadgetChoice].cooldown;
 
     tutorialFlag('gadgetUsed');
-    tutorialFlag(gadgetChoice === 'smoke' ? 'smokeUsed' : 'hookUsed');
+    tutorialFlag(gadgetChoice === 'smoke' ? 'smokeUsed' : gadgetChoice === 'mine' ? 'mineUsed' : 'hookUsed');
+    if (gadgetChoice === 'mine') {
+      if (mines.length >= MINE_MAX) mines.shift();
+      mines.push({ c: mineAt[0], r: mineAt[1], armedAt: now + MINE_ARM_MS });
+      sndDecoyThrow();
+      spawnEmote('💣', mineAt[0], mineAt[1]);
+      return;
+    }
     if (gadgetChoice === 'smoke') {
       smokeUntil = now + GADGET_SMOKE_MS;
       sndGadgetSmoke();
@@ -361,6 +372,25 @@
       spawnEmote('💨', prevPx, prevPy);
     } else {
       triggerShake(2, 90);
+    }
+  }
+
+  // Mine geht hoch: Waechter im Umkreis von 1 Feld sterben. freeLand: eroberte Felder im
+  // Krater werden wieder frei (nicht bei Blindgaengern, die man selbst eingeschlossen hat).
+  function explodeMine(m, freeLand) {
+    const now = performance.now();
+    addRipple(m.c, m.r, 3, 500, '255,140,60', 0.8);
+    spawnSparks(m.c * CELL + CELL / 2, m.r * CELL + CELL / 2, '#ffb347', 24, 260, 0);
+    triggerShake(8, 260);
+    if (freeLand) {
+      for (const [c, r] of mineCraterCells(m.c, m.r)) {
+        if (grid[r][c] !== TERRITORY) continue;
+        grid[r][c] = EMPTY;
+        flashCells.push({ r, c, time: now });
+      }
+    }
+    for (const o of enemies.slice()) {
+      if (Math.abs(o.c - m.c) <= 1 && Math.abs(o.r - m.r) <= 1) killEnemyByShot(o, 'shot', 0, 0);
     }
   }
 
@@ -604,6 +634,12 @@
       }
     }
     const gained = gainedCells.length;
+    // Minen, die jetzt im eigenen Gebiet liegen, sind nutzlos: sie gehen gleich hoch
+    const duds = mines.filter(m => grid[m.r][m.c] === TERRITORY);
+    if (duds.length) {
+      mines = mines.filter(m => !duds.includes(m));
+      duds.forEach(m => explodeMine(m, false));
+    }
     if (!bonusClaimed && bonusCells.length) {
       const allClaimed = bonusCells.every(b => grid[b.r][b.c] === TERRITORY);
       if (allClaimed) {

@@ -181,6 +181,13 @@
       e.dc0 = choice[0]; e.dr0 = choice[1];
       e.c += choice[0]; e.r += choice[1];
 
+      // Mine: Waechter tritt drauf, er und alle Waechter daneben fliegen in die Luft
+      const mine = mines.findIndex(m => m.c === e.c && m.r === e.r && now >= m.armedAt);
+      if (mine >= 0) {
+        explodeMine(mines.splice(mine, 1)[0], true);
+        continue;
+      }
+
       // Bananenschale: Waechter rutscht aus und fliegt
       const peel = bananaPeels.findIndex(b => b.c === e.c && b.r === e.r);
       if (peel >= 0) {

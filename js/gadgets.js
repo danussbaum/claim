@@ -1,10 +1,38 @@
   // --- Gadgets: einmal pro Run gewaehlt, mit eigenem Cooldown ---
   const GADGETS = {
     hook:  { label: 'Grapple Hook', icon: '🪝', desc: 'Yank yourself 2 cells forward through open ground.', cooldown: 6000 },
-    smoke: { label: 'Smoke Bomb',   icon: '💨', desc: 'Vanish from every guard\'s sight for 2.5s.', cooldown: 10000 }
+    smoke: { label: 'Smoke Bomb',   icon: '💨', desc: 'Vanish from every guard\'s sight for 2.5s.', cooldown: 10000 },
+    mine:  { label: 'Mine',         icon: '💣', desc: 'Drop a mine on a free cell next to you. It kills guards next to it, frees claimed cells around it, and kills the rival in 2 player. Max 3.', cooldown: 8000 }
   };
   const GADGET_HOOK_PULL = 2;
   const GADGET_SMOKE_MS = 2500;
+  const MINE_ARM_MS = 500, MINE_MAX = 3;
+  const MINE_CRATER = 2.2; // Radius, in dem eroberte Felder wieder frei werden
+  let mines = []; // { c, r, armedAt, foe } - im 2-Spieler-Modus kommt die Liste aus dem Zustand
+  // Wohin die Mine faellt: nicht unter die Figur (dort liegt die eigene Linie, die beim
+  // Schliessen zu Gebiet wird und die Mine nutzlos macht), sondern auf ein freies Nachbarfeld.
+  // Zuerst seitlich zur Laufrichtung, dann vorne, zuletzt hinten. null = kein freies Feld.
+  function mineDropCell(x, y, d, isFree) {
+    const [dx, dy] = dirDelta(d);
+    const order = [[-dy, dx], [dy, -dx], [dx, dy], [-dx, -dy]];
+    for (const [ox, oy] of order) {
+      const c = x + ox, r = y + oy;
+      if (c >= 0 && r >= 0 && c < COLS && r < ROWS && isFree(c, r)) return [c, r];
+    }
+    return null;
+  }
+  // Felder [c, r] im Explosionskrater; der Rand bleibt (Startland, nicht erobert)
+  function mineCraterCells(cx, cy) {
+    const out = [];
+    const R = Math.ceil(MINE_CRATER);
+    for (let r = cy - R; r <= cy + R; r++) {
+      for (let c = cx - R; c <= cx + R; c++) {
+        if (c < 1 || r < 1 || c > COLS - 2 || r > ROWS - 2) continue;
+        if (Math.hypot(c - cx, r - cy) <= MINE_CRATER) out.push([c, r]);
+      }
+    }
+    return out;
+  }
   let gadgetChoice = 'hook';
   let gadgetCooldownUntil = 0;
   let smokeUntil = 0;
