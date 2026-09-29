@@ -31,9 +31,10 @@
     const cache = await caches.open('claim-voice');
     const wanted = all;
     const have = new Set();
+    const scope = new URL('.', location.href).href; // nur eigene Dateien, der Cache kann geteilt sein
     for (const req of await cache.keys()) {
       // Veraltete Dateien (neu generiert oder entfernt) wegraeumen
-      if (!wanted.has(req.url)) await cache.delete(req);
+      if (!wanted.has(req.url) && req.url.startsWith(scope)) await cache.delete(req);
       else have.add(req.url);
     }
     for (const url of offline) {
@@ -47,7 +48,20 @@
     }
   }
 
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // Test-Links (raw.githack.com/<commit>/...): kein Offline-Modus. Alle Commits teilen sich dort
+  // eine Domain und damit die Caches; sie wuerden sich gegenseitig die Stimmen loeschen und neu laden.
+  // Frueher registrierte Service Worker und Caches werden dort entfernt.
+  const PWA_TEST_HOST = /(^|\.)githack\.com$/.test(location.hostname);
+  if (PWA_TEST_HOST && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then(regs => regs.forEach(r => r.unregister()))
+      .catch(() => {});
+    if (window.caches) {
+      caches.keys().then(keys => keys.forEach(k => { if (k.indexOf('claim-') === 0) caches.delete(k); })).catch(() => {});
+    }
+  }
+
+  if ('serviceWorker' in navigator && location.protocol !== 'file:' && !PWA_TEST_HOST) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js')
         .then(() => navigator.serviceWorker.ready)

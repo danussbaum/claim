@@ -189,7 +189,7 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 - All state persists in `localStorage` – no server.
 - **Voice lines** are generated locally with `tools/kokoro_voices.py` (Kokoro TTS, see the script header for setup). It reads all lines from the JS files, renders them with several voices into `tools/voice_src/`, then packs them into one MP3 per category and voice under `audio/voice/` and writes `audio/voice/manifest.js`. For itch.io, zip everything except `tools/`. Existing files are skipped; `--manifest-only` only rebuilds the manifest.
 - **Local server:** opened directly as a file, voices play without filters and there is no offline mode. For the full experience serve the folder, e.g. `py -m http.server 8000` → `http://localhost:8000`.
-- **Offline and home screen:** over https (or localhost) a service worker (`sw.js`) caches the game and downloads 5 guard voices plus countdown and announcer in the background (not on metered connections). The game can be added to the home screen and then runs full screen, also offline.
+- **Offline and home screen:** over https (or localhost) a service worker (`sw.js`) caches the game and downloads 5 guard voices plus countdown and announcer in the background (not on metered connections). The game can be added to the home screen and then runs full screen, also offline. Game files are always revalidated online (no mix of old and new files after an update); on a slow network the cached copy is used after 3 s. Files no longer loaded by `index.html` are removed from the cache. On `raw.githack.com` test links there is no service worker.
 
 ## itch.io (butler)
 
