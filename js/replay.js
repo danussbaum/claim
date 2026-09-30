@@ -4,9 +4,9 @@
 // Blickrichtungen und Ton-Ereignisse (Sprueche, Schuesse, Alarm).
 
   const REPLAY_SECONDS = 5;
-  const REPLAY_FRAME_MS = 160;             // ~6 Bilder pro Sekunde reichen fuer den VHS-Look
+  const REPLAY_FRAME_MS = 125;             // 8 Bilder pro Sekunde reichen fuer den VHS-Look
   const REPLAY_MAX_FRAMES = Math.ceil(REPLAY_SECONDS * 1000 / REPLAY_FRAME_MS);
-  const REPLAY_MAX_W = 210;                // Aufloesung der Kopien (Speicher: ~7 MB total)
+  const REPLAY_MAX_W = 210;                // Aufloesung der Kopien (Speicher: ~10 MB total)
   const REPLAY_REWIND_MS = 850;
   const REPLAY_FAST = 3, REPLAY_SLOW = 0.5, REPLAY_SLOW_WINDOW = 1000; // letzte Sekunde in Zeitlupe
   const REPLAY_FREEZE_MS = 1900;
@@ -137,10 +137,22 @@
     window.addEventListener('keydown', skip, true);
     window.addEventListener('touchstart', skip, { capture: true, passive: false });
 
+    // Zwei Nachbarbilder plus Mischanteil: Bild und Positionen werden ueberblendet
     const frameAt = (t) => {
       let i = 0;
       while (i < frames.length - 1 && frames[i + 1].t <= t) i++;
-      return frames[i];
+      const a = frames[i], b = frames[Math.min(i + 1, frames.length - 1)];
+      const k = b === a ? 0 : Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t)));
+      if (!k) return a;
+      const lerp = (x, y) => x + (y - x) * k;
+      return {
+        img: a.img, img2: b.img, mix: k,
+        camX: lerp(a.camX, b.camX), camY: lerp(a.camY, b.camY), px: lerp(a.px, b.px), py: lerp(a.py, b.py),
+        guards: a.guards.map(g => {
+          const h = b.guards.find(o => o.e === g.e);
+          return h ? { e: g.e, x: lerp(g.x, h.x), y: lerp(g.y, h.y), a: g.a + shortestAngleDelta(g.a, h.a) * k, hunt: g.hunt || h.hunt } : g;
+        })
+      };
     };
 
     const step = (now) => {
@@ -208,19 +220,28 @@
     ctx.rotate(-view);
     ctx.scale(REPLAY_ZOOM, REPLAY_ZOOM);
     ctx.translate(-sx, -sy);
+    ctx.filter = 'grayscale(1) contrast(1.35) brightness(1.08)';
     ctx.drawImage(f.img, 0, 0, W, H);
+    if (f.img2) { ctx.globalAlpha = f.mix; ctx.drawImage(f.img2, 0, 0, W, H); ctx.globalAlpha = 1; }
+    ctx.filter = 'none';
     if (g) {
-      // Sichtkegel nur umranden, das Bild bleibt so hell wie im Spiel
+      // Ausserhalb des Sichtkegels dunkel
       const v = VISION[killer.personality] || VISION.wanderer;
       ctx.beginPath();
+      ctx.rect(-W * 2, -H * 2, W * 5, H * 5);
       ctx.moveTo(sx, sy);
-      ctx.arc(sx, sy, v.range * CELL, g.a - v.half, g.a + v.half);
+      ctx.arc(sx, sy, v.range * CELL, g.a + v.half, g.a - v.half, true);
       ctx.closePath();
-      ctx.strokeStyle = 'rgba(255,59,48,0.8)';
-      ctx.lineWidth = 2 / REPLAY_ZOOM;
-      ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.62)';
+      ctx.fill('evenodd');
     }
     ctx.restore();
+
+    // Gruenstich des Ueberwachungsmonitors
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgb(170,255,190)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
 
     // "!" ueber dem Waechter, sobald er dich gesehen hat
     if (g && g.hunt) {
@@ -232,7 +253,7 @@
     }
 
     // Scanlines
-    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
     for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
     // Rauschen, beim Spulen staerker
     const noise = phase === 'rewind' ? 420 : 120;
@@ -244,6 +265,13 @@
     const bandY = ((now / (phase === 'rewind' ? 3 : 9)) % (H + 60)) - 30;
     ctx.fillStyle = 'rgba(255,255,255,' + (phase === 'rewind' ? 0.16 : 0.06) + ')';
     ctx.fillRect(0, bandY, W, phase === 'rewind' ? 26 : 12);
+    // Vignette
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.7)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
     // Einblendungen
     const fs = Math.max(11, Math.round(W / 26));
     ctx.font = 'bold ' + fs + 'px monospace';
