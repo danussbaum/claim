@@ -3,10 +3,10 @@
 // Aufzeichnung: kleine Kopien des fertigen Bildes (Ringpuffer) plus Positionen,
 // Blickrichtungen und Ton-Ereignisse (Sprueche, Schuesse, Alarm).
 
-  const REPLAY_SECONDS = 6;
-  const REPLAY_FRAME_MS = 125;             // 8 Bilder pro Sekunde reichen fuer den VHS-Look
+  const REPLAY_SECONDS = 5;
+  const REPLAY_FRAME_MS = 160;             // ~6 Bilder pro Sekunde reichen fuer den VHS-Look
   const REPLAY_MAX_FRAMES = Math.ceil(REPLAY_SECONDS * 1000 / REPLAY_FRAME_MS);
-  const REPLAY_MAX_W = 300;                // Aufloesung der Kopien (Speicher!)
+  const REPLAY_MAX_W = 210;                // Aufloesung der Kopien (Speicher: ~7 MB total)
   const REPLAY_REWIND_MS = 850;
   const REPLAY_FAST = 3, REPLAY_SLOW = 0.5, REPLAY_SLOW_WINDOW = 1000; // letzte Sekunde in Zeitlupe
   const REPLAY_FREEZE_MS = 1900;
@@ -120,6 +120,8 @@
       window.removeEventListener('keydown', skip, true);
       window.removeEventListener('touchstart', skip, true);
       replayReset();
+      for (const c of replayPool) { c.width = 0; c.height = 0; } // Speicher sofort freigeben
+      replayPool = [];
       done();
     };
     const skip = (ev) => {
