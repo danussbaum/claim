@@ -407,7 +407,10 @@
   let lives = 3;
   let highScore = 0;
 
-  function highScoreKey() { return 'claim_highscore_' + gameMode; }
+  function highScoreKey() {
+    const hunt = typeof huntRole !== 'undefined' && huntRole === 'guard'; // hunt.js laedt spaeter
+    return 'claim_highscore_' + gameMode + (hunt ? '_hunt' : '');
+  }
 
   function loadHighScoreForMode() {
     let v = 0;

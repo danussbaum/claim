@@ -392,7 +392,6 @@ function drawPlayer(now, blinkOnGlobal, dispPx, dispPy, pcx, pcy, playerT, psylo
 
 // Waechter: Sichtkegel, Figuren, Todesanimationen, Zustand und Sprechblasen.
 function drawGuards(now, blinkOnGlobal) {
-    const enemyT = Math.min(1, (now - enemyStepTime) / enemyInterval);
     const frozen = now < freezeUntil;
     const freezeRemaining = freezeUntil - now;
     const blinking = frozen && freezeRemaining < 900;
@@ -409,8 +408,8 @@ function drawGuards(now, blinkOnGlobal) {
     // Sichtkegel unter den Waechtern
     for (const e of enemies) {
       const v = VISION[e.personality] || VISION.wanderer;
-      const dc = e.prevC + (e.c - e.prevC) * enemyT;
-      const dr = e.prevR + (e.r - e.prevR) * enemyT;
+      const dc = e.prevC + (e.c - e.prevC) * guardStepT(e, now);
+      const dr = e.prevR + (e.r - e.prevR) * guardStepT(e, now);
       const cx = dc*CELL + CELL/2, cy = dr*CELL + CELL/2;
       const ang = (e.angleDisp !== undefined) ? e.angleDisp : enemyFacing(e);
       if (guardBlind(e, now)) continue; // benommen oder in der Pause: kein Kegel
@@ -444,8 +443,8 @@ function drawGuards(now, blinkOnGlobal) {
     }
 
     for (const e of enemies) {
-      const dispC = e.prevC + (e.c - e.prevC) * enemyT;
-      const dispR = e.prevR + (e.r - e.prevR) * enemyT;
+      const dispC = e.prevC + (e.c - e.prevC) * guardStepT(e, now);
+      const dispR = e.prevR + (e.r - e.prevR) * guardStepT(e, now);
       const ecx = dispC*CELL + CELL/2, ecy = dispR*CELL + CELL/2;
 
       const gridDist = Math.abs(e.c - px) + Math.abs(e.r - py);
@@ -663,8 +662,8 @@ function drawGuards(now, blinkOnGlobal) {
     for (const e of enemies) {
       const stunned = now < (e.stunnedUntil || 0), onBreak = now < (e.breakUntil || 0);
       if (!stunned && !onBreak) continue;
-      const ex = (e.prevC + (e.c - e.prevC) * enemyT) * CELL + CELL / 2;
-      const ey = (e.prevR + (e.r - e.prevR) * enemyT) * CELL + CELL / 2;
+      const ex = (e.prevC + (e.c - e.prevC) * guardStepT(e, now)) * CELL + CELL / 2;
+      const ey = (e.prevR + (e.r - e.prevR) * guardStepT(e, now)) * CELL + CELL / 2;
       ctx.font = Math.floor(CELL * 0.42) + 'px "Space Grotesk", -apple-system, sans-serif';
       if (stunned) {
         for (let k = 0; k < 3; k++) {
@@ -682,8 +681,8 @@ function drawGuards(now, blinkOnGlobal) {
     guardBubbles = guardBubbles.filter(b => now - b.start < BUBBLE_MS);
     for (const b of guardBubbles) {
       if (enemies.includes(b.e)) {
-        b.x = b.e.prevC + (b.e.c - b.e.prevC) * enemyT;
-        b.y = b.e.prevR + (b.e.r - b.e.prevR) * enemyT;
+        b.x = b.e.prevC + (b.e.c - b.e.prevC) * guardStepT(b.e, now);
+        b.y = b.e.prevR + (b.e.r - b.e.prevR) * guardStepT(b.e, now);
       }
       const t = (now - b.start) / BUBBLE_MS;
       const pop = t < 0.1 ? 0.6 + t * 4 : 1;

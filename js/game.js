@@ -83,13 +83,17 @@
     return opts[Math.floor(Math.random() * opts.length)];
   }
 
-  function moveEnemies() {
-    enemyStepTime = performance.now();
-    if (enemyStepTime < discoUntil) sndDiscoBeat();
+  // only: nur diesen Waechter ziehen (Jagd-Modus: deinen Waechter im eigenen Takt)
+  function moveEnemies(only) {
+    if (!only) {
+      enemyStepTime = performance.now();
+      if (enemyStepTime < discoUntil) sndDiscoBeat();
+    }
     // Ueber eine Kopie laufen: killEnemyByShot() kann waehrend der Schleife
     // Waechter entfernen und neue anhaengen.
-    for (const e of enemies.slice()) {
+    for (const e of (only ? [only] : enemies.slice())) {
       if (enemies.indexOf(e) === -1) continue; // in diesem Tick bereits entfernt
+      if (e.controlled && !only) continue;
       e.prevR = e.r; e.prevC = e.c;
       const opts = [[0,-1],[0,1],[-1,0],[1,0]].filter(([dx,dy]) => {
         const nx = e.c + dx, ny = e.r + dy;
@@ -105,6 +109,7 @@
       const now = performance.now();
       if (e.controlled) {
         // Jagd-Modus: diesen Waechter steuerst du
+        if (now < (e.stunnedUntil || 0)) continue;
         choice = huntGuardStep(e, opts);
         if (!choice) continue;
       } else {
@@ -257,8 +262,8 @@
     const pT = Math.min(1, (now - playerStepTime) / currentPlayerInterval());
     const dpx = prevPx + (px - prevPx) * pT;
     const dpy = prevPy + (py - prevPy) * pT;
-    const eT = Math.min(1, (now - enemyStepTime) / enemyInterval);
     for (const e of enemies.slice()) {
+      const eT = guardStepT(e, now);
       if (now < (e.stunnedUntil || 0)) continue;
       const pc = e.prevC !== undefined ? e.prevC : e.c;
       const pr = e.prevR !== undefined ? e.prevR : e.r;

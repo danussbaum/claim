@@ -1,4 +1,5 @@
-// --- Jagd-Modus (gameMode 'hunt'): du steuerst einen Waechter, die CPU steuert die Spielfigur ---
+// --- Jagd-Modus (Rolle 'guard', kombinierbar mit Normal/Chaos/Zen): du steuerst einen Waechter,
+// die CPU steuert die Spielfigur ---
 // Die CPU erobert Land wie sonst der Spieler. Erwischst du sie (oder ihre Linie), ist das Level
 // geschafft; holt sie 75 %, kostet es ein Leben. Die Figur ist nur im Kegel deines Waechters
 // sichtbar, sonst verraten sie ihre Linie, kurze Radar-Pings und ein verblassender Geist.
@@ -15,7 +16,35 @@
   let huntCpuLives = HUNT_CPU_LIVES;
   let huntLosing = false;       // endGame() soll ausnahmsweise wirklich ein Leben abziehen
 
-  function huntActive() { return gameMode === 'hunt' && !tutorialActive && !versusRender; }
+  const HUNT_ROLES = {
+    runner: { label: 'Runner', desc: '' },
+    guard:  { label: 'Guard',  desc: 'You are a guard: catch the runner before it claims 75%.' }
+  };
+  let huntRole = 'runner';
+  try { const r = localStorage.getItem('claim_role'); if (r && HUNT_ROLES[r]) huntRole = r; } catch (e) { /* ignore */ }
+  function setHuntRole(r) {
+    if (!HUNT_ROLES[r]) return;
+    huntRole = r;
+    try { localStorage.setItem('claim_role', r); } catch (e) { /* ignore */ }
+    loadHighScoreForMode();
+  }
+
+  function huntActive() { return huntRole === 'guard' && !tutorialActive && !versusRender; }
+
+  // Eigenes Tempo deines Waechters (Power-ups wirken nur auf ihn)
+  let huntGuardIv = 250, huntGuardTimer = 0;
+  let huntSpeedUntil = 0, huntSlowUntil = 0, huntConfuseUntil = 0, huntRunnerFrozenUntil = 0;
+  function huntGuardInterval(now) {
+    if (now < huntSpeedUntil) return huntGuardIv * 0.6;
+    if (now < huntSlowUntil) return huntGuardIv * 1.6;
+    return huntGuardIv;
+  }
+
+  // Animationsfortschritt eines Waechters; dein Waechter laeuft im eigenen Takt
+  function guardStepT(e, now) {
+    if (e.ownStepTime !== undefined) return Math.min(1, (now - e.ownStepTime) / e.ownInterval);
+    return Math.min(1, (now - enemyStepTime) / enemyInterval);
+  }
 
   // Ping-Abstand je Level: anfangs oft, ab Level 6 keine Pings mehr
   function huntPingInterval() { return level >= 6 ? 0 : 3000 + (level - 1) * 1000; }
@@ -27,7 +56,11 @@
     if (me) { me.controlled = true; me.personality = 'wanderer'; huntDir = me.dc0 > 0 ? 'right' : 'left'; }
     playerInterval = Math.max(150, 230 - (level - 1) * 10);
     // Anfangs ist dein Waechter etwas schneller als die Figur, spaeter etwas langsamer
-    enemyInterval = Math.round(playerInterval * Math.min(1.08, 0.9 + (level - 1) * 0.04));
+    huntGuardIv = Math.round(playerInterval * Math.min(1.08, 0.9 + (level - 1) * 0.04));
+    enemyInterval = huntGuardIv;
+    huntGuardTimer = 0;
+    if (me) { me.ownStepTime = now; me.ownInterval = huntGuardIv; }
+    huntSpeedUntil = 0; huntSlowUntil = 0; huntConfuseUntil = 0; huntRunnerFrozenUntil = 0;
     shieldUntil = 0;
     boostsRemaining = 0; boostsMax = 0;
     huntPlan = { phase: 'home', count: 0, len: 0 };
@@ -48,11 +81,12 @@
     if (!alive.length) { huntLose('All your guards are down.', '💀'); return; }
     const me = alive[0];
     me.controlled = true;
+    me.ownStepTime = performance.now(); me.ownInterval = huntGuardIv;
     huntDir = me.dr0 < 0 ? 'up' : me.dr0 > 0 ? 'down' : me.dc0 < 0 ? 'left' : 'right';
     milestonePopups.push({ x: me.c, y: me.r - 1, text: '🔁 Switched guard', startTime: performance.now() });
   }
 
-  function huntSetDir(d) { huntDir = d; }
+  function huntSetDir(d) { huntDir = performance.now() < huntConfuseUntil ? INVERTED_DIR[d] : d; }
 
   // Schritt deines Waechters: gewuenschte Richtung, sonst stehen bleiben
   function huntGuardStep(e, opts) {
@@ -215,6 +249,7 @@
 
   // Punkte der CPU zaehlen nicht fuer dich
   function huntStepPlayer() {
+    if (performance.now() < huntRunnerFrozenUntil) return; // von dir eingefroren
     const s0 = score;
     huntCpuThink();
     stepPlayer();
@@ -229,8 +264,19 @@
     return !!me && canSeePlayer(me);
   }
 
-  function huntUpdate(now) {
+  function huntUpdate(now, delta) {
     huntEnsureControl();
+    const me = huntControlled();
+    if (me && now >= freezeUntil) {
+      huntGuardTimer += delta;
+      const iv = huntGuardInterval(now);
+      if (huntGuardTimer > iv) {
+        huntGuardTimer = Math.min(huntGuardTimer - iv, iv);
+        me.ownStepTime = now; me.ownInterval = iv;
+        moveEnemies(me);
+        if (enemies.includes(me)) huntGuardPickup(me);
+      }
+    }
     const iv = huntPingInterval();
     if (iv && now >= huntNextPing) {
       huntPingAt = now;
@@ -244,7 +290,7 @@
   function huntDrawWorld(now, runnerVisible) {
     const me = huntControlled();
     if (me) {
-      const eT = Math.min(1, (now - enemyStepTime) / enemyInterval);
+      const eT = guardStepT(me, now);
       const pc = me.prevC !== undefined ? me.prevC : me.c, pr = me.prevR !== undefined ? me.prevR : me.r;
       const cx = (pc + (me.c - pc) * eT) * CELL + CELL / 2, cy = (pr + (me.r - pr) * eT) * CELL + CELL / 2;
       ctx.beginPath();
@@ -265,4 +311,55 @@
       ctx.fillText('👻', huntLastSeen.x * CELL + CELL / 2, huntLastSeen.y * CELL + CELL / 2);
       ctx.globalAlpha = 1;
     }
+  }
+
+  // --- Power-ups und -downs ---
+  // Nimmt die CPU eine Kugel, wirkt sie wie im normalen Spiel auf die Figur (nur Effekte, die
+  // ihr etwas bringen oder dir helfen). Nimmst du sie, wirkt sie auf deinen Waechter.
+  const HUNT_RUNNER_UP = ['speed', 'shield', 'freeze', 'trailguard', 'spikes'];
+  const HUNT_RUNNER_DOWN = ['slow', 'alarm', 'swarm'];
+  const HUNT_RUNNER_DOWN_CHAOS = ['duck', 'disco', 'banana'];
+  const HUNT_GUARD_UP = ['speed', 'freeze', 'alarm', 'swarm'];
+  const HUNT_GUARD_DOWN = ['slow', 'confuse', 'drunk', 'psylo'];
+  const HUNT_GUARD_DOWN_CHAOS = ['banana'];
+
+  function huntPick(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+  function huntRunnerOrbType(kind) {
+    if (kind === 'up') return huntPick(HUNT_RUNNER_UP);
+    return huntPick(gameMode === 'chaos' ? HUNT_RUNNER_DOWN.concat(HUNT_RUNNER_DOWN_CHAOS) : HUNT_RUNNER_DOWN);
+  }
+
+  function huntGuardPickup(me) {
+    const idx = powerUps.findIndex(p => p.c === me.c && p.r === me.r);
+    if (idx < 0) return;
+    const p = powerUps.splice(idx, 1)[0];
+    const type = p.kind === 'up' ? huntPick(HUNT_GUARD_UP)
+      : huntPick(gameMode === 'chaos' ? HUNT_GUARD_DOWN.concat(HUNT_GUARD_DOWN_CHAOS) : HUNT_GUARD_DOWN);
+    const now = performance.now();
+    revealPopups.push({
+      x: me.c, y: me.r, type, kind: p.kind, owner: 'guard',
+      startTime: now, resolveAt: now + ROULETTE_MS, applied: false, lastTickIdx: -1
+    });
+  }
+
+  function huntGuardPower(type, kind) {
+    const now = performance.now();
+    const me = huntControlled();
+    if (type === 'speed') huntSpeedUntil = now + POWER_MS.speed;
+    else if (type === 'freeze') huntRunnerFrozenUntil = now + POWER_MS.freeze;
+    else if (type === 'alarm') { alarmUntil = now + 3500; huntPingAt = now + 3500 - HUNT_PING_SHOW; triggerShake(3, 200); }
+    else if (type === 'swarm') { swarmUntil = now + 6000; spawnSwarmEnemy(); }
+    else if (type === 'slow') huntSlowUntil = now + POWER_MS.slow;
+    else if (type === 'confuse') huntConfuseUntil = now + 4000;
+    else if (type === 'drunk') drunkUntil = now + 5500;
+    else if (type === 'psylo') psyloUntil = now + 8000;
+    else if (type === 'banana' && me) {
+      me.stunnedUntil = now + 1500;
+      spawnEmote('🍌', me.c, me.r);
+      sndGuardSlip();
+    }
+    if (kind === 'up') { score += 15; sndPowerUp(type); }
+    else sndPowerDown(type);
+    updateStats();
   }

@@ -266,7 +266,7 @@
 
   // Gezeichnete (interpolierte) Position von Waechter und Spieler
   function guardSightOrigin(e, now) {
-    const t = Math.min(1, (now - enemyStepTime) / enemyInterval);
+    const t = guardStepT(e, now);
     const pc = e.prevC !== undefined ? e.prevC : e.c, pr = e.prevR !== undefined ? e.prevR : e.r;
     return [pc + (e.c - pc) * t + 0.5, pr + (e.r - pr) * t + 0.5];
   }

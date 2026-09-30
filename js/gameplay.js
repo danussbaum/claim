@@ -487,6 +487,7 @@
     if (idx >= 0) {
       const p = powerUps[idx];
       const now = performance.now();
+      if (huntActive()) p.type = huntRunnerOrbType(p.kind); // Jagd: nur sinnvolle Effekte fuer die CPU
       revealPopups.push({
         x: nx, y: ny, type: p.type, kind: p.kind,
         startTime: now, resolveAt: now + ROULETTE_MS, applied: false, lastTickIdx: -1
@@ -501,7 +502,8 @@
       if (rp.applied) continue;
       if (now >= rp.resolveAt) {
         rp.applied = true;
-        if (rp.kind === 'down') activatePowerDown(rp.type);
+        if (rp.owner === 'guard') huntGuardPower(rp.type, rp.kind);
+        else if (rp.kind === 'down') activatePowerDown(rp.type);
         else activatePowerUp(rp.type);
         continue;
       }
