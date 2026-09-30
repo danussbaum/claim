@@ -204,7 +204,7 @@
     ctx.rotate(-view);
     ctx.scale(REPLAY_ZOOM, REPLAY_ZOOM);
     ctx.translate(-sx, -sy);
-    ctx.filter = 'grayscale(1) contrast(1.35) brightness(1.08)';
+    ctx.filter = 'grayscale(1) contrast(1.2) brightness(1.45)';
     ctx.drawImage(f.img, 0, 0, W, H);
     ctx.filter = 'none';
     if (g) {
@@ -215,14 +215,14 @@
       ctx.moveTo(sx, sy);
       ctx.arc(sx, sy, v.range * CELL, g.a + v.half, g.a - v.half, true);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(0,0,0,0.62)';
+      ctx.fillStyle = 'rgba(0,0,0,0.32)';
       ctx.fill('evenodd');
     }
     ctx.restore();
 
     // Gruenstich des Ueberwachungsmonitors
     ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgb(170,255,190)';
+    ctx.fillStyle = 'rgb(215,255,222)';
     ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = 'source-over';
 
@@ -236,7 +236,7 @@
     }
 
     // Scanlines
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
     for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
     // Rauschen, beim Spulen staerker
     const noise = phase === 'rewind' ? 420 : 120;
@@ -251,7 +251,7 @@
     // Vignette
     const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.72);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.7)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.35)');
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, H);
 
