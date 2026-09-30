@@ -14,7 +14,8 @@
   let huntNextPing = 0, huntPingAt = -1e9;
   const HUNT_CPU_LIVES = 3;     // so oft musst du die CPU pro Level erwischen
   let huntCpuLives = HUNT_CPU_LIVES;
-  let huntLosing = false;       // endGame() soll ausnahmsweise wirklich ein Leben abziehen
+  let huntLosing = false;
+  let huntCpuShooting = false;  // shoot() ist sonst im Jagd-Modus gesperrt       // endGame() soll ausnahmsweise wirklich ein Leben abziehen
 
   const HUNT_ROLES = {
     runner: { label: 'Runner', desc: '' },
@@ -267,6 +268,7 @@
     const s0 = score;
     huntCpuThink();
     stepPlayer();
+    if (running && !dying && !celebrating) huntCpuMaybeShoot();
     if (score !== s0) { score = s0; updateStats(); }
   }
 
@@ -326,3 +328,30 @@
     }
   }
 
+
+  // CPU schiesst, wenn ein Waechter geradeaus in Reichweite steht (Treffsicherheit steigt mit dem Level)
+  function huntCpuMaybeShoot() {
+    const now = performance.now();
+    if (now < shotCooldownUntil && now >= rapidfireUntil) return;
+    const [dx, dy] = dirDelta(dir);
+    let target = null;
+    for (let k = 1; k <= SHOT_RANGE; k++) {
+      const x = px + dx * k, y = py + dy * k;
+      if (!inBounds(x, y) || grid[y][x] === TERRITORY || grid[y][x] === BLOCK) break;
+      target = enemies.find(e => e.c === x && e.r === y);
+      if (target) break;
+    }
+    if (!target || Math.random() > Math.min(0.9, 0.35 + level * 0.08)) return;
+    huntCpuShooting = true;
+    shoot();
+    huntCpuShooting = false;
+  }
+
+  // Schiessen, Gadget und Boost gibt es fuer den Waechter nicht: Knoepfe ausblenden
+  function huntSyncButtons() {
+    const hide = huntActive();
+    ['btnShoot', 'btnGadget', 'infoCell'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.visibility = hide ? 'hidden' : '';
+    });
+  }

@@ -48,6 +48,7 @@
     gameOver = false;
     flashCells = [];
     bgRipples = [];
+    huntSyncButtons();
     if (huntActive()) huntSetupLevel();
     updateStats();
   }
@@ -153,7 +154,7 @@
   const SHOT_RANGE = 8;
 
   function shoot() {
-    if (huntActive()) return;
+    if (huntActive() && !huntCpuShooting) return; // Jagd: nur die CPU schiesst
     if (gameOver || paused || celebrating || countdownActive) return;
     const now = performance.now();
     const rapidfireActive = now < rapidfireUntil;
