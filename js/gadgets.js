@@ -83,11 +83,9 @@
   }
 
   // Welt-Punkt -> Bildschirm-Punkt, passend zur Kamera-Transformation in draw().
+  let camShiftX = 0, camShiftY = 0; // Verschiebung der Folgekamera, gesetzt in draw()
   function worldToScreen(wx, wy) {
-    if ((cameraMode === 'follow' || cameraMode === 'push') && !huntActive()) {
-      return [boardCanvas.width / 2, boardCanvas.height / 2];
-    }
-    return [wx, wy];
+    return [wx + camShiftX, wy + camShiftY];
   }
   let gameMode = 'normal';
   let cameraMode = 'standard';

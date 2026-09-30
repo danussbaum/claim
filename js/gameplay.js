@@ -117,6 +117,12 @@
     triggerShake(6, 220);
     triggerSlowMo(110);
     vibrate([25]);
+    if (huntActive()) {
+      // Jagd: tote Waechter bringen dir keine Punkte; Ersatz kommt wie sonst
+      const ne = spawnEnemy(randomPersonality());
+      if (ne) enemies.push(ne);
+      return;
+    }
     score += 50;
 
     const nowK = performance.now();
@@ -683,7 +689,7 @@
         const bonusScore = bonusCells.length * 5 * (BONUS_MULT - 1);
         score += bonusScore;
         const mid = bonusCells[Math.floor(bonusCells.length / 2)];
-        milestonePopups.push({ x: mid.c, y: mid.r, text: '⭐ Bonus +' + bonusScore, startTime: performance.now() });
+        if (!huntActive()) milestonePopups.push({ x: mid.c, y: mid.r, text: '⭐ Bonus +' + bonusScore, startTime: performance.now() });
         spawnFireworkBurst(mid.c * CELL + CELL / 2, mid.r * CELL + CELL / 2, ['#ffd23f', '#ffb03a', '#fff2b0']);
         sndPowerUp('speed');
       }
@@ -717,7 +723,7 @@
       const mult = comboMultiplier();
       const bonus = Math.round(gained * 5 * (mult - 1));
       score += bonus;
-      if (!trailSpotted && !tutorialActive) {
+      if (!trailSpotted && !tutorialActive && !huntActive()) {
         // Stealth: Linie ungesehen geschlossen
         const ghost = Math.round(gained * 5 * (STEALTH_MULT - 1));
         score += ghost;
@@ -852,7 +858,7 @@
 
     const pops = [];
     if (isNewHigh) pops.push('🏆 NEW HIGH SCORE!');
-    pops.push('✅ Territory secured');
+    pops.push(huntActive() ? '🎯 Runner caught' : '✅ Territory secured');
     if (bonusPct > 0) pops.push('🎲 Risk bonus: +' + bonusPct + '%');
     const scoreFrom = scoreAtLevelStart, scoreTo = score;
 

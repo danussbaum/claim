@@ -122,7 +122,7 @@
       // Benommen nach Stolpern oder in der Kaffeepause: bleibt stehen
       if (nowP < (e.stunnedUntil || 0)) continue;
       if (nowP < (e.breakUntil || 0)) {
-        if (!e.breakSneaked && Math.abs(e.c - px) + Math.abs(e.r - py) <= 2) {
+        if (!e.breakSneaked && !huntActive() && Math.abs(e.c - px) + Math.abs(e.r - py) <= 2) {
           e.breakSneaked = true;
           score += BREAK_SNEAK_BONUS;
           updateStats();
@@ -325,7 +325,7 @@
           closeText = ' Only ' + (75 - capturedPct) + '% left to the next level!';
         }
         const highText = isNewHigh ? '🏆 New high score! ' : '';
-        const statsLine = '\n\n📊 Biggest cut: ' + statBiggestCut + ' cells  ·  Longest line: ' +
+        const statsLine = huntActive() ? '\n\n📊 Levels cleared: ' + statLevelsCleared : '\n\n📊 Biggest cut: ' + statBiggestCut + ' cells  ·  Longest line: ' +
                           statLongestTrail + '  ·  Guards down: ' + statKills +
                           '  ·  Levels cleared: ' + statLevelsCleared;
         showOverlay(gameOverEmoji + ' Game Over', highText + reason + ' Score: ' + score + '.' + closeText + statsLine,

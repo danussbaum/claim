@@ -30,7 +30,9 @@
     loadHighScoreForMode();
   }
 
-  function huntActive() { return huntRole === 'guard' && !tutorialActive && !versusRender; }
+  function huntActive() {
+    return huntRole === 'guard' && !tutorialActive && !versusRender && !(typeof vsActive !== 'undefined' && vsActive);
+  }
 
   // Eigenes Tempo deines Waechters
   let huntGuardIv = 250, huntGuardTimer = 0;
@@ -86,6 +88,7 @@
     huntNextPing = now + (huntPingInterval() || 1e12);
     huntLosing = false;
     huntCpuLives = HUNT_CPU_LIVES;
+    if (me) milestonePopups.push({ x: me.c, y: me.r - 1, text: '🎯 Catch the runner!', startTime: now });
   }
 
   function huntControlled() { return enemies.find(e => e.controlled) || null; }
@@ -398,8 +401,11 @@
   }
 
   // Knopf-Symbole: Radar statt Fadenkreuz, Alarm statt Gadget
+  let huntButtonsShown = null;
   function huntSyncButtons() {
     const hunt = huntActive();
+    if (hunt === huntButtonsShown) return;
+    huntButtonsShown = hunt;
     const shootBtn = document.getElementById('btnShoot');
     if (!shootBtn) return;
     const cross = shootBtn.querySelector('.crosshairIcon');
