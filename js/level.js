@@ -142,7 +142,8 @@
     }
     document.getElementById('score').textContent = score;
     document.getElementById('level').textContent = level;
-    document.getElementById('lives').textContent = lives;
+    // Jagd-Modus: dazu die Leben der CPU-Figur
+    document.getElementById('lives').textContent = huntActive() ? lives + ' · 🏃' + huntCpuLives : lives;
     if (score !== prevStatsScore) {
       const scoreEl = document.getElementById('score');
       scoreEl.classList.remove('scorePopAnim');
@@ -261,12 +262,13 @@
   function visionRange(e) {
     const v = VISION[e.personality] || VISION.wanderer;
     const helium = performance.now() < heliumUntil ? HELIUM_EXTRA_RANGE : 0; // grosser Kopf faellt auf
-    return Math.max(3, v.range - (perks ? perks.stealth : 0)) + helium;
+    const eagle = e.controlled ? huntPerks.eye : 0; // Jagd-Modus: Perk deines Waechters
+    return Math.max(3, v.range - (perks ? perks.stealth : 0)) + helium + eagle;
   }
 
   // Gezeichnete (interpolierte) Position von Waechter und Spieler
   function guardSightOrigin(e, now) {
-    const t = Math.min(1, (now - enemyStepTime) / enemyInterval);
+    const t = guardStepT(e, now);
     const pc = e.prevC !== undefined ? e.prevC : e.c, pr = e.prevR !== undefined ? e.prevR : e.r;
     return [pc + (e.c - pc) * t + 0.5, pr + (e.r - pr) * t + 0.5];
   }

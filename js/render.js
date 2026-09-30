@@ -48,6 +48,17 @@ function draw(now) {
     const dispPx = prevPx + (px - prevPx) * playerT;
     const dispPy = prevPy + (py - prevPy) * playerT;
     const camFollow = cameraMode === 'follow' || cameraMode === 'push';
+    // Die Kamera folgt der Figur - im Jagd-Modus deinem Waechter
+    let camPx = dispPx, camPy = dispPy;
+    const camGuard = huntActive() ? huntControlled() : null;
+    if (camGuard) {
+      const gt = guardStepT(camGuard, now);
+      const gpc = camGuard.prevC !== undefined ? camGuard.prevC : camGuard.c;
+      const gpr = camGuard.prevR !== undefined ? camGuard.prevR : camGuard.r;
+      camPx = gpc + (camGuard.c - gpc) * gt; camPy = gpr + (camGuard.r - gpr) * gt;
+    }
+    camShiftX = camFollow ? boardCanvas.width / 2 - (camPx * CELL + CELL / 2) : 0;
+    camShiftY = camFollow ? boardCanvas.height / 2 - (camPy * CELL + CELL / 2) : 0;
 
     const bgT = threatDisp * (0.75 + gridPulse * 0.25);
     if (psyloActive) {
@@ -64,8 +75,7 @@ function draw(now) {
     // Tiefenschicht: folgt der Kamera nur zu PARALLAX_FACTOR und driftet zusaetzlich
     // ganz langsam, damit der Hintergrund auch bei stehender Kamera atmet.
     if (bgParallaxPattern) {
-      const camX = camFollow ? boardCanvas.width / 2 - (dispPx * CELL + CELL / 2) : 0;
-      const camY = camFollow ? boardCanvas.height / 2 - (dispPy * CELL + CELL / 2) : 0;
+      const camX = camShiftX, camY = camShiftY;
       const ox = camX * PARALLAX_FACTOR + Math.sin(now / 9000) * CELL * 0.6;
       const oy = camY * PARALLAX_FACTOR + Math.cos(now / 11000) * CELL * 0.45;
       ctx.save();
@@ -80,8 +90,7 @@ function draw(now) {
 
     ctx.save();
     if (camFollow) {
-      ctx.translate(boardCanvas.width / 2 - (dispPx * CELL + CELL / 2),
-                    boardCanvas.height / 2 - (dispPy * CELL + CELL / 2));
+      ctx.translate(camShiftX, camShiftY);
     }
     // Kill-Cam: kurzer Zoom auf besondere Abschuesse
     if (killCam && now < killCam.until) {
@@ -107,8 +116,8 @@ function draw(now) {
         const angle = Math.sin(tt * 5.2) * 0.11 + Math.sin(tt * 3.1) * 0.05;
         const dx = Math.sin(tt * 7.4) * CELL * 0.42 + Math.sin(tt * 4.1) * CELL * 0.15;
         const dy = Math.cos(tt * 6.3) * CELL * 0.34 + Math.cos(tt * 3.7) * CELL * 0.12;
-        const pivotX = camFollow ? dispPx * CELL + CELL / 2 : COLS * CELL / 2;
-        const pivotY = camFollow ? dispPy * CELL + CELL / 2 : ROWS * CELL / 2;
+        const pivotX = camFollow ? camPx * CELL + CELL / 2 : COLS * CELL / 2;
+        const pivotY = camFollow ? camPy * CELL + CELL / 2 : ROWS * CELL / 2;
         ctx.translate(pivotX, pivotY);
         ctx.rotate(angle);
         ctx.translate(-pivotX + dx, -pivotY + dy);
@@ -129,8 +138,12 @@ function draw(now) {
 
     const pcx = dispPx * CELL + CELL / 2, pcy = dispPy * CELL + CELL / 2;
 
-    drawPlayer(now, blinkOnGlobal, dispPx, dispPy, pcx, pcy, playerT, psyloActive);
+    // Jagd-Modus: die CPU-Figur nur zeichnen, wenn dein Waechter sie sieht (oder bei einem Ping)
+    const hunt = huntActive();
+    const runnerVisible = !hunt || huntRunnerVisible(now);
+    if (runnerVisible) drawPlayer(now, blinkOnGlobal, dispPx, dispPy, pcx, pcy, playerT, psyloActive);
     drawGuards(now, blinkOnGlobal);
+    if (hunt) huntDrawWorld(now, runnerVisible);
 
     if (versusRender) vsDrawWorld(now);
     ctx.restore();

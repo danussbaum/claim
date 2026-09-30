@@ -83,11 +83,9 @@
   }
 
   // Welt-Punkt -> Bildschirm-Punkt, passend zur Kamera-Transformation in draw().
+  let camShiftX = 0, camShiftY = 0; // Verschiebung der Folgekamera, gesetzt in draw()
   function worldToScreen(wx, wy) {
-    if (cameraMode === 'follow' || cameraMode === 'push') {
-      return [boardCanvas.width / 2, boardCanvas.height / 2];
-    }
-    return [wx, wy];
+    return [wx + camShiftX, wy + camShiftY];
   }
   let gameMode = 'normal';
   let cameraMode = 'standard';
@@ -407,7 +405,10 @@
   let lives = 3;
   let highScore = 0;
 
-  function highScoreKey() { return 'claim_highscore_' + gameMode; }
+  function highScoreKey() {
+    const hunt = typeof huntRole !== 'undefined' && huntRole === 'guard'; // hunt.js laedt spaeter
+    return 'claim_highscore_' + gameMode + (hunt ? '_hunt' : '');
+  }
 
   function loadHighScoreForMode() {
     let v = 0;

@@ -16,7 +16,7 @@
         // an der Bildrate. Auf ein Intervall begrenzt, damit nach einem
         // Aussetzer keine Schritte nachgeholt werden.
         playerTimer = Math.min(playerTimer - playerIv, playerIv);
-        stepPlayer();
+        if (huntActive()) huntStepPlayer(); else stepPlayer();
       }
       if (running && !gameOver) {
         const guardsFrozen = performance.now() < freezeUntil || tutorialGuardsStand ||
@@ -37,6 +37,7 @@
           spawnPowerUp();
         }
         updateMovingBlocks(delta);
+        if (huntActive()) huntUpdate(performance.now(), delta);
         updatePendingReveals(performance.now());
         updateTutorial();
         if (swarmEnemies.length && performance.now() >= swarmUntil) clearSwarmEnemies();
@@ -64,6 +65,8 @@
   }
 
   function updateActionButtonsUI() {
+    huntSyncButtons();
+    if (huntActive()) { huntUpdateButtonsUI(); return; }
     const el = document.getElementById('btnGadget');
     const sweep = document.getElementById('gadgetSweep');
     if (el && sweep) {
@@ -212,6 +215,15 @@
   let modeSelectBuilt = false;
 
   function buildModeSelect() {
+    const roleRow = document.getElementById('roleRow');
+    Object.keys(HUNT_ROLES).forEach(key => {
+      const b = document.createElement('button');
+      b.className = 'pill';
+      b.dataset.role = key;
+      b.textContent = HUNT_ROLES[key].label;
+      b.addEventListener('click', () => { setHuntRole(key); refreshModeSelect(); });
+      roleRow.appendChild(b);
+    });
     const modeRow = document.getElementById('modeRow');
     const cameraRow = document.getElementById('cameraRow');
     Object.keys(MODES).forEach(key => {
@@ -279,6 +291,9 @@
 
   function refreshModeSelect() {
     if (!modeSelectBuilt) buildModeSelect();
+    document.querySelectorAll('#roleRow .pill').forEach(b => {
+      b.classList.toggle('active', b.dataset.role === huntRole);
+    });
     document.querySelectorAll('#modeRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === gameMode);
     });
@@ -291,10 +306,10 @@
     document.querySelectorAll('#voiceRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.voice === voiceMode);
     });
-    document.getElementById('optionsSummary').textContent = [MODES[gameMode].label, CAMERAS[cameraMode].label,
+    document.getElementById('optionsSummary').textContent = [HUNT_ROLES[huntRole].label, MODES[gameMode].label, CAMERAS[cameraMode].label,
       GADGETS[gadgetChoice].icon + ' ' + GADGETS[gadgetChoice].label, VOICE_MODES[voiceMode].label].join(' · ');
     document.getElementById('selectDesc').textContent =
-      MODES[gameMode].desc + ' ' + CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
+      (HUNT_ROLES[huntRole].desc ? HUNT_ROLES[huntRole].desc + ' ' : '') + MODES[gameMode].desc + ' ' + CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
     updateGadgetButtonIcon();
   }
 

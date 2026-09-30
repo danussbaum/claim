@@ -22,7 +22,7 @@
   }
 
   function checkNearMiss(now) {
-    if (gameOver || paused) return;
+    if (gameOver || paused || huntActive()) return; // Jagd: wuerde die versteckte Figur verraten
     const d = nearestEnemyDist();
     if (d === 1 && prevNearestDist > 1 && now > nearMissCooldownUntil) {
       nearMissCooldownUntil = now + 1500;

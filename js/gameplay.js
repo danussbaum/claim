@@ -48,6 +48,8 @@
     gameOver = false;
     flashCells = [];
     bgRipples = [];
+    huntSyncButtons();
+    if (huntActive()) huntSetupLevel();
     updateStats();
   }
 
@@ -115,6 +117,12 @@
     triggerShake(6, 220);
     triggerSlowMo(110);
     vibrate([25]);
+    if (huntActive()) {
+      // Jagd: tote Waechter bringen dir keine Punkte; Ersatz kommt wie sonst
+      const ne = spawnEnemy(randomPersonality());
+      if (ne) enemies.push(ne);
+      return;
+    }
     score += 50;
 
     const nowK = performance.now();
@@ -152,6 +160,7 @@
   const SHOT_RANGE = 8;
 
   function shoot() {
+    if (huntActive() && !huntCpuShooting) { huntRadar(); return; } // Jagd: Knopf ist dein Radar
     if (gameOver || paused || celebrating || countdownActive) return;
     const now = performance.now();
     const rapidfireActive = now < rapidfireUntil;
@@ -241,6 +250,7 @@
     celebrating = false;
     resetRunStats();
     perks = defaultPerks();
+    huntResetPerks();
     resetLevel(1);
   }
 
@@ -254,6 +264,7 @@
   // Kurzer Sprint in die aktuelle Laufrichtung. Ausgeloest per ⚡-Knopf oder indem
   // man die Richtung nochmals angibt, in die man ohnehin laeuft.
   function useBoost() {
+    if (huntActive()) { huntSprint(); return; }
     if (gameOver || paused || countdownActive || !running || boostsRemaining <= 0) return;
     speedUntil = Math.max(speedUntil, performance.now() + 180);
     boostsRemaining--;
@@ -265,6 +276,7 @@
 
   function setDir(d) {
     if (gameOver || paused || countdownActive) return;
+    if (huntActive()) { huntSetDir(d); return; }
     // Push-Kamera und Confuse invertieren beide - zusammen heben sie sich auf.
     let mirrored = performance.now() < confuseUntil;
     if (cameraMode === 'push') mirrored = !mirrored;
@@ -323,6 +335,7 @@
   }
 
   function useGadget() {
+    if (huntActive()) { huntAlarm(); return; }
     if (gameOver || paused || celebrating || countdownActive || dying) return;
     if (decoyCharges > 0) { throwDecoy(); return; } // Decoy-Wuerfe haben Vorrang vor dem Gadget
     if (!gadgetReady()) return;
@@ -676,7 +689,7 @@
         const bonusScore = bonusCells.length * 5 * (BONUS_MULT - 1);
         score += bonusScore;
         const mid = bonusCells[Math.floor(bonusCells.length / 2)];
-        milestonePopups.push({ x: mid.c, y: mid.r, text: '⭐ Bonus +' + bonusScore, startTime: performance.now() });
+        if (!huntActive()) milestonePopups.push({ x: mid.c, y: mid.r, text: '⭐ Bonus +' + bonusScore, startTime: performance.now() });
         spawnFireworkBurst(mid.c * CELL + CELL / 2, mid.r * CELL + CELL / 2, ['#ffd23f', '#ffb03a', '#fff2b0']);
         sndPowerUp('speed');
       }
@@ -710,7 +723,7 @@
       const mult = comboMultiplier();
       const bonus = Math.round(gained * 5 * (mult - 1));
       score += bonus;
-      if (!trailSpotted && !tutorialActive) {
+      if (!trailSpotted && !tutorialActive && !huntActive()) {
         // Stealth: Linie ungesehen geschlossen
         const ghost = Math.round(gained * 5 * (STEALTH_MULT - 1));
         score += ghost;
@@ -729,6 +742,10 @@
       milestone50Shown = true;
       milestonePopups.push({ x: px, y: py, text: '🔥 Halfway!', startTime: performance.now() });
       sndPowerUp('speed');
+    }
+    if (freshPct >= 75 && huntActive()) {
+      huntLose('The runner claimed ' + freshPct + '%.', '🏃');
+      return;
     }
     if (freshPct >= 75 && !levelReadyToComplete && (!tutorialActive || tutorialAllowCashOut)) {
       levelReadyToComplete = true;
@@ -841,7 +858,7 @@
 
     const pops = [];
     if (isNewHigh) pops.push('🏆 NEW HIGH SCORE!');
-    pops.push('✅ Territory secured');
+    pops.push(huntActive() ? '🎯 Runner caught' : '✅ Territory secured');
     if (bonusPct > 0) pops.push('🎲 Risk bonus: +' + bonusPct + '%');
     const scoreFrom = scoreAtLevelStart, scoreTo = score;
 

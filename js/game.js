@@ -83,13 +83,17 @@
     return opts[Math.floor(Math.random() * opts.length)];
   }
 
-  function moveEnemies() {
-    enemyStepTime = performance.now();
-    if (enemyStepTime < discoUntil) sndDiscoBeat();
+  // only: nur diesen Waechter ziehen (Jagd-Modus: deinen Waechter im eigenen Takt)
+  function moveEnemies(only) {
+    if (!only) {
+      enemyStepTime = performance.now();
+      if (enemyStepTime < discoUntil) sndDiscoBeat();
+    }
     // Ueber eine Kopie laufen: killEnemyByShot() kann waehrend der Schleife
     // Waechter entfernen und neue anhaengen.
-    for (const e of enemies.slice()) {
+    for (const e of (only ? [only] : enemies.slice())) {
       if (enemies.indexOf(e) === -1) continue; // in diesem Tick bereits entfernt
+      if (e.controlled && !only) continue;
       e.prevR = e.r; e.prevC = e.c;
       const opts = [[0,-1],[0,1],[-1,0],[1,0]].filter(([dx,dy]) => {
         const nx = e.c + dx, ny = e.r + dy;
@@ -101,6 +105,14 @@
       });
       if (opts.length === 0) continue;
 
+      let choice, isHuntingNow = false;
+      const now = performance.now();
+      if (e.controlled) {
+        // Jagd-Modus: diesen Waechter steuerst du
+        if (now < (e.stunnedUntil || 0)) continue;
+        choice = huntGuardStep(e, opts);
+        if (!choice) continue;
+      } else {
       const nowP = performance.now();
       // Disco: getanzt wird nur auf jeden zweiten Takt
       if (nowP < discoUntil) {
@@ -110,7 +122,7 @@
       // Benommen nach Stolpern oder in der Kaffeepause: bleibt stehen
       if (nowP < (e.stunnedUntil || 0)) continue;
       if (nowP < (e.breakUntil || 0)) {
-        if (!e.breakSneaked && Math.abs(e.c - px) + Math.abs(e.r - py) <= 2) {
+        if (!e.breakSneaked && !huntActive() && Math.abs(e.c - px) + Math.abs(e.r - py) <= 2) {
           e.breakSneaked = true;
           score += BREAK_SNEAK_BONUS;
           updateStats();
@@ -141,8 +153,6 @@
         continue;
       }
 
-      let choice;
-      const now = performance.now();
       const alarmActive = now < alarmUntil;
 
       // Waechter jagen nur, was sie sehen - und merken es sich kurz.
@@ -150,7 +160,7 @@
       if (seesPlayer) { e.huntingActive = true; e.lastSeenAt = now; if (trail.length) trailSpotted = true; }
       else if (e.huntingActive && now - e.lastSeenAt > VISION_MEMORY) { e.huntingActive = false; guardSay(e, 'lost'); }
 
-      const isHuntingNow = alarmActive || e.huntingActive;
+      isHuntingNow = alarmActive || e.huntingActive;
       if (isHuntingNow && !e.wasHunting) { sndHunterAlert(); if (!alarmActive) guardSay(e, 'spotted'); }
       e.wasHunting = isHuntingNow;
 
@@ -176,6 +186,7 @@
         choice = chooseGuardStep(e, opts, { c: e.distractC, r: e.distractR });
       } else {
         choice = chooseGuardStep(e, opts, null, (c, r) => grid[r][c] === TERRITORY, trail);
+      }
       }
 
       e.dc0 = choice[0]; e.dr0 = choice[1];
@@ -233,7 +244,7 @@
           return;
         }
       } else if (grid[e.r][e.c] === TRAIL) {
-        if (e.personality === 'cutter') {
+        if (e.personality === 'cutter' && !e.controlled) {
           cutTrailAt(e.c, e.r, '✂️');
         } else {
           endGame('A guard cut your line.', '✂️');
@@ -251,8 +262,8 @@
     const pT = Math.min(1, (now - playerStepTime) / currentPlayerInterval());
     const dpx = prevPx + (px - prevPx) * pT;
     const dpy = prevPy + (py - prevPy) * pT;
-    const eT = Math.min(1, (now - enemyStepTime) / enemyInterval);
     for (const e of enemies.slice()) {
+      const eT = guardStepT(e, now);
       if (now < (e.stunnedUntil || 0)) continue;
       const pc = e.prevC !== undefined ? e.prevC : e.c;
       const pr = e.prevR !== undefined ? e.prevR : e.r;
@@ -274,6 +285,7 @@
 
   function endGame(reason, emoji) {
     if (!running || dying) return; // verhindert doppelten Lebensabzug bei mehrfachem Aufruf
+    if (huntActive() && !huntLosing) { huntCaught(reason); return; } // Jagd: die CPU-Figur ist erwischt
     if (tutorialActive) {
       // Im Tutorial kostet ein Fehler nichts - die Etappe startet einfach neu.
       dying = true;
@@ -305,13 +317,15 @@
         lifeLostFlag = false;
         const isNewHigh = saveHighScoreIfNeeded();
         let closeText;
-        if (levelReadyToComplete || capturedPct >= 75) {
+        if (huntActive()) {
+          closeText = '';
+        } else if (levelReadyToComplete || capturedPct >= 75) {
           closeText = ' You already had ' + capturedPct + '% - the bonus is gone, but so close!';
         } else {
           closeText = ' Only ' + (75 - capturedPct) + '% left to the next level!';
         }
         const highText = isNewHigh ? '🏆 New high score! ' : '';
-        const statsLine = '\n\n📊 Biggest cut: ' + statBiggestCut + ' cells  ·  Longest line: ' +
+        const statsLine = huntActive() ? '\n\n📊 Levels cleared: ' + statLevelsCleared : '\n\n📊 Biggest cut: ' + statBiggestCut + ' cells  ·  Longest line: ' +
                           statLongestTrail + '  ·  Guards down: ' + statKills +
                           '  ·  Levels cleared: ' + statLevelsCleared;
         showOverlay(gameOverEmoji + ' Game Over', highText + reason + ' Score: ' + score + '.' + closeText + statsLine,
@@ -335,6 +349,7 @@
   let shopOpen = false;
 
   function drawableCards() {
+    if (huntActive()) return HUNT_PERK_CARDS.filter(c => (c.id === 'life' ? perks.lives : huntPerkCount(c.id)) < c.max);
     return PERK_CARDS.filter(c => perkCount(c.id) < c.max);
   }
 
@@ -352,7 +367,7 @@
     for (const card of picks) {
       const b = document.createElement('button');
       b.className = 'card';
-      const owned = perkCount(card.id);
+      const owned = card.id.startsWith('h_') ? huntPerkCount(card.id) : perkCount(card.id);
       b.innerHTML = '<span class="cardIcon">' + card.icon + '</span>' +
         '<span><span class="cardName">' + card.name + (owned ? ' ×' + (owned + 1) : '') + '</span><br>' +
         '<span class="cardDesc">' + card.desc + '</span></span>';
