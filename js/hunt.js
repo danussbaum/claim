@@ -11,6 +11,8 @@
   let huntHomeSince = 0;        // seit wann die CPU zu Hause wartet
   let huntLastSeen = null;      // { x, y, t } letzte Sichtstelle
   let huntNextPing = 0, huntPingAt = -1e9;
+  const HUNT_CPU_LIVES = 3;     // so oft musst du die CPU pro Level erwischen
+  let huntCpuLives = HUNT_CPU_LIVES;
   let huntLosing = false;       // endGame() soll ausnahmsweise wirklich ein Leben abziehen
 
   function huntActive() { return gameMode === 'hunt' && !tutorialActive && !versusRender; }
@@ -34,6 +36,7 @@
     huntPingAt = -1e9;
     huntNextPing = now + (huntPingInterval() || 1e12);
     huntLosing = false;
+    huntCpuLives = HUNT_CPU_LIVES;
   }
 
   function huntControlled() { return enemies.find(e => e.controlled) || null; }
@@ -60,16 +63,43 @@
   // CPU erwischt (von dir oder einem anderen Waechter): Level geschafft
   function huntCaught(reason) {
     if (celebrating) return;
+    const now = performance.now();
+    huntCpuLives--;
     const pct = Math.round((countTerritory() / totalCells()) * 100);
-    const bonus = Math.max(0, 75 - pct) * 10;
+    const bonus = huntCpuLives > 0 ? 100 : Math.max(0, 75 - pct) * 10;
     score += bonus;
-    enemyDeathAnims.push({ r: py, c: px, kind: 'shot', dx: 0, dy: 0, color: '#7fe0a0', startTime: performance.now() });
+    updateStats();
+    enemyDeathAnims.push({ r: py, c: px, kind: 'shot', dx: 0, dy: 0, color: '#7fe0a0', startTime: now });
     spawnSparks(px * CELL + CELL / 2, py * CELL + CELL / 2, '#7fe0a0', 26, 280, 0);
-    milestonePopups.push({ x: px, y: py - 1, text: '🎯 Caught! +' + bonus, startTime: performance.now() });
-    announce('Caught!');
+    const left = huntCpuLives > 0 ? '  ' + '❤'.repeat(huntCpuLives) + ' left' : '';
+    milestonePopups.push({ x: px, y: py - 1, text: '🎯 Caught! +' + bonus + left, startTime: now });
+    announce(huntCpuLives > 0 ? 'Caught!' : 'Runner down!');
     triggerShake(7, 280);
     vibrate([40, 30, 60]);
-    triggerLevelCompleteFireworks();
+    if (huntCpuLives <= 0) { triggerLevelCompleteFireworks(); return; }
+    huntRespawnRunner(now);
+  }
+
+  // CPU verliert ein Leben: Linie weg, neu auf eigener Flaeche moeglichst weit weg von den Waechtern
+  function huntRespawnRunner(now) {
+    for (const [tx, ty] of trail) if (grid[ty][tx] === TRAIL) grid[ty][tx] = EMPTY;
+    trail = [];
+    let best = null, bestDist = -1;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c] !== TERRITORY) continue;
+        const d = huntGuardDistAt(c, r) + Math.random();
+        if (d > bestDist) { bestDist = d; best = [c, r]; }
+      }
+    }
+    if (best) { px = best[0]; py = best[1]; }
+    prevPx = px; prevPy = py;
+    playerStepTime = now;
+    huntPlan = { phase: 'home', count: 0, len: 0 };
+    huntHomeSince = now;
+    huntLastSeen = null;
+    huntPingAt = now; // kurz zeigen, wo sie wieder auftaucht
+    addRipple(px, py, 3, 600, '140,196,255', 0.7);
   }
 
   function huntLose(reason, emoji) {
