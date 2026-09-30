@@ -99,6 +99,9 @@
   function replayPlay(reason, done) {
     if (replayFrames.length < 6 || replayActive) { replayReset(); done(); return; }
     replayActive = true;
+    // Die Tod-Abdunklung (CSS) wuerde auch die Wiedergabe verdunkeln
+    const wrap = document.getElementById('board-wrap');
+    wrap.classList.remove('dimming');
     const frames = replayFrames, events = replayEvents;
     const killer = replayKiller(reason);
     const camNo = killer ? (enemies.indexOf(killer) + 1 || frames[0].guards.findIndex(g => g.e === killer) + 1) : 0;
@@ -116,6 +119,7 @@
       finished = true;
       replayActive = false;
       replayRadio = false;
+      wrap.classList.add('dimming');
       window.removeEventListener('pointerdown', skip, true);
       window.removeEventListener('keydown', skip, true);
       window.removeEventListener('touchstart', skip, true);
