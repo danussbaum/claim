@@ -11,6 +11,7 @@
   let vsSaved = null;       // waehrend des Matches ueberschriebene Einstellungen
   let vsHud = {};
   const VS_STAT_LABELS = ['YOU', 'RIVAL', 'TIME', 'MATCHES']; // statt Leben: Stand der Serie
+  const VS_COOP_LABELS = ['TEAM', 'GOAL', 'TIME', 'LIVES'];
 
   function vsEnterRender() {
     if (!vsSaved) {
@@ -22,6 +23,7 @@
       });
     }
     cameraMode = 'standard';
+    vsLabelsShown = null; // vsSyncRender setzt Versus- oder Koop-Beschriftung
     // Reste eines 1-Spieler-Laufs abschalten
     perks = defaultPerks();
     shieldUntil = speedUntil = freezeUntil = confuseUntil = fogUntil = alarmUntil = 0;
@@ -51,6 +53,7 @@
       el.style.display = '';
     });
     vsSaved = null;
+    vsLabelsShown = null;
     setInGame(false); // zurueck im Menue: Titelmelodie wieder an
     countdownActive = false; // bricht auch die Countdown-Ansage ab
     resetMenuThemeTiming();
@@ -76,7 +79,7 @@
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const i = vsIdx(c, r), t = s.trail[i], l = s.land[i];
       if (t === me + 1) myTrail++; else if (t) rivalTrail++;
-      grid[r][c] = t ? (t === me + 1 ? TRAIL : RIVAL_TRAIL) : l ? (l === me + 1 ? TERRITORY : RIVAL_TERRITORY) : EMPTY;
+      grid[r][c] = t ? (t === me + 1 ? TRAIL : RIVAL_TRAIL) : l ? (l === vsTeam(s, me) ? TERRITORY : RIVAL_TERRITORY) : EMPTY;
     }
     trail = new Array(myTrail);
 
@@ -163,11 +166,22 @@
     // Anzeige oben
     const pct = s.pct || [vsPct(s, 0), vsPct(s, 1)];
     const secs = Math.max(0, Math.ceil(s.timeLeft / 1000));
+    vsSetLabels(s.coop ? VS_COOP_LABELS : VS_STAT_LABELS);
     vsSetHud('pct', pct[me] + '%');
-    vsSetHud('score', pct[1 - me] + '%');
+    vsSetHud('score', s.coop ? VS_COOP_WIN_PCT + '%' : pct[1 - me] + '%');
     vsSetHud('level', Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'));
     const series = vsIsHost ? vsSeries : (s.series || [0, 0]);
-    vsSetHud('lives', series[me] + ':' + series[1 - me]);
+    vsSetHud('lives', s.coop ? String(Math.max(0, s.lives)) : series[me] + ':' + series[1 - me]);
+  }
+
+  // Beschriftung der Anzeige oben (Versus oder Koop), nur bei Wechsel anfassen
+  let vsLabelsShown = null;
+  function vsSetLabels(labels) {
+    if (vsLabelsShown === labels) return;
+    vsLabelsShown = labels;
+    document.querySelectorAll('.topbar .stat').forEach((el, i) => {
+      if (i < labels.length) el.firstChild.nodeValue = labels[i];
+    });
   }
 
   function vsSetHud(id, text) {
@@ -312,7 +326,7 @@
     ctx.strokeStyle = 'rgba(0,0,0,0.6)';
     const meStunned = vsDrawStun(vsState.players[vsMe], mx, my, now);
     const rivalStunned = vsDrawStun(vsState.players[1 - vsMe], cx, cy, now);
-    const rivalLabel = rivalStunned ? 'WAIT' : (vsCpu ? 'CPU' : 'RIVAL');
+    const rivalLabel = rivalStunned ? 'WAIT' : (vsCpu ? 'CPU' : vsState.coop ? 'MATE' : 'RIVAL');
     ctx.strokeText(rivalLabel, cx, cy - CELL * 0.7);
     ctx.fillStyle = '#8cc4ff';
     ctx.fillText(rivalLabel, cx, cy - CELL * 0.7);

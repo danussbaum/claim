@@ -65,6 +65,8 @@ You choose before starting:
 
 The **⚔️ 2 Player** button in the menu opens the versus lobby. Two players claim ground on the same 14 x 20 board, with one guard in the middle.
 
+**Co-op:** the lobby also offers **Host co-op** and **Co-op with CPU**. Both players share the land (the whole border to start), the border and all captures count for the team. Together you have to claim 70 % before the 2 minutes run out, against 3 guards, with 5 shared lives (every time one of you is sent home costs one). Axes and mines only hit guards, touching your teammate is harmless, and their open line blocks your way instead of being cut.
+
 **Connecting:**
 
 - **Host a match** shows a QR code. The rival scans it with the phone camera and joins in the browser: no account, no app. The devices connect directly peer-to-peer (WebRTC); public MQTT brokers are only used to find each other. The host runs the simulation, the guest sends inputs.

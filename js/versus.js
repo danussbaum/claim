@@ -17,6 +17,10 @@
   const VS_COUNTDOWN_MS = COUNTDOWN_SPEECH_LEAD_MS + COUNTDOWN_STEPS.length * COUNTDOWN_STEP_MS; // wie im 1-Spieler-Modus
   const VS_SEND_MS = 33;
   const VS_BOOSTS = 3;           // Boosts pro Match
+  // Koop: beide gegen mehr Waechter, gemeinsames Land, gemeinsame Leben, Ziel in der Zeit erreichen
+  const VS_COOP_GUARDS = 3;
+  const VS_COOP_LIVES = 5;
+  const VS_COOP_WIN_PCT = 70;
   // Serie: gewonnen hat, wer mindestens VS_SERIES_WINS Matches und VS_SERIES_LEAD Siege mehr hat
   const VS_SERIES_WINS = 3;
   const VS_SERIES_LEAD = 2;   // wie im Tennis: zwei Siege Vorsprung
@@ -25,6 +29,7 @@
   let vsPlaying = false;     // Match laeuft
   let vsIsHost = false;
   let vsCpu = false;         // lokales Match gegen die KI (zum Testen ohne zweites Geraet)
+  let vsCoop = false;        // Koop statt Versus (entscheidet der Host)
   let vsMe = 0;              // 0 = Host, 1 = Gast
   let vsState = null;        // beim Host die Wahrheit, beim Gast die letzte Kopie
   let vsGadgets = ['hook', 'hook']; // gewaehltes Gadget je Spieler (der Gast meldet seines)
@@ -72,9 +77,12 @@
 
   function vsOpenLobby() {
     vsActive = true;
-    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Win 3 matches with a 2-match lead. Cut their line or shoot them to send them back home.', [
-      { label: '📡 Host a match', primary: true, onClick: vsStartHost },
-      { label: '🤖 Play vs CPU', onClick: vsStartCpu },
+    vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Win 3 matches with a 2-match lead. Cut their line or shoot them to send them back home.\n' +
+      'Co-op: claim ' + VS_COOP_WIN_PCT + '% together against ' + VS_COOP_GUARDS + ' guards before time runs out. You share the land and ' + VS_COOP_LIVES + ' lives.', [
+      { label: '📡 Host versus', primary: true, onClick: () => { vsCoop = false; vsStartHost(); } },
+      { label: '🤝 Host co-op', primary: true, onClick: () => { vsCoop = true; vsStartHost(); } },
+      { label: '🤖 Versus vs CPU', onClick: () => { vsCoop = false; vsStartCpu(); } },
+      { label: '🤖 Co-op with CPU', onClick: () => { vsCoop = true; vsStartCpu(); } },
       { label: 'Back', onClick: vsLeave },
     ], false);
     vsSetStatus('To join, scan the host\'s QR code with your camera.');
@@ -93,7 +101,7 @@
     vsSeries = [0, 0];
     vsBindNet();
     const url = Net.joinUrl(Net.host());
-    vsShowPanel('2 Player', 'Let your rival scan this code.', [{ label: 'Cancel', onClick: vsLeave }], true);
+    vsShowPanel('2 Player', vsCoop ? 'Let your teammate scan this code.' : 'Let your rival scan this code.', [{ label: 'Cancel', onClick: vsLeave }], true);
     QR.draw(document.getElementById('vsQr'), url, 220);
   }
 
@@ -185,6 +193,7 @@
       freezeUntil: now + msg.freeze,
       events: [],
       timeLeft: msg.timeLeft, countdown: msg.countdown, over: msg.over, pct: msg.pct, series: msg.series,
+      coop: !!msg.coop, lives: msg.lives || 0,
     };
   }
 
@@ -274,6 +283,16 @@
     const over = vsState && vsState.over;
     if (!over || !vsActive) return;
     const pct = vsState.pct || [vsPct(vsState, 0), vsPct(vsState, 1)];
+    if (over.coop) {
+      vsShowPanel(over.won ? 'Team wins! 🤝🏆' : 'Team lost 💀',
+        'Reason: ' + over.reason + '\nTeam ' + pct[0] + '% of ' + VS_COOP_WIN_PCT + '%  ·  Lives left ' + Math.max(0, vsState.lives || 0), [
+          { label: '🔁 Play again', primary: true, onClick: () => {
+            if (vsIsHost) vsNextMatch();
+            else { Net.send({ t: 'rematch' }); vsSetStatus('Waiting for host...'); }
+          } }, { label: 'Leave', onClick: vsLeave }], false);
+      vsSetStatus('');
+      return;
+    }
     const series = over.series || [0, 0];
     const seriesDone = over.seriesWinner >= 0;
     let title;

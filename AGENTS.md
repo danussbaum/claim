@@ -24,7 +24,7 @@ service worker need http(s), e.g. `py -m http.server 8000` (the user starts it, 
   - input.js: button, swipe and keyboard input, board background, resize, startup
   - qr.js: minimal QR code generator (2-player invite link)
   - net.js: peer-to-peer connection for 2-player mode (MQTT signaling, WebRTC)
-  - versus-sim.js: 2-player versus, host simulation (state, capture, guards, mines, shots, snapshot)
+  - versus-sim.js: 2-player host simulation for versus and co-op (s.coop; vsTeam() gives the land value, shared in co-op), capture, guards, mines, shots, snapshot
   - versus-cpu.js: versus CPU opponent
   - versus-render.js: versus drawing (mirrors state into the 1-player globals, draws via draw())
   - versus.js: versus constants and state, lobby/panels, messages, input, loop, and the hook into the 1-player game (loads last)

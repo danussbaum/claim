@@ -21,12 +21,12 @@
   // So bekommen beide gleich viele Randzellen.
   function vsClaimStartEdges(s, p) {
     for (let x = 0; x < COLS; x++) {
-      if (p === 0 && x < COLS - 1) s.land[vsIdx(x, 0)] = 1;
-      if (p === 1 && x > 0) s.land[vsIdx(x, ROWS - 1)] = 2;
+      if (p === 0 && x < COLS - 1) s.land[vsIdx(x, 0)] = vsTeam(s, 0);
+      if (p === 1 && x > 0) s.land[vsIdx(x, ROWS - 1)] = vsTeam(s, 1);
     }
     for (let y = 0; y < ROWS; y++) {
-      if (p === 0) s.land[vsIdx(0, y)] = 1;
-      if (p === 1) s.land[vsIdx(COLS - 1, y)] = 2;
+      if (p === 0) s.land[vsIdx(0, y)] = vsTeam(s, 0);
+      if (p === 1) s.land[vsIdx(COLS - 1, y)] = vsTeam(s, 1);
     }
   }
 
@@ -35,6 +35,8 @@
       land: new Array(COLS * ROWS).fill(0),   // 0 frei, 1 Spieler 0, 2 Spieler 1
       trail: new Array(COLS * ROWS).fill(0),  // 0 keine, 1/2 Linie von Spieler 0/1
       players: [],
+      coop: vsCoop,           // Koop: gemeinsames Land (Wert 1), gemeinsame Leben
+      lives: vsCoop ? VS_COOP_LIVES : 0,
       guards: [],
       mines: [],              // { x, y, p, armedAt }
       shots: [],              // fliegende Aexte (Treffer erst bei Ankunft)
@@ -53,7 +55,7 @@
         speedUntil: 0, slowUntil: 0, shieldUntil: 0, rapidUntil: 0,
         gadget: vsGadgets[p], gadgetReadyAt: 0, smokeUntil: 0, boosts: VS_BOOSTS });
     }
-    for (let i = 0; i < VS_GUARDS; i++) s.guards.push(vsNewGuard(s));
+    for (let i = 0; i < (s.coop ? VS_COOP_GUARDS : VS_GUARDS); i++) s.guards.push(vsNewGuard(s));
     return s;
   }
 
@@ -82,11 +84,14 @@
 
   function vsOnOwnLand(s, p) {
     const pl = s.players[p];
-    return s.land[vsIdx(pl.x, pl.y)] === p + 1;
+    return s.land[vsIdx(pl.x, pl.y)] === vsTeam(s, p);
   }
 
   // Keine Leben im Versus: wer erwischt wird, verliert seine Linie, muss zurueck aufs
   // Startfeld und dort kurz stehen (nach einem Abschuss kuerzer als nach einem Crash).
+  // Landwert eines Spielers: im Koop teilen sich beide Wert 1
+  function vsTeam(s, p) { return s.coop ? 1 : p + 1; }
+
   function vsSendHome(s, p, now, stunMs) {
     const pl = s.players[p];
     if (now < pl.inv || now < pl.shieldUntil || s.over) return;
@@ -94,10 +99,10 @@
     pl.trail = [];
     pl.combo = 0;
     // Alles Land verloren: freie Zellen der Startkanten zurueck, sonst kaeme man nie mehr heim
-    if (!s.land.includes(p + 1)) {
+    if (!s.land.includes(vsTeam(s, p))) {
       const before = s.land.slice();
       vsClaimStartEdges(s, p);
-      for (let i = 0; i < s.land.length; i++) if (before[i] && before[i] !== p + 1) s.land[i] = before[i];
+      for (let i = 0; i < s.land.length; i++) if (before[i] && before[i] !== vsTeam(s, p)) s.land[i] = before[i];
     }
     const c = vsSpawnCorner(p);
     pl.x = pl.prevX = c.x; pl.y = pl.prevY = c.y;
@@ -106,13 +111,14 @@
     pl.stunMs = stunMs;
     pl.inv = now + stunMs + VS_INVULN_MS;
     s.events.push({ t: 'hit', p });
+    if (s.coop && --s.lives <= 0) vsEndMatch(s, -1, 'out of lives');
     s.guards.forEach(g => { if (g.target === p) g.hunting = false; });
   }
   function vsShotDown(s, p, now) { vsSendHome(s, p, now, VS_SHOT_STUN_MS); }
   function vsKill(s, p, now) { vsSendHome(s, p, now, VS_CRASH_STUN_MS); }
 
   function vsCapture(s, p) {
-    const own = p + 1, pl = s.players[p], opp = s.players[1 - p];
+    const own = vsTeam(s, p), pl = s.players[p], opp = s.players[1 - p];
     const cells = pl.trail.slice();  // alles, was jetzt dazukommt (fuer die Effekte)
     let stolen = 0;
     pl.trail.forEach(i => { s.trail[i] = 0; s.land[i] = own; });
@@ -150,7 +156,8 @@
     s.guards.forEach(g => { const id = comp[vsIdx(g.x, g.y)]; if (id >= 0) safe.add(id); });
     // Der Gegner schuetzt sein Gebiet; steht er gerade auf meinem Land, die Gebiete daneben
     const oi = vsIdx(opp.x, opp.y);
-    if (comp[oi] >= 0) safe.add(comp[oi]);
+    if (s.coop) { /* Koop: der Partner schuetzt kein Gebiet */ }
+    else if (comp[oi] >= 0) safe.add(comp[oi]);
     else for (const [dx, dy] of VS_DIRS4) {
       if (vsInBounds(opp.x + dx, opp.y + dy)) {
         const id = comp[vsIdx(opp.x + dx, opp.y + dy)];
@@ -165,6 +172,8 @@
       }
     }
     s.powerUps = s.powerUps.filter(u => s.land[vsIdx(u.x, u.y)] === 0);
+    // Koop: vom eingeschlossenen Teil der Partnerlinie bleibt nur, was noch Linie ist
+    if (s.coop) opp.trail = opp.trail.filter(i => s.trail[i] === 2 - p);
     if (cells.length) {
       pl.combo = (pl.combo || 0) + 1;
       s.events.push({ t: 'capture', p, cells, stolen, combo: pl.combo, x: pl.x, y: pl.y });
@@ -191,15 +200,18 @@
     if (!vsInBounds(nx, ny)) return 'blocked';
     const i = vsIdx(nx, ny);
     if (s.trail[i] === p + 1) { vsKill(s, p, now); return 'hit'; }  // eigene Linie gekreuzt
-    if (s.trail[i] === 2 - p) vsKill(s, 1 - p, now);                // Linie des Gegners gekappt
+    if (s.trail[i] === 2 - p) {
+      if (s.coop) return 'blocked';                                  // Koop: Partnerlinie ist eine Wand
+      vsKill(s, 1 - p, now);                                         // Linie des Gegners gekappt
+    }
     if (s.over) return 'hit';
     pl.x = nx; pl.y = ny;
-    if (s.land[i] !== p + 1) { s.trail[i] = p + 1; pl.trail.push(i); }
+    if (s.land[i] !== vsTeam(s, p)) { s.trail[i] = p + 1; pl.trail.push(i); }
     else if (pl.trail.length) vsCapture(s, p);
     const pu = s.powerUps.findIndex(u => u.x === nx && u.y === ny);
     if (pu >= 0) vsPickup(s, p, s.powerUps.splice(pu, 1)[0], now);
     const opp = s.players[1 - p];
-    if (opp.x === pl.x && opp.y === pl.y) {
+    if (!s.coop && opp.x === pl.x && opp.y === pl.y) {
       if (!vsOnOwnLand(s, 1 - p)) vsKill(s, 1 - p, now);
       if (!vsOnOwnLand(s, p)) vsKill(s, p, now);
     }
@@ -219,9 +231,9 @@
     // gibt es keins, kein Wurf und kein Cooldown
     const mineAt = pl.gadget === 'mine' ? mineDropCell(pl.x, pl.y, pl.dir || pl.lastDir, (x, y) => {
       const i = vsIdx(x, y);
-      return s.land[i] !== p + 1 && !s.trail[i] && !s.mines.some(m => m.x === x && m.y === y) &&
+      return s.land[i] !== vsTeam(s, p) && !s.trail[i] && !s.mines.some(m => m.x === x && m.y === y) &&
         !s.guards.some(g => !g.deadUntil && g.x === x && g.y === y) && !s.players.some(o => o.x === x && o.y === y);
-    }, (x, y) => s.land[vsIdx(x, y)] !== p + 1 && !s.trail[vsIdx(x, y)]) : null;
+    }, (x, y) => s.land[vsIdx(x, y)] !== vsTeam(s, p) && !s.trail[vsIdx(x, y)]) : null;
     if (pl.gadget === 'mine' && !mineAt) return;
     pl.gadgetReadyAt = now + GADGETS[pl.gadget].cooldown;
     if (pl.gadget === 'smoke') {
@@ -293,7 +305,7 @@
   // Versteckt: eigene Flaeche, deren vier Nachbarn auch eigene Flaeche (oder Rand) sind
   function vsHidden(s, p) {
     const pl = s.players[p];
-    return isHidingCellBy(pl.x, pl.y, (c, r) => s.land[vsIdx(c, r)] === p + 1);
+    return isHidingCellBy(pl.x, pl.y, (c, r) => s.land[vsIdx(c, r)] === vsTeam(s, p));
   }
 
   function vsGuardSees(s, g, p) {
@@ -371,7 +383,7 @@
     s.mines = s.mines.filter(m => {
       if (now < m.armedAt) return true;
       const foe = s.players[1 - m.p];
-      const foeHere = foe.x === m.x && foe.y === m.y;
+      const foeHere = !s.coop && foe.x === m.x && foe.y === m.y; // Koop: der Partner ist sicher
       if (!foeHere && !s.guards.some(g => !g.deadUntil && g.x === m.x && g.y === m.y)) return true;
       // Eroberte Felder (beider Spieler) im Krater werden wieder frei
       const freed = [];
@@ -409,7 +421,7 @@
         if (Math.hypot(gp.x - pos[p].x, gp.y - pos[p].y) < TOUCH_RADIUS && !vsOnOwnLand(s, p)) vsKill(s, p, now);
       });
     });
-    if (s.over) return;
+    if (s.over || s.coop) return; // Koop: Partner beruehren ist harmlos
     if (Math.hypot(pos[0].x - pos[1].x, pos[0].y - pos[1].y) < TOUCH_RADIUS) {
       const off0 = !vsOnOwnLand(s, 0), off1 = !vsOnOwnLand(s, 1);
       if (off1) vsKill(s, 1, now);
@@ -435,7 +447,7 @@
       if (!vsInBounds(x, y)) break;
       path.push([x, y]);
       if (s.guards.some(g => !g.deadUntil && g.x === x && g.y === y)) break;
-      if ((op.x === x && op.y === y) || s.trail[vsIdx(x, y)] === opp + 1) break;
+      if (!s.coop && ((op.x === x && op.y === y) || s.trail[vsIdx(x, y)] === opp + 1)) break;
     }
     s.events.push({ t: 'shot', path });
     if (path.length > 1) s.shots.push({ owner: p, path, dx, dy, start: now, life: vsShotLife(path.length), checked: 0 });
@@ -454,6 +466,7 @@
           s.events.push({ t: 'guardDown', x, y, dx: sh.dx, dy: sh.dy, i: s.guards.indexOf(g), pers: g.pers });
           return false;
         }
+        if (s.coop) continue; // Koop: die Axt trifft nur Waechter
         if (op.x === x && op.y === y) { vsShotDown(s, opp, now); return false; }
         if (s.trail[vsIdx(x, y)] === opp + 1) { vsCutTrail(s, opp, vsIdx(x, y)); return false; }
       }
@@ -476,12 +489,13 @@
 
   function vsPct(s, p) {
     let n = 0;
-    for (let i = 0; i < s.land.length; i++) if (s.land[i] === p + 1) n++;
+    for (let i = 0; i < s.land.length; i++) if (s.land[i] === vsTeam(s, p)) n++;
     return Math.round(n * 100 / s.land.length);
   }
 
   function vsEndMatch(s, winner, reason) {
     if (s.over) return;
+    if (s.coop) { s.over = { coop: true, won: winner === 0, reason }; return; }
     if (winner >= 0) vsSeries[winner]++;
     const [a, b] = vsSeries;
     const leader = a > b ? 0 : b > a ? 1 : -1;
@@ -528,7 +542,10 @@
     }
     if (s.over) return;
     const a = vsPct(s, 0), b = vsPct(s, 1);
-    if (a >= VS_WIN_PCT || b >= VS_WIN_PCT) vsEndMatch(s, a >= b ? 0 : 1, VS_WIN_PCT + '% claimed');
+    if (s.coop) {
+      if (a >= VS_COOP_WIN_PCT) vsEndMatch(s, 0, VS_COOP_WIN_PCT + '% claimed together');
+      else if (s.timeLeft <= 0) vsEndMatch(s, -1, 'time is up');
+    } else if (a >= VS_WIN_PCT || b >= VS_WIN_PCT) vsEndMatch(s, a >= b ? 0 : 1, VS_WIN_PCT + '% claimed');
     else if (s.timeLeft <= 0) vsEndMatch(s, a === b ? -1 : (a > b ? 0 : 1), 'time is up');
   }
 
@@ -550,7 +567,7 @@
       mines: s.mines.map(m => [m.x, m.y, m.p, left(m.armedAt)]),
       freeze: left(s.freezeUntil),
       events: s.events,
-      timeLeft: s.timeLeft, countdown: s.countdown, over: s.over, series: vsSeries,
+      timeLeft: s.timeLeft, countdown: s.countdown, over: s.over, series: vsSeries, coop: s.coop, lives: s.lives,
       pct: [vsPct(s, 0), vsPct(s, 1)],
     };
   }
