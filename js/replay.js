@@ -232,8 +232,15 @@
       ctx.moveTo(sx, sy);
       ctx.arc(sx, sy, v.range * CELL, g.a + v.half, g.a - v.half, true);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(0,0,0,0.62)';
+      ctx.fillStyle = 'rgba(0,0,0,0.22)'; // nur leicht, die Umgebung bleibt lesbar
       ctx.fill('evenodd');
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.arc(sx, sy, v.range * CELL, g.a - v.half, g.a + v.half);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(255,80,60,0.75)';
+      ctx.lineWidth = 2 / REPLAY_ZOOM;
+      ctx.stroke();
     }
     ctx.restore();
 
