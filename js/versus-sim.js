@@ -200,13 +200,20 @@
     if (!vsInBounds(nx, ny)) return 'blocked';
     const i = vsIdx(nx, ny);
     if (s.trail[i] === p + 1) { vsKill(s, p, now); return 'hit'; }  // eigene Linie gekreuzt
-    if (s.trail[i] === 2 - p) {
-      if (s.coop) return 'blocked';                                  // Koop: Partnerlinie ist eine Wand
-      vsKill(s, 1 - p, now);                                         // Linie des Gegners gekappt
-    }
+    const mateTrail = s.coop && s.trail[i] === 2 - p;                // Koop: ueber die Partnerlinie laufen
+    if (s.trail[i] === 2 - p && !s.coop) vsKill(s, 1 - p, now);     // Linie des Gegners gekappt
     if (s.over) return 'hit';
     pl.x = nx; pl.y = ny;
-    if (s.land[i] !== vsTeam(s, p)) { s.trail[i] = p + 1; pl.trail.push(i); }
+    // Koop: trifft man die Partnerlinie, ist der Weg geschlossen - vom Land ueber die eigene Linie
+    // zur Trefferstelle und die Partnerlinie entlang zurueck zu ihrem Land. Beide Stuecke werden
+    // Land und die Flaeche wird wie gewohnt erobert; der Rest der Partnerlinie haengt dann am neuen Land.
+    if (mateTrail) {
+      const opp = s.players[1 - p];
+      const k = opp.trail.indexOf(i);
+      opp.trail.splice(0, k + 1).forEach(j => pl.trail.push(j));
+      if (k < 0) pl.trail.push(i);
+      vsCapture(s, p);
+    } else if (s.land[i] !== vsTeam(s, p)) { s.trail[i] = p + 1; pl.trail.push(i); }
     else if (pl.trail.length) vsCapture(s, p);
     const pu = s.powerUps.findIndex(u => u.x === nx && u.y === ny);
     if (pu >= 0) vsPickup(s, p, s.powerUps.splice(pu, 1)[0], now);

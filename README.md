@@ -65,7 +65,7 @@ You choose before starting:
 
 The **⚔️ 2 Player** button in the menu opens the versus lobby. Two players claim ground on the same 14 x 20 board, with one guard in the middle.
 
-**Co-op:** the lobby also offers **Host co-op** and **Co-op with CPU**. Both players share the land (the whole border to start), the border and all captures count for the team. Together you have to claim 70 % before the 2 minutes run out, against 3 guards, with 5 shared lives (every time one of you is sent home costs one). Axes and mines only hit guards, touching your teammate is harmless, and their open line blocks your way instead of being cut.
+**Co-op:** the lobby also offers **Host co-op** and **Co-op with CPU**. Both players share the land (the whole border to start), the border and all captures count for the team. Together you have to claim 70 % before the 2 minutes run out, against 3 guards, with 5 shared lives (every time one of you is sent home costs one). Axes and mines only hit guards, touching your teammate is harmless, and running into your teammate's open line closes the shape: both lines up to that point become land and the enclosed area is claimed.
 
 **Connecting:**
 
