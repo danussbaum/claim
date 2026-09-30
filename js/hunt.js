@@ -211,7 +211,10 @@
     if (cautious.length) free = cautious;
     const pick = list => list[Math.floor(Math.random() * list.length)];
     const awareness = 2 + Math.min(level, 6);   // wie weit die CPU Waechter wittert
-    const fleeDist = level < 3 ? 2 : 3;          // ab diesem Abstand bricht sie ab und flieht
+    // Kurz vor dem Ziel oder nach langem Warten wird sie mutig: flieht erst, wenn ein Waechter direkt daneben ist
+    const pctNow = Math.round((countTerritory() / totalCells()) * 100);
+    const endgame = pctNow >= 55;
+    const fleeDist = huntPlan.bold ? 1 : (level < 3 ? 2 : 3); // ab diesem Abstand bricht sie ab und flieht
     let danger = huntGuardDistAt(px, py);
     if (danger > awareness) danger = 99;
     const onLand = grid[py][px] === TERRITORY;
@@ -219,15 +222,18 @@
 
     if (onLand && !trail.length) {
       const out = free.filter(k => { const [dx, dy] = dirDelta(k); return grid[py + dy][px + dx] !== TERRITORY; });
-      const waited = now - huntHomeSince > 2000; // nicht ewig warten, wenn du vor der Tuer stehst
-      if (out.length && (danger > fleeDist + 1 || waited) && Math.random() < 0.7) {
+      const waited = now - huntHomeSince > (endgame ? 1000 : 2000); // nicht ewig warten, wenn du vor der Tuer stehst
+      if (out.length && (waited || (danger > fleeDist + 1 && Math.random() < 0.7))) {
         // Ausgang moeglichst weit weg vom naechsten Waechter
         out.sort((a, b) => {
           const [ax, ay] = dirDelta(a), [bx, by] = dirDelta(b);
           return huntGuardDistAt(px + bx, py + by) - huntGuardDistAt(px + ax, py + ay);
         });
         d = out[0];
-        huntPlan = { phase: 'out', count: 0, len: 3 + Math.floor(Math.random() * (4 + Math.min(level, 5))) };
+        const bold = waited || endgame;
+        // Mutige Ausfluege sind kurz: schnell ein kleines Stueck schliessen
+        const len = bold ? 2 + Math.floor(Math.random() * 3) : 3 + Math.floor(Math.random() * (4 + Math.min(level, 5)));
+        huntPlan = { phase: 'out', count: 0, len, bold };
       } else {
         const stay = free.filter(k => !out.includes(k));
         const pool = stay.length ? stay : free;
@@ -252,7 +258,7 @@
           if (huntPlan.phase === 'out') {
             const turns = free.filter(k => k !== dir);
             if (turns.length) d = pick(turns);
-            huntPlan = { phase: 'turn', count: 0, len: 3 + Math.floor(Math.random() * 4) };
+            huntPlan = { phase: 'turn', count: 0, len: (huntPlan.bold ? 1 : 3) + Math.floor(Math.random() * 4), bold: huntPlan.bold };
           } else {
             huntPlan.phase = 'back';
             d = huntWayHome() || pick(free);
