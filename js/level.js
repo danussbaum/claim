@@ -142,7 +142,8 @@
     }
     document.getElementById('score').textContent = score;
     document.getElementById('level').textContent = level;
-    document.getElementById('lives').textContent = lives;
+    // Jagd-Modus: dazu die Leben der CPU-Figur
+    document.getElementById('lives').textContent = huntActive() ? lives + ' · 🏃' + huntCpuLives : lives;
     if (score !== prevStatsScore) {
       const scoreEl = document.getElementById('score');
       scoreEl.classList.remove('scorePopAnim');
