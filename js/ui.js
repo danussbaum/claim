@@ -284,8 +284,6 @@
     });
     document.getElementById('optionsSummary').textContent = [CAMERAS[cameraMode].label,
       GADGETS[gadgetChoice].icon + ' ' + GADGETS[gadgetChoice].label, VOICE_MODES[voiceMode].label].join(' · ');
-    document.getElementById('selectDesc').textContent =
-      CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
     updateGadgetButtonIcon();
   }
 
