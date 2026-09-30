@@ -261,7 +261,8 @@
   function visionRange(e) {
     const v = VISION[e.personality] || VISION.wanderer;
     const helium = performance.now() < heliumUntil ? HELIUM_EXTRA_RANGE : 0; // grosser Kopf faellt auf
-    return Math.max(3, v.range - (perks ? perks.stealth : 0)) + helium;
+    const eagle = e.controlled ? huntPerks.eye : 0; // Jagd-Modus: Perk deines Waechters
+    return Math.max(3, v.range - (perks ? perks.stealth : 0)) + helium + eagle;
   }
 
   // Gezeichnete (interpolierte) Position von Waechter und Spieler

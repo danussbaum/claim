@@ -4,7 +4,7 @@
 // geschafft; holt sie 75 %, kostet es ein Leben. Die Figur ist nur im Kegel deines Waechters
 // sichtbar, sonst verraten sie ihre Linie, kurze Radar-Pings und ein verblassender Geist.
 
-  const HUNT_GHOST_MS = 2500;   // so lange bleibt der Geist an der letzten Sichtstelle
+  const HUNT_GHOST_MS = 2500;   // so lange bleibt der Geist an der letzten Sichtstelle (+ Perk)
   const HUNT_PING_SHOW = 600;   // so lange ist die Figur bei einem Ping sichtbar
 
   let huntDir = 'right';        // gewuenschte Richtung deines Waechters
@@ -42,17 +42,38 @@
   }
 
   // Ping-Abstand je Level: anfangs oft, ab Level 6 keine Pings mehr
-  function huntPingInterval() { return level >= 6 ? 0 : 3000 + (level - 1) * 1000; }
+  // Radar-Perk: Pings kommen je Stufe 1 s frueher und auch ab Level 6 (dann alle 6 s, 5 s, 4 s)
+  function huntPingInterval() {
+    if (level >= 6 && !huntPerks.radar) return 0;
+    const base = level >= 6 ? 7000 : 3000 + (level - 1) * 1000;
+    return Math.max(1500, base - huntPerks.radar * 1000);
+  }
+  function huntGhostMs() { return HUNT_GHOST_MS + huntPerks.ghost * 1500; }
+
+  // --- Perks der Waechter-Rolle (ersetzen im Shop die Laeufer-Perks) ---
+  let huntPerks = { legs: 0, eye: 0, radar: 0, ghost: 0, backup: 0 };
+  function huntResetPerks() { huntPerks = { legs: 0, eye: 0, radar: 0, ghost: 0, backup: 0 }; }
+  const HUNT_PERK_CARDS = [
+    PERK_CARDS.find(c => c.id === 'life'),
+    { id: 'h_legs',   icon: '👟', name: 'Quick boots',  desc: 'Your guard moves 8% faster.',               max: 3, apply: () => huntPerks.legs++ },
+    { id: 'h_eye',    icon: '🔭', name: 'Eagle eye',    desc: 'Your guard sees one cell further.',         max: 3, apply: () => huntPerks.eye++ },
+    { id: 'h_radar',  icon: '📡', name: 'Radar',        desc: 'Radar pings come 1s sooner, also later on.', max: 3, apply: () => huntPerks.radar++ },
+    { id: 'h_ghost',  icon: '👻', name: 'Long memory',  desc: 'The ghost of the runner stays 1.5s longer.', max: 2, apply: () => huntPerks.ghost++ },
+    { id: 'h_backup', icon: '👮', name: 'Backup',       desc: 'One more guard every level.',               max: 2, apply: () => huntPerks.backup++ }
+  ];
+  function huntPerkCount(id) { return huntPerks[id.slice(2)] || 0; }
 
   function huntSetupLevel() {
     const now = performance.now();
     if (!enemies.length) { const e = spawnEnemy('wanderer'); if (e) enemies.push(e); }
+    for (let i = 0; i < huntPerks.backup; i++) { const e = spawnEnemy(randomPersonality()); if (e) enemies.push(e); }
     const me = enemies[0];
     if (me) { me.controlled = true; me.personality = 'wanderer'; huntDir = me.dc0 > 0 ? 'right' : 'left'; }
     playerInterval = Math.max(150, 230 - (level - 1) * 10);
     // Anfangs ist dein Waechter etwas schneller als die Figur, spaeter etwas langsamer
     huntGuardIv = Math.round(playerInterval * Math.min(1.08, 0.9 + (level - 1) * 0.04));
     enemyInterval = huntGuardIv;
+    huntGuardIv = Math.round(huntGuardIv * Math.pow(0.92, huntPerks.legs)); // nur dein Waechter
     huntGuardTimer = 0;
     if (me) { me.ownStepTime = now; me.ownInterval = huntGuardIv; }
     shieldUntil = 0;
@@ -291,8 +312,8 @@
       ctx.lineWidth = 2.5;
       ctx.stroke();
     }
-    if (!runnerVisible && huntLastSeen && now - huntLastSeen.t < HUNT_GHOST_MS) {
-      const a = 1 - (now - huntLastSeen.t) / HUNT_GHOST_MS;
+    if (!runnerVisible && huntLastSeen && now - huntLastSeen.t < huntGhostMs()) {
+      const a = 1 - (now - huntLastSeen.t) / huntGhostMs();
       ctx.beginPath();
       ctx.arc(huntLastSeen.x * CELL + CELL / 2, huntLastSeen.y * CELL + CELL / 2, CELL * 0.4, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(220,240,228,' + (0.35 * a).toFixed(3) + ')';

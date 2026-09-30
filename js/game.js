@@ -349,6 +349,7 @@
   let shopOpen = false;
 
   function drawableCards() {
+    if (huntActive()) return HUNT_PERK_CARDS.filter(c => (c.id === 'life' ? perks.lives : huntPerkCount(c.id)) < c.max);
     return PERK_CARDS.filter(c => perkCount(c.id) < c.max);
   }
 
@@ -366,7 +367,7 @@
     for (const card of picks) {
       const b = document.createElement('button');
       b.className = 'card';
-      const owned = perkCount(card.id);
+      const owned = card.id.startsWith('h_') ? huntPerkCount(card.id) : perkCount(card.id);
       b.innerHTML = '<span class="cardIcon">' + card.icon + '</span>' +
         '<span><span class="cardName">' + card.name + (owned ? ' ×' + (owned + 1) : '') + '</span><br>' +
         '<span class="cardDesc">' + card.desc + '</span></span>';

@@ -243,6 +243,7 @@
     celebrating = false;
     resetRunStats();
     perks = defaultPerks();
+    huntResetPerks();
     resetLevel(1);
   }
 
