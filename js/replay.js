@@ -204,27 +204,19 @@
     ctx.rotate(-view);
     ctx.scale(REPLAY_ZOOM, REPLAY_ZOOM);
     ctx.translate(-sx, -sy);
-    ctx.filter = 'grayscale(1) contrast(1.2) brightness(1.45)';
     ctx.drawImage(f.img, 0, 0, W, H);
-    ctx.filter = 'none';
     if (g) {
-      // Ausserhalb des Sichtkegels dunkel
+      // Sichtkegel nur umranden, das Bild bleibt so hell wie im Spiel
       const v = VISION[killer.personality] || VISION.wanderer;
       ctx.beginPath();
-      ctx.rect(-W * 2, -H * 2, W * 5, H * 5);
       ctx.moveTo(sx, sy);
-      ctx.arc(sx, sy, v.range * CELL, g.a + v.half, g.a - v.half, true);
+      ctx.arc(sx, sy, v.range * CELL, g.a - v.half, g.a + v.half);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(0,0,0,0.32)';
-      ctx.fill('evenodd');
+      ctx.strokeStyle = 'rgba(255,59,48,0.8)';
+      ctx.lineWidth = 2 / REPLAY_ZOOM;
+      ctx.stroke();
     }
     ctx.restore();
-
-    // Gruenstich des Ueberwachungsmonitors
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgb(215,255,222)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'source-over';
 
     // "!" ueber dem Waechter, sobald er dich gesehen hat
     if (g && g.hunt) {
@@ -236,7 +228,7 @@
     }
 
     // Scanlines
-    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
     for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
     // Rauschen, beim Spulen staerker
     const noise = phase === 'rewind' ? 420 : 120;
@@ -248,13 +240,6 @@
     const bandY = ((now / (phase === 'rewind' ? 3 : 9)) % (H + 60)) - 30;
     ctx.fillStyle = 'rgba(255,255,255,' + (phase === 'rewind' ? 0.16 : 0.06) + ')';
     ctx.fillRect(0, bandY, W, phase === 'rewind' ? 26 : 12);
-    // Vignette
-    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.35)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, W, H);
-
     // Einblendungen
     const fs = Math.max(11, Math.round(W / 26));
     ctx.font = 'bold ' + fs + 'px monospace';
