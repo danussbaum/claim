@@ -298,31 +298,35 @@
 
     setTimeout(() => {
       running = false;
-      dying = false;
-
-      if (lives <= 0) {
-        gameOver = true;
-        lifeLostFlag = false;
-        const isNewHigh = saveHighScoreIfNeeded();
-        let closeText;
-        if (levelReadyToComplete || capturedPct >= 75) {
-          closeText = ' You already had ' + capturedPct + '% - the bonus is gone, but so close!';
-        } else {
-          closeText = ' Only ' + (75 - capturedPct) + '% left to the next level!';
-        }
-        const highText = isNewHigh ? '🏆 New high score! ' : '';
-        const statsLine = '\n\n📊 Biggest cut: ' + statBiggestCut + ' cells  ·  Longest line: ' +
-                          statLongestTrail + '  ·  Guards down: ' + statKills +
-                          '  ·  Levels cleared: ' + statLevelsCleared;
-        showOverlay(gameOverEmoji + ' Game Over', highText + reason + ' Score: ' + score + '.' + closeText + statsLine,
-                    '▶ Again (' + MODES[gameMode].label + ')');
-        document.getElementById('modeBtn').classList.remove('hidden');
-      } else {
-        gameOver = false;
-        lifeLostFlag = true;
-        showOverlay(gameOverEmoji + ' Life lost!', reason + ' ' + lives + ' lives left. Level restarts.', 'Continue');
-      }
+      replayPlay(reason, () => showDeathOverlay(reason));
     }, 420);
+  }
+
+  function showDeathOverlay(reason) {
+    dying = false;
+
+    if (lives <= 0) {
+      gameOver = true;
+      lifeLostFlag = false;
+      const isNewHigh = saveHighScoreIfNeeded();
+      let closeText;
+      if (levelReadyToComplete || capturedPct >= 75) {
+        closeText = ' You already had ' + capturedPct + '% - the bonus is gone, but so close!';
+      } else {
+        closeText = ' Only ' + (75 - capturedPct) + '% left to the next level!';
+      }
+      const highText = isNewHigh ? '🏆 New high score! ' : '';
+      const statsLine = '\n\n📊 Biggest cut: ' + statBiggestCut + ' cells  ·  Longest line: ' +
+                        statLongestTrail + '  ·  Guards down: ' + statKills +
+                        '  ·  Levels cleared: ' + statLevelsCleared;
+      showOverlay(gameOverEmoji + ' Game Over', highText + reason + ' Score: ' + score + '.' + closeText + statsLine,
+                  '▶ Again (' + MODES[gameMode].label + ')');
+      document.getElementById('modeBtn').classList.remove('hidden');
+    } else {
+      gameOver = false;
+      lifeLostFlag = true;
+      showOverlay(gameOverEmoji + ' Life lost!', reason + ' ' + lives + ' lives left. Level restarts.', 'Continue');
+    }
   }
 
   // Klickton fuer alle Menueknoepfe (nicht fuer die Spielsteuerung)

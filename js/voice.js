@@ -324,6 +324,7 @@
       opt.lowpass = Math.max(1400, 9000 - d * 350);
       opt.pan = Math.max(-0.7, Math.min(0.7, (e.c - px) / (COLS / 2)));
     }
+    if (replayRadio) { opt.lowpass = 2600; opt.vol = 0.9; opt.pan = 0; } // Wiedergabe: Funkgeraet-Klang
     return voicePlay(path, scream ? VOICE_FX.scream : (dog ? VOICE_FX.dog : VOICE_FX.guard), opt);
   }
   function voicePlayCountdown(word) {

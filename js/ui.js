@@ -46,7 +46,7 @@
       }
     }
     updateActionButtonsUI();
-    if (!paused) draw(time);
+    if (!paused) { draw(time); replayCapture(time); }
     if (running) rafId = requestAnimationFrame(loop);
   }
 

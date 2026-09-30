@@ -194,6 +194,10 @@
       'Move!', 'You move!', 'After you.', 'Hey, my spot!', 'Excuse me?!',
       'Get out of my way!', 'Traffic jam!', 'I was here first!', 'Rude!', 'Budge over!',
       'Watch it!', 'Honk honk!'
+    ],
+    replay: [ // Fehlschlag-Wiedergabe (replay.js), nach dem Standbild
+      'Got you.', 'Too easy.', 'Caught on tape!', 'Smile for the camera!', 'Another one for the tape.',
+      'Rewind that. Beautiful.', 'Play it again!', 'Instant classic.', 'The duck told me.', 'Nobody escapes my shift.'
     ]
   };
   const BUBBLE_MS = 1600;
