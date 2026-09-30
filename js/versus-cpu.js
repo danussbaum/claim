@@ -31,7 +31,7 @@
     const queue = [start];
     for (let q = 0; q < queue.length; q++) {
       const i = queue[q], x = i % COLS, y = (i - x) / COLS;
-      if (i !== start && s.land[i] === p + 1) {
+      if (i !== start && s.land[i] === vsTeam(s, p)) {
         let cur = i;
         while (prev[cur] !== start) cur = prev[cur];
         const cx = cur % COLS, cy = (cur - cx) / COLS;
@@ -63,14 +63,14 @@
       guardDist = Math.min(guardDist, Math.abs(g.x - pl.x) + Math.abs(g.y - pl.y));
     });
     if (guardDist === 99 && now - vsCpuGuardSeenAt < VISION_MEMORY) guardDist = 3;
-    const onLand = s.land[vsIdx(pl.x, pl.y)] === p + 1;
+    const onLand = s.land[vsIdx(pl.x, pl.y)] === vsTeam(s, p);
     let dir = pl.dir;
 
     if (onLand && !pl.trail.length) {
       // Zu Hause: meist gleich wieder los, Richtung freies Feld
       const out = safe.filter(d => {
         const [dx, dy] = dirDelta(d);
-        return s.land[vsIdx(pl.x + dx, pl.y + dy)] !== p + 1;
+        return s.land[vsIdx(pl.x + dx, pl.y + dy)] !== vsTeam(s, p);
       });
       if (out.length && guardDist > 3 && Math.random() < 0.5) {
         dir = pick(out);
@@ -108,7 +108,7 @@
       if (!vsInBounds(x, y)) break;
       if (!vsCpuSees({ x: pl.x, y: pl.y, dir }, x, y)) break; // ausserhalb der Sicht
       const oppVisible = now >= opp.smokeUntil;
-      const hit = (oppVisible && opp.x === x && opp.y === y) || s.trail[vsIdx(x, y)] === 1 ||
+      const hit = (!s.coop && ((oppVisible && opp.x === x && opp.y === y) || s.trail[vsIdx(x, y)] === 1)) ||
         s.guards.some(g => !g.deadUntil && g.x === x && g.y === y);
       if (hit) { pl.dir = dir; vsShoot(s, p, now); break; }
     }

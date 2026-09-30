@@ -59,11 +59,13 @@ You choose before starting:
 
 - **Grapple Hook** (🪝) – Yank yourself 2 cells forward through open ground. 6 s cooldown.
 - **Smoke Bomb** (💨) – Disappear from every guard's sight for 2.5 s. 10 s cooldown.
-- **Mine** (💣) – Drop a mine on a free cell next to you (sideways first, on the side with more room to the border, then ahead, then behind), where guards walk. Armed after 0.5 s; when a guard steps on it, it and all guards next to it die and claimed cells within about 2 cells become free again, the border included. A mine that ends up inside your own land after a capture explodes right away without freeing land. Max 3 mines, 8 s cooldown. In 2 player it also sends the rival home if they step on it (it can also go on the rival's land), and frees both players' land in the crater.
+- **Mine** (💣) – Drop a mine on a free cell next to you (sideways first: in single player on the side closer to the nearest guard, otherwise on the side that stays open when you capture, i.e. the larger free area; then ahead, then behind), where guards walk. Armed after 0.5 s; when a guard steps on it, it and all guards next to it die and claimed cells within about 2 cells become free again, the border included. A mine that ends up inside your own land after a capture explodes right away without freeing land. Max 3 mines, 8 s cooldown. In 2 player it also sends the rival home if they step on it (it can also go on the rival's land), and frees both players' land in the crater.
 
 ## 2 Player versus
 
 The **⚔️ 2 Player** button in the menu opens the versus lobby. Two players claim ground on the same 14 x 20 board, with one guard in the middle.
+
+**Co-op:** the lobby also offers **Host co-op** and **Co-op with CPU**. Both players share the land (the whole border to start), the border and all captures count for the team. Together you have to claim 70 % before the 2 minutes run out, against 3 guards, with 5 shared lives (every time one of you is sent home costs one). Axes and mines only hit guards, touching your teammate is harmless, and running into your teammate's open line closes the shape: both lines up to that point become land and the enclosed area is claimed.
 
 **Connecting:**
 
@@ -189,7 +191,7 @@ From level 2 on, a short shop with **three random perk cards** appears at every 
 - All state persists in `localStorage` – no server.
 - **Voice lines** are generated locally with `tools/kokoro_voices.py` (Kokoro TTS, see the script header for setup). It reads all lines from the JS files, renders them with several voices into `tools/voice_src/`, then packs them into one MP3 per category and voice under `audio/voice/` and writes `audio/voice/manifest.js`. For itch.io, zip everything except `tools/`. Existing files are skipped; `--manifest-only` only rebuilds the manifest.
 - **Local server:** opened directly as a file, voices play without filters and there is no offline mode. For the full experience serve the folder, e.g. `py -m http.server 8000` → `http://localhost:8000`.
-- **Offline and home screen:** over https (or localhost) a service worker (`sw.js`) caches the game and downloads 5 guard voices plus countdown and announcer in the background (not on metered connections). The game can be added to the home screen and then runs full screen, also offline.
+- **Offline and home screen:** over https (or localhost) a service worker (`sw.js`) caches the game and downloads 5 guard voices plus countdown and announcer in the background (not on metered connections). The game can be added to the home screen and then runs full screen, also offline. Game files are always revalidated online (no mix of old and new files after an update); on a slow network the cached copy is used after 3 s. Files no longer loaded by `index.html` are removed from the cache. On `raw.githack.com` test links there is no service worker.
 
 ## itch.io (butler)
 

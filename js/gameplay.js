@@ -212,6 +212,7 @@
       guardShout(hitEnemy, 'Ha! Nice try!');
       sndGuardJam();
       triggerShake(3, 140);
+      vibrate(30);
     } else if (hitEnemy) {
       killEnemyByShot(hitEnemy, 'shot', sdx, sdy, bounced);
     } else if (hitTrail) {
@@ -328,7 +329,8 @@
     const now = performance.now();
     // Mine nur auf ein freies Feld daneben (dort laufen Waechter); sonst kein Wurf, kein Cooldown
     const mineAt = gadgetChoice === 'mine' ? mineDropCell(px, py, dir, (c, r) => grid[r][c] === EMPTY &&
-      !mines.some(m => m.c === c && m.r === r) && !enemies.some(e => e.c === c && e.r === r)) : null;
+      !mines.some(m => m.c === c && m.r === r) && !enemies.some(e => e.c === c && e.r === r),
+      (c, r) => grid[r][c] === EMPTY || grid[r][c] === PIT, enemies) : null;
     if (gadgetChoice === 'mine' && !mineAt) return;
     gadgetCooldownUntil = now + GADGETS[gadgetChoice].cooldown;
 
@@ -584,13 +586,39 @@
     addRipple(sumC / gained, sumR / gained, Math.min(14, 2.5 + Math.sqrt(gained) * 1.4),
               520 + Math.min(380, gained * 6), fx.ripple, 0.8);
     sndCapture(gained, combo);
+    const own = fx === CAPTURE_FX_GREEN; // im 2-Spieler-Modus: nur die eigene Eroberung spuert man
     if (gained > 12) {
-      triggerShake(Math.min(7, 2 + gained * 0.08), 220);
+      triggerShake(Math.min(12, 2 + gained * 0.08), 220 + Math.min(260, gained * 3));
       spawnEmote('💪', x, y);
     }
     if (gained > 2) spawnFireworkBurst(x * CELL + CELL / 2, y * CELL + CELL / 2, fx.fireworks);
-    if (combo >= 2) comboPopups.push({ x, y, combo, mult: comboMultiplier(combo), startTime: now });
+    // Grosse Flaechen: Zeitlupe, Feuerwerk ueber der Flaeche und ein Schriftzug
+    const tier = CAPTURE_TIERS.find(t => gained >= t.min);
+    if (tier) {
+      triggerSlowMo(tier.slowMo);
+      for (let k = 0; k < tier.bursts; k++) {
+        const [r, c] = cells[Math.floor(Math.random() * gained)];
+        const cx = c * CELL + CELL / 2, cy = r * CELL + CELL / 2;
+        setTimeout(() => spawnFireworkBurst(cx, cy, fx.fireworks), 80 + k * 110);
+      }
+      milestonePopups.push({ x: sumC / gained, y: sumR / gained, text: tier.label + ' ' + gained + ' cells', startTime: now });
+    }
+    if (own) vibrate(gained >= 60 ? [40, 30, 40, 30, 90] : gained >= 25 ? [25, 20, 45] : gained > 2 ? 15 : 8);
+    if (combo >= 2) {
+      comboPopups.push({ x, y, combo, mult: comboMultiplier(combo), startTime: now });
+      // Combo-Zaehler: ab 3 in Folge mit Funkenring, der mit der Kette waechst
+      if (combo >= 3) {
+        spawnEmote('🔥', x, y);
+        spawnSparks(x * CELL + CELL / 2, y * CELL + CELL / 2, '#ffb03a', 10 + Math.min(30, combo * 4), 160 + combo * 20, 0);
+        addRipple(x, y, 2 + Math.min(6, combo), 420, '255,176,58', 0.7);
+      }
+    }
   }
+  // Stufen fuer grosse Eroberungen (groesste zuerst)
+  const CAPTURE_TIERS = [
+    { min: 60, label: '🌋 MASSIVE!', slowMo: 320, bursts: 5 },
+    { min: 25, label: '💥 BIG CLAIM!', slowMo: 180, bursts: 3 },
+  ];
 
   function finalizeCapture() {
     // Im Tutorial zaehlt schon die geschlossene Schleife, auch wenn sie nichts umschliesst.
