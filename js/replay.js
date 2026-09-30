@@ -3,14 +3,11 @@
 // Aufzeichnung: kleine Kopien des fertigen Bildes (Ringpuffer) plus Positionen,
 // Blickrichtungen und Ton-Ereignisse (Sprueche, Schuesse, Alarm).
 
-  const REPLAY_SECONDS = 5;
-  const REPLAY_FRAME_MS = 125;             // 8 Bilder pro Sekunde reichen fuer den VHS-Look
+  const REPLAY_SECONDS = 3;
+  const REPLAY_FRAME_MS = 83;              // 12 Bilder pro Sekunde, dazwischen wird ueberblendet
   const REPLAY_MAX_FRAMES = Math.ceil(REPLAY_SECONDS * 1000 / REPLAY_FRAME_MS);
-  const REPLAY_MAX_W = 210;                // Aufloesung der Kopien (Speicher: ~10 MB total)
-  const REPLAY_REWIND_MS = 850;
-  const REPLAY_FAST = 3, REPLAY_SLOW = 0.5, REPLAY_SLOW_WINDOW = 1000; // letzte Sekunde in Zeitlupe
+  const REPLAY_MAX_W = 240;                // Aufloesung der Kopien (Speicher: ~12 MB total)
   const REPLAY_FREEZE_MS = 1900;
-  const REPLAY_ZOOM = 1.55;
 
   let replayFrames = [];   // { t, img, camX, camY, pcx, pcy, guards: [{ e, x, y, a, hunt }] }
   let replayPool = [];     // wiederverwendete Canvas
@@ -107,12 +104,10 @@
     const camNo = killer ? (enemies.indexOf(killer) + 1 || frames[0].guards.findIndex(g => g.e === killer) + 1) : 0;
     const camLabel = 'CAM-' + String(camNo).padStart(2, '0') + (killer && killer.name ? '  ' + killer.name.toUpperCase() : '  FLOOR');
     const tStart = frames[0].t, tEnd = frames[frames.length - 1].t;
-    const slowFrom = tEnd - REPLAY_SLOW_WINDOW;
     const W = boardCanvas.width, H = boardCanvas.height;
 
-    let phase = 'rewind', phaseStart = performance.now(), last = phaseStart;
-    let tape = tEnd, evIdx = 0, lastVoiceAt = -1e9, lastTick = 0, finished = false;
-    let viewA = null;
+    let phase = 'play', phaseStart = performance.now(), last = phaseStart;
+    let tape = tStart, evIdx = 0, lastVoiceAt = -1e9, finished = false;
 
     const finish = () => {
       if (finished) return;
@@ -161,13 +156,9 @@
       last = now;
       const pe = now - phaseStart;
 
-      if (phase === 'rewind') {
-        tape = tEnd - (tEnd - tStart) * Math.min(1, pe / REPLAY_REWIND_MS);
-        if (now - lastTick > 90) { lastTick = now; sndRouletteTick(); }
-        if (pe >= REPLAY_REWIND_MS) { phase = 'play'; phaseStart = now; tape = tStart; evIdx = 0; }
-      } else if (phase === 'play') {
+      if (phase === 'play') {
         const prev = tape;
-        tape = Math.min(tEnd, tape + dt * (tape >= slowFrom ? REPLAY_SLOW : REPLAY_FAST));
+        tape = Math.min(tEnd, tape + dt);
         // Ton-Ereignisse im passenden Moment ausloesen. Stimmen in normalem Tempo,
         // dicht aufeinanderfolgende werden ausgelassen, damit nichts ueberlappt.
         while (evIdx < events.length && events[evIdx].t <= tape) {
@@ -193,62 +184,23 @@
         }
       } else if (pe >= REPLAY_FREEZE_MS) { finish(); return; }
 
-      replayDrawFrame(frameAt(tape), now, phase, pe, killer, camLabel, tape, tStart, tape >= slowFrom, W, H, (a) => {
-        viewA = viewA === null ? a : easeAngle(viewA, a, dt, 260);
-        return viewA;
-      });
+      replayDrawFrame(frameAt(tape), now, phase, pe, killer, camLabel, tape, tStart, W, H);
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
   }
 
-  function replayDrawFrame(f, now, phase, pe, killer, camLabel, tape, tStart, slow, W, H, easeView) {
+  function replayDrawFrame(f, now, phase, pe, killer, camLabel, tape, tStart, W, H) {
     const g = killer ? f.guards.find(o => o.e === killer) : null;
     // Blickpunkt: der Waechter (Bildschirmkoordinaten der Aufnahme) oder der Spieler
     const wx = g ? g.x : f.px, wy = g ? g.y : f.py;
     const sx = f.camX + wx * CELL + CELL / 2, sy = f.camY + wy * CELL + CELL / 2;
-    // Ansicht dreht mit dem Waechter mit, sein Blick zeigt nach oben
-    const view = g ? easeView(g.a + Math.PI / 2) : 0;
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#050706';
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.save();
-    ctx.translate(W / 2, H * (g ? 0.66 : 0.5));
-    ctx.rotate(-view);
-    ctx.scale(REPLAY_ZOOM, REPLAY_ZOOM);
-    ctx.translate(-sx, -sy);
-    ctx.filter = 'grayscale(1) contrast(1.35) brightness(1.08)';
+    // Bild wie im Spiel, ohne Zoom oder Farbfilter
     ctx.drawImage(f.img, 0, 0, W, H);
     if (f.img2) { ctx.globalAlpha = f.mix; ctx.drawImage(f.img2, 0, 0, W, H); ctx.globalAlpha = 1; }
-    ctx.filter = 'none';
-    if (g) {
-      // Ausserhalb des Sichtkegels dunkel
-      const v = VISION[killer.personality] || VISION.wanderer;
-      ctx.beginPath();
-      ctx.rect(-W * 2, -H * 2, W * 5, H * 5);
-      ctx.moveTo(sx, sy);
-      ctx.arc(sx, sy, v.range * CELL, g.a + v.half, g.a - v.half, true);
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(0,0,0,0.22)'; // nur leicht, die Umgebung bleibt lesbar
-      ctx.fill('evenodd');
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.arc(sx, sy, v.range * CELL, g.a - v.half, g.a + v.half);
-      ctx.closePath();
-      ctx.strokeStyle = 'rgba(255,80,60,0.75)';
-      ctx.lineWidth = 2 / REPLAY_ZOOM;
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Gruenstich des Ueberwachungsmonitors
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgb(170,255,190)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'source-over';
 
     // "!" ueber dem Waechter, sobald er dich gesehen hat
     if (g && g.hunt) {
@@ -256,29 +208,22 @@
       ctx.font = 'bold ' + Math.round(CELL * 1.2) + 'px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ff3b30';
-      ctx.fillText('!', W / 2, H * 0.66 - CELL * 1.3 + bob);
+      ctx.fillText('!', sx, sy - CELL * 0.9 + bob);
     }
 
     // Scanlines
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillStyle = 'rgba(0,0,0,0.14)';
     for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
-    // Rauschen, beim Spulen staerker
-    const noise = phase === 'rewind' ? 420 : 120;
+    // Leichtes Rauschen
+    const noise = 80;
     for (let i = 0; i < noise; i++) {
       ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)';
       ctx.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 3, 1);
     }
     // Tracking-Streifen, der durchs Bild wandert
-    const bandY = ((now / (phase === 'rewind' ? 3 : 9)) % (H + 60)) - 30;
-    ctx.fillStyle = 'rgba(255,255,255,' + (phase === 'rewind' ? 0.16 : 0.06) + ')';
-    ctx.fillRect(0, bandY, W, phase === 'rewind' ? 26 : 12);
-    // Vignette
-    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.7)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, W, H);
-
+    const bandY = ((now / 9) % (H + 60)) - 30;
+    ctx.fillStyle = 'rgba(255,255,255,' + 0.05 + ')';
+    ctx.fillRect(0, bandY, W, 12);
     // Einblendungen
     const fs = Math.max(11, Math.round(W / 26));
     ctx.font = 'bold ' + fs + 'px monospace';
@@ -302,7 +247,7 @@
     ctx.fillText(stamp, W - fs * 0.8, fs * 0.7);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
-    const mode = phase === 'rewind' ? '◀◀ REW' : phase === 'play' ? (slow ? '▶ x0.5' : '▶▶ x3') : '❚❚ PAUSE';
+    const mode = phase === 'play' ? '▶ PLAY' : '❚❚ PAUSE';
     ctx.fillText(mode, fs * 0.8, H - fs * 0.8);
     ctx.textAlign = 'right';
     ctx.globalAlpha = 0.7;
