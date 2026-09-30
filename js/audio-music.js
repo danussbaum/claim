@@ -3,6 +3,7 @@
   let musicStepIndex = 0;
   const MUSIC_SCALE = [0, 3, 5, 7, 10, 12, 15, 19];
   const MUSIC_ROOT = 174.6;
+  const MUSIC_BASS_PATTERN = [1, 0, 1, 1, 0, 1, 1, 0]; // Acid-Bass der zweiten Gefahren-Ebene
 
   function resetMusicTiming() {
     if (!audioCtx) return;
@@ -123,6 +124,20 @@
       }
       if (isTrailing && step % 2 === 1) {
         tone(musicFreq((step + 3 + levelOffset) % MUSIC_SCALE.length, 1), stepDur * 0.4, 'triangle', 0.025, at, undefined, 'music');
+      }
+
+      // Gefahren-Ebenen: kommen mit threatDisp (siehe draw()) nacheinander dazu und blenden weich ein
+      if (!frozen) {
+        const th = threatDisp;
+        const hat = Math.max(0, Math.min(1, (th - 0.2) / 0.2));
+        const bass = Math.max(0, Math.min(1, (th - 0.45) / 0.2));
+        const clap = Math.max(0, Math.min(1, (th - 0.75) / 0.15));
+        if (hat > 0) technoHat(at, step % 4 === 2, (step % 2 ? 0.02 : 0.03) * hat);
+        if (bass > 0 && MUSIC_BASS_PATTERN[step]) {
+          acidBass(musicFreq(levelOffset, -2), stepDur * 0.8, at, 380 + th * 1800, 0.07 * bass,
+            step === 0 ? musicFreq(levelOffset, -1) : undefined);
+        }
+        if (clap > 0 && (step === 2 || step === 6)) clap808(at, 0.08 * clap);
       }
 
       musicNextNoteTime += stepDur;
