@@ -16,7 +16,7 @@
         // an der Bildrate. Auf ein Intervall begrenzt, damit nach einem
         // Aussetzer keine Schritte nachgeholt werden.
         playerTimer = Math.min(playerTimer - playerIv, playerIv);
-        stepPlayer();
+        if (huntActive()) huntStepPlayer(); else stepPlayer();
       }
       if (running && !gameOver) {
         const guardsFrozen = performance.now() < freezeUntil || tutorialGuardsStand ||
@@ -37,6 +37,7 @@
           spawnPowerUp();
         }
         updateMovingBlocks(delta);
+        if (huntActive()) huntUpdate(performance.now());
         updatePendingReveals(performance.now());
         updateTutorial();
         if (swarmEnemies.length && performance.now() >= swarmUntil) clearSwarmEnemies();

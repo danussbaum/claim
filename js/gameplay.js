@@ -48,6 +48,7 @@
     gameOver = false;
     flashCells = [];
     bgRipples = [];
+    if (huntActive()) huntSetupLevel();
     updateStats();
   }
 
@@ -152,6 +153,7 @@
   const SHOT_RANGE = 8;
 
   function shoot() {
+    if (huntActive()) return;
     if (gameOver || paused || celebrating || countdownActive) return;
     const now = performance.now();
     const rapidfireActive = now < rapidfireUntil;
@@ -254,6 +256,7 @@
   // Kurzer Sprint in die aktuelle Laufrichtung. Ausgeloest per ⚡-Knopf oder indem
   // man die Richtung nochmals angibt, in die man ohnehin laeuft.
   function useBoost() {
+    if (huntActive()) return;
     if (gameOver || paused || countdownActive || !running || boostsRemaining <= 0) return;
     speedUntil = Math.max(speedUntil, performance.now() + 180);
     boostsRemaining--;
@@ -265,6 +268,7 @@
 
   function setDir(d) {
     if (gameOver || paused || countdownActive) return;
+    if (huntActive()) { huntSetDir(d); return; }
     // Push-Kamera und Confuse invertieren beide - zusammen heben sie sich auf.
     let mirrored = performance.now() < confuseUntil;
     if (cameraMode === 'push') mirrored = !mirrored;
@@ -323,6 +327,7 @@
   }
 
   function useGadget() {
+    if (huntActive()) return;
     if (gameOver || paused || celebrating || countdownActive || dying) return;
     if (decoyCharges > 0) { throwDecoy(); return; } // Decoy-Wuerfe haben Vorrang vor dem Gadget
     if (!gadgetReady()) return;
@@ -729,6 +734,10 @@
       milestone50Shown = true;
       milestonePopups.push({ x: px, y: py, text: '🔥 Halfway!', startTime: performance.now() });
       sndPowerUp('speed');
+    }
+    if (freshPct >= 75 && huntActive()) {
+      huntLose('The runner claimed ' + freshPct + '%.', '🏃');
+      return;
     }
     if (freshPct >= 75 && !levelReadyToComplete && (!tutorialActive || tutorialAllowCashOut)) {
       levelReadyToComplete = true;

@@ -84,7 +84,7 @@
 
   // Welt-Punkt -> Bildschirm-Punkt, passend zur Kamera-Transformation in draw().
   function worldToScreen(wx, wy) {
-    if (cameraMode === 'follow' || cameraMode === 'push') {
+    if ((cameraMode === 'follow' || cameraMode === 'push') && !huntActive()) {
       return [boardCanvas.width / 2, boardCanvas.height / 2];
     }
     return [wx, wy];

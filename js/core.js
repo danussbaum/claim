@@ -16,7 +16,8 @@
   const MODES = {
     normal: { label: 'Normal', desc: 'The classic run - guards hunt you down.', puInterval: 7000, puMax: 2, enemiesMove: true },
     chaos:  { label: 'Chaos',  desc: 'Mystery orbs everywhere. Pure slapstick.', puInterval: 2200, puMax: 5, enemiesMove: true },
-    zen:    { label: 'Zen',    desc: 'Guards stand still - practise aiming in peace.', puInterval: 7000, puMax: 2, enemiesMove: false }
+    zen:    { label: 'Zen',    desc: 'Guards stand still - practise aiming in peace.', puInterval: 7000, puMax: 2, enemiesMove: false },
+    hunt:   { label: 'Hunt',   desc: 'You are a guard: catch the runner before it claims 75%.', puInterval: 7000, puMax: 0, enemiesMove: true }
   };
   const CAMERAS = {
     standard: { label: 'Standard', desc: 'Fixed board.' },

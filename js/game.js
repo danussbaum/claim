@@ -101,6 +101,13 @@
       });
       if (opts.length === 0) continue;
 
+      let choice, isHuntingNow = false;
+      const now = performance.now();
+      if (e.controlled) {
+        // Jagd-Modus: diesen Waechter steuerst du
+        choice = huntGuardStep(e, opts);
+        if (!choice) continue;
+      } else {
       const nowP = performance.now();
       // Disco: getanzt wird nur auf jeden zweiten Takt
       if (nowP < discoUntil) {
@@ -141,8 +148,6 @@
         continue;
       }
 
-      let choice;
-      const now = performance.now();
       const alarmActive = now < alarmUntil;
 
       // Waechter jagen nur, was sie sehen - und merken es sich kurz.
@@ -150,7 +155,7 @@
       if (seesPlayer) { e.huntingActive = true; e.lastSeenAt = now; if (trail.length) trailSpotted = true; }
       else if (e.huntingActive && now - e.lastSeenAt > VISION_MEMORY) { e.huntingActive = false; guardSay(e, 'lost'); }
 
-      const isHuntingNow = alarmActive || e.huntingActive;
+      isHuntingNow = alarmActive || e.huntingActive;
       if (isHuntingNow && !e.wasHunting) { sndHunterAlert(); if (!alarmActive) guardSay(e, 'spotted'); }
       e.wasHunting = isHuntingNow;
 
@@ -176,6 +181,7 @@
         choice = chooseGuardStep(e, opts, { c: e.distractC, r: e.distractR });
       } else {
         choice = chooseGuardStep(e, opts, null, (c, r) => grid[r][c] === TERRITORY, trail);
+      }
       }
 
       e.dc0 = choice[0]; e.dr0 = choice[1];
@@ -233,7 +239,7 @@
           return;
         }
       } else if (grid[e.r][e.c] === TRAIL) {
-        if (e.personality === 'cutter') {
+        if (e.personality === 'cutter' && !e.controlled) {
           cutTrailAt(e.c, e.r, '✂️');
         } else {
           endGame('A guard cut your line.', '✂️');
@@ -274,6 +280,7 @@
 
   function endGame(reason, emoji) {
     if (!running || dying) return; // verhindert doppelten Lebensabzug bei mehrfachem Aufruf
+    if (huntActive() && !huntLosing) { huntCaught(reason); return; } // Jagd: die CPU-Figur ist erwischt
     if (tutorialActive) {
       // Im Tutorial kostet ein Fehler nichts - die Etappe startet einfach neu.
       dying = true;
@@ -305,7 +312,9 @@
         lifeLostFlag = false;
         const isNewHigh = saveHighScoreIfNeeded();
         let closeText;
-        if (levelReadyToComplete || capturedPct >= 75) {
+        if (huntActive()) {
+          closeText = '';
+        } else if (levelReadyToComplete || capturedPct >= 75) {
           closeText = ' You already had ' + capturedPct + '% - the bonus is gone, but so close!';
         } else {
           closeText = ' Only ' + (75 - capturedPct) + '% left to the next level!';

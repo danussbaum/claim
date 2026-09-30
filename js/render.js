@@ -47,7 +47,7 @@ function draw(now) {
     const playerT = Math.min(1, (now - playerStepTime) / currentPlayerInterval());
     const dispPx = prevPx + (px - prevPx) * playerT;
     const dispPy = prevPy + (py - prevPy) * playerT;
-    const camFollow = cameraMode === 'follow' || cameraMode === 'push';
+    const camFollow = (cameraMode === 'follow' || cameraMode === 'push') && !huntActive();
 
     const bgT = threatDisp * (0.75 + gridPulse * 0.25);
     if (psyloActive) {
@@ -129,8 +129,12 @@ function draw(now) {
 
     const pcx = dispPx * CELL + CELL / 2, pcy = dispPy * CELL + CELL / 2;
 
-    drawPlayer(now, blinkOnGlobal, dispPx, dispPy, pcx, pcy, playerT, psyloActive);
+    // Jagd-Modus: die CPU-Figur nur zeichnen, wenn dein Waechter sie sieht (oder bei einem Ping)
+    const hunt = huntActive();
+    const runnerVisible = !hunt || huntRunnerVisible(now);
+    if (runnerVisible) drawPlayer(now, blinkOnGlobal, dispPx, dispPy, pcx, pcy, playerT, psyloActive);
     drawGuards(now, blinkOnGlobal);
+    if (hunt) huntDrawWorld(now, runnerVisible);
 
     if (versusRender) vsDrawWorld(now);
     ctx.restore();
