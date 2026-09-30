@@ -46,18 +46,7 @@
       }
     }
     ensureAudio();
-    if (modeSelectOpen && !playModesOpen) { openPlayModes(); return; }
-    if (modeSelectOpen) {
-      modeSelectOpen = false;
-      playModesOpen = false;
-      document.getElementById('playModes').classList.add('hidden');
-      document.getElementById('playBackBtn').classList.add('hidden');
-      document.getElementById('modeSelect').classList.add('hidden');
-      document.getElementById('modeBtn').classList.add('hidden');
-      setInGame(true);
-      startGame();
-      return;
-    }
+    if (modeSelectOpen) { openPlayRole(); return; }
     if (!hasStarted) { openModeSelect(); return; }
     if (lifeLostFlag) { lifeLostFlag = false; retryLevel(); return; }
     if (gameOver) { startGame(); return; }

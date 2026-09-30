@@ -213,28 +213,9 @@
   let modeSelectOpen = false;
 
   let modeSelectBuilt = false;
-  let playModesOpen = false; // 1-Spieler: Schritt Rolle/Modus nach "1 Player"
 
   function buildModeSelect() {
-    const roleRow = document.getElementById('roleRow');
-    Object.keys(HUNT_ROLES).forEach(key => {
-      const b = document.createElement('button');
-      b.className = 'pill';
-      b.dataset.role = key;
-      b.textContent = HUNT_ROLES[key].label;
-      b.addEventListener('click', () => { setHuntRole(key); refreshModeSelect(); });
-      roleRow.appendChild(b);
-    });
-    const modeRow = document.getElementById('modeRow');
     const cameraRow = document.getElementById('cameraRow');
-    Object.keys(MODES).forEach(key => {
-      const b = document.createElement('button');
-      b.className = 'pill';
-      b.dataset.mode = key;
-      b.textContent = MODES[key].label;
-      b.addEventListener('click', () => { setGameMode(key); refreshModeSelect(); });
-      modeRow.appendChild(b);
-    });
     Object.keys(CAMERAS).forEach(key => {
       const b = document.createElement('button');
       b.className = 'pill';
@@ -276,7 +257,6 @@
     });
     document.getElementById('optionsToggle').addEventListener('click', openOptionsScreen);
     document.getElementById('optionsBackBtn').addEventListener('click', () => openModeSelect());
-    document.getElementById('playBackBtn').addEventListener('click', () => openModeSelect());
     modeSelectBuilt = true;
   }
 
@@ -293,12 +273,6 @@
 
   function refreshModeSelect() {
     if (!modeSelectBuilt) buildModeSelect();
-    document.querySelectorAll('#roleRow .pill').forEach(b => {
-      b.classList.toggle('active', b.dataset.role === huntRole);
-    });
-    document.querySelectorAll('#modeRow .pill').forEach(b => {
-      b.classList.toggle('active', b.dataset.mode === gameMode);
-    });
     document.querySelectorAll('#cameraRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.camera === cameraMode);
     });
@@ -312,8 +286,6 @@
       GADGETS[gadgetChoice].icon + ' ' + GADGETS[gadgetChoice].label, VOICE_MODES[voiceMode].label].join(' · ');
     document.getElementById('selectDesc').textContent =
       CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
-    document.getElementById('playDesc').textContent =
-      (HUNT_ROLES[huntRole].desc ? HUNT_ROLES[huntRole].desc + ' ' : '') + MODES[gameMode].desc;
     updateGadgetButtonIcon();
   }
 
@@ -392,23 +364,41 @@
     animateOverlayIn();
   }
 
-  // Schritt nach "1 Player": Rolle und Modus waehlen, dann starten
-  function openPlayModes() {
-    playModesOpen = true;
-    ['vsBtn', 'tutorialBtn', 'optionsToggle'].forEach(id => document.getElementById(id).classList.add('hidden'));
-    document.getElementById('playModes').classList.remove('hidden');
-    document.getElementById('playBackBtn').classList.remove('hidden');
-    document.getElementById('overlayTitle').textContent = '1 Player';
-    document.getElementById('startBtn').textContent = '▶ Start';
-    refreshModeSelect();
+  // Gefuehrter Dialog nach "1 Player": erst Rolle, dann Modus, dann geht es los.
+  // Die zuletzt gewaehlte Antwort ist hervorgehoben (gespeichert wie bisher).
+  function openPlayRole() {
+    modeSelectOpen = false;
+    document.getElementById('modeSelect').classList.add('hidden');
+    vsShowPanel('1 Player', 'Who do you want to be?', Object.keys(HUNT_ROLES).map(key => ({
+      label: key === 'guard' ? '👮 Guard - catch the runner' : '🏃 Runner - claim the land',
+      primary: key === huntRole,
+      onClick: () => { setHuntRole(key); openPlayMode(); }
+    })).concat([{ label: 'Back', onClick: () => { vsHidePanel(); openModeSelect(); } }]), false);
+    vsSetStatus('');
     animateOverlayIn();
+  }
+
+  function openPlayMode() {
+    vsShowPanel('1 Player · ' + HUNT_ROLES[huntRole].label, 'Pick a mode:\n' +
+      Object.keys(MODES).map(k => MODES[k].label + ': ' + MODES[k].desc).join('\n'), Object.keys(MODES).map(key => ({
+      label: MODES[key].label,
+      primary: key === gameMode,
+      onClick: () => { setGameMode(key); startFromMenu(); }
+    })).concat([{ label: 'Back', onClick: openPlayRole }]), false);
+    vsSetStatus('');
+    animateOverlayIn();
+  }
+
+  function startFromMenu() {
+    vsHidePanel();
+    document.getElementById('modeBtn').classList.add('hidden');
+    refreshModeSelect();
+    setInGame(true);
+    startGame();
   }
 
   function openModeSelect() {
     modeSelectOpen = true;
-    playModesOpen = false;
-    document.getElementById('playModes').classList.add('hidden');
-    document.getElementById('playBackBtn').classList.add('hidden');
     document.body.classList.remove('inGame');
     shopOpen = false;
     document.getElementById('shop').classList.add('hidden');
