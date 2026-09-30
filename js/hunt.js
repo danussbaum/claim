@@ -34,7 +34,7 @@
 
   // Eigenes Tempo deines Waechters
   let huntGuardIv = 250, huntGuardTimer = 0;
-  function huntGuardInterval(now) { return huntGuardIv; }
+  function huntGuardInterval(now) { return now < huntSprintUntil ? huntGuardIv * 0.55 : huntGuardIv; }
 
   // Animationsfortschritt eines Waechters; dein Waechter laeuft im eigenen Takt
   function guardStepT(e, now) {
@@ -78,7 +78,7 @@
     huntGuardTimer = 0;
     if (me) { me.ownStepTime = now; me.ownInterval = huntGuardIv; }
     shieldUntil = 0;
-    boostsRemaining = 0; boostsMax = 0;
+    huntResetAbilities();
     huntPlan = { phase: 'home', count: 0, len: 0 };
     huntHomeSince = now;
     huntLastSeen = null;
@@ -102,7 +102,10 @@
     milestonePopups.push({ x: me.c, y: me.r - 1, text: '🔁 Switched guard', startTime: performance.now() });
   }
 
-  function huntSetDir(d) { huntDir = d; }
+  function huntSetDir(d) {
+    if (d === huntDir) huntSprint();
+    huntDir = d;
+  }
 
   // Schritt deines Waechters: gewuenschte Richtung, sonst stehen bleiben
   function huntGuardStep(e, opts) {
@@ -347,11 +350,79 @@
     huntCpuShooting = false;
   }
 
-  // Schiessen, Gadget und Boost gibt es fuer den Waechter nicht: Knoepfe ausblenden
+  // --- Faehigkeiten deines Waechters (auf den Knoepfen von Boost, Schuss und Gadget) ---
+  const HUNT_SPRINT_MS = 1200, HUNT_SPRINTS = 3;
+  const HUNT_RADAR_CD = 10000, HUNT_ALARM_CD = 18000, HUNT_ALARM_MS = 3000;
+  let huntSprintUntil = 0, huntRadarReadyAt = 0, huntAlarmReadyAt = 0;
+
+  function huntAbilityOk() { return running && !paused && !gameOver && !dying && !celebrating && !countdownActive; }
+
+  // ⚡ Sprint: kurz schneller (auch durch nochmaliges Druecken der Laufrichtung)
+  function huntSprint() {
+    if (!huntAbilityOk() || boostsRemaining <= 0) return;
+    huntSprintUntil = performance.now() + HUNT_SPRINT_MS;
+    boostsRemaining--;
+    updateStats();
+    sndBoost();
+  }
+
+  // 📡 Radar: deckt die Figur sofort kurz auf
+  function huntRadar() {
+    const now = performance.now();
+    if (!huntAbilityOk() || now < huntRadarReadyAt) return;
+    huntRadarReadyAt = now + HUNT_RADAR_CD;
+    huntPingAt = now;
+    addRipple(px, py, 3, 600, '140,196,255', 0.7);
+    sndPowerUp('speed');
+  }
+
+  // 🚨 Alarm: alle Waechter jagen kurz die Figur
+  function huntAlarm() {
+    const now = performance.now();
+    if (!huntAbilityOk() || now < huntAlarmReadyAt) return;
+    huntAlarmReadyAt = now + HUNT_ALARM_CD;
+    alarmUntil = now + HUNT_ALARM_MS;
+    triggerShake(3, 200);
+    sndHunterAlert();
+  }
+
+  function huntResetAbilities() {
+    huntSprintUntil = 0; huntRadarReadyAt = 0; huntAlarmReadyAt = 0;
+    boostsRemaining = HUNT_SPRINTS; boostsMax = HUNT_SPRINTS;
+  }
+
+  // Knopf-Symbole: Radar statt Fadenkreuz, Alarm statt Gadget
   function huntSyncButtons() {
-    const hide = huntActive();
-    ['btnShoot', 'btnGadget', 'infoCell'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.visibility = hide ? 'hidden' : '';
-    });
+    const hunt = huntActive();
+    const shootBtn = document.getElementById('btnShoot');
+    if (!shootBtn) return;
+    const cross = shootBtn.querySelector('.crosshairIcon');
+    if (cross) cross.style.display = hunt ? 'none' : '';
+    let icon = document.getElementById('huntRadarIcon');
+    if (!icon) {
+      icon = document.createElement('span');
+      icon.id = 'huntRadarIcon';
+      icon.textContent = '📡';
+      shootBtn.insertBefore(icon, shootBtn.firstChild);
+    }
+    icon.style.display = hunt ? '' : 'none';
+  }
+
+  function huntUpdateButtonsUI() {
+    const now = performance.now();
+    const gadget = document.getElementById('btnGadget'), gSweep = document.getElementById('gadgetSweep');
+    if (gadget && gSweep) {
+      if (gadget.firstChild && gadget.firstChild.nodeType === 3 && gadget.firstChild.nodeValue !== '🚨') gadget.firstChild.nodeValue = '🚨';
+      const f = Math.max(0, Math.min(1, (huntAlarmReadyAt - now) / HUNT_ALARM_CD));
+      gSweep.style.setProperty('--cd', (f * 100) + '%');
+      gadget.classList.toggle('oncooldown', f > 0);
+      flashWhenReady(gadget, 'gadget', f === 0 && running && !gameOver);
+    }
+    const shootEl = document.getElementById('btnShoot'), sSweep = document.getElementById('shootSweep');
+    if (shootEl && sSweep) {
+      const f = Math.max(0, Math.min(1, (huntRadarReadyAt - now) / HUNT_RADAR_CD));
+      sSweep.style.setProperty('--cd', (f * 100) + '%');
+      shootEl.classList.toggle('oncooldown', f > 0);
+      flashWhenReady(shootEl, 'shoot', f === 0 && running && !gameOver);
+    }
   }

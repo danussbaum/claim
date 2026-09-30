@@ -154,7 +154,7 @@
   const SHOT_RANGE = 8;
 
   function shoot() {
-    if (huntActive() && !huntCpuShooting) return; // Jagd: nur die CPU schiesst
+    if (huntActive() && !huntCpuShooting) { huntRadar(); return; } // Jagd: Knopf ist dein Radar
     if (gameOver || paused || celebrating || countdownActive) return;
     const now = performance.now();
     const rapidfireActive = now < rapidfireUntil;
@@ -258,7 +258,7 @@
   // Kurzer Sprint in die aktuelle Laufrichtung. Ausgeloest per ⚡-Knopf oder indem
   // man die Richtung nochmals angibt, in die man ohnehin laeuft.
   function useBoost() {
-    if (huntActive()) return;
+    if (huntActive()) { huntSprint(); return; }
     if (gameOver || paused || countdownActive || !running || boostsRemaining <= 0) return;
     speedUntil = Math.max(speedUntil, performance.now() + 180);
     boostsRemaining--;
@@ -329,7 +329,7 @@
   }
 
   function useGadget() {
-    if (huntActive()) return;
+    if (huntActive()) { huntAlarm(); return; }
     if (gameOver || paused || celebrating || countdownActive || dying) return;
     if (decoyCharges > 0) { throwDecoy(); return; } // Decoy-Wuerfe haben Vorrang vor dem Gadget
     if (!gadgetReady()) return;

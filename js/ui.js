@@ -65,6 +65,7 @@
   }
 
   function updateActionButtonsUI() {
+    if (huntActive()) { huntUpdateButtonsUI(); return; }
     const el = document.getElementById('btnGadget');
     const sweep = document.getElementById('gadgetSweep');
     if (el && sweep) {
