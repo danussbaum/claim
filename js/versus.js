@@ -75,15 +75,31 @@
     if (el) el.textContent = text;
   }
 
+  try { vsCoop = localStorage.getItem('claim_vs_mode') === 'coop'; } catch (e) { /* ignore */ }
+
+  // Schritt 1: Modus waehlen (zuletzt gewaehlter ist hervorgehoben und gespeichert)
   function vsOpenLobby() {
     vsActive = true;
+    const pick = coop => {
+      vsCoop = coop;
+      try { localStorage.setItem('claim_vs_mode', coop ? 'coop' : 'versus'); } catch (e) { /* ignore */ }
+      vsOpenLobbyStart();
+    };
     vsShowPanel('2 Player', 'Versus: claim more ground than your rival. Win 3 matches with a 2-match lead. Cut their line or shoot them to send them back home.\n' +
       'Co-op: claim ' + VS_COOP_WIN_PCT + '% together against ' + VS_COOP_GUARDS + ' guards before time runs out. You share the land and ' + VS_COOP_LIVES + ' lives.', [
-      { label: '📡 Host versus', primary: true, onClick: () => { vsCoop = false; vsStartHost(); } },
-      { label: '🤝 Host co-op', primary: true, onClick: () => { vsCoop = true; vsStartHost(); } },
-      { label: '🤖 Versus vs CPU', onClick: () => { vsCoop = false; vsStartCpu(); } },
-      { label: '🤖 Co-op with CPU', onClick: () => { vsCoop = true; vsStartCpu(); } },
+      { label: '⚔️ Versus', primary: !vsCoop, onClick: () => pick(false) },
+      { label: '🤝 Co-op', primary: vsCoop, onClick: () => pick(true) },
       { label: 'Back', onClick: vsLeave },
+    ], false);
+    vsSetStatus('To join, scan the host\'s QR code with your camera.');
+  }
+
+  // Schritt 2: Mitspieler hosten oder gegen/mit der CPU
+  function vsOpenLobbyStart() {
+    vsShowPanel(vsCoop ? '2 Player · Co-op' : '2 Player · Versus', '', [
+      { label: vsCoop ? '📡 Host co-op' : '📡 Host versus', primary: true, onClick: vsStartHost },
+      { label: vsCoop ? '🤖 Co-op with CPU' : '🤖 Versus vs CPU', onClick: vsStartCpu },
+      { label: 'Back', onClick: vsOpenLobby },
     ], false);
     vsSetStatus('To join, scan the host\'s QR code with your camera.');
   }

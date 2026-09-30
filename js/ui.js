@@ -213,6 +213,7 @@
   let modeSelectOpen = false;
 
   let modeSelectBuilt = false;
+  let playModesOpen = false; // 1-Spieler: Schritt Rolle/Modus nach "1 Player"
 
   function buildModeSelect() {
     const roleRow = document.getElementById('roleRow');
@@ -275,6 +276,7 @@
     });
     document.getElementById('optionsToggle').addEventListener('click', openOptionsScreen);
     document.getElementById('optionsBackBtn').addEventListener('click', () => openModeSelect());
+    document.getElementById('playBackBtn').addEventListener('click', () => openModeSelect());
     modeSelectBuilt = true;
   }
 
@@ -306,10 +308,12 @@
     document.querySelectorAll('#voiceRow .pill').forEach(b => {
       b.classList.toggle('active', b.dataset.voice === voiceMode);
     });
-    document.getElementById('optionsSummary').textContent = [HUNT_ROLES[huntRole].label, MODES[gameMode].label, CAMERAS[cameraMode].label,
+    document.getElementById('optionsSummary').textContent = [CAMERAS[cameraMode].label,
       GADGETS[gadgetChoice].icon + ' ' + GADGETS[gadgetChoice].label, VOICE_MODES[voiceMode].label].join(' · ');
     document.getElementById('selectDesc').textContent =
-      (HUNT_ROLES[huntRole].desc ? HUNT_ROLES[huntRole].desc + ' ' : '') + MODES[gameMode].desc + ' ' + CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
+      CAMERAS[cameraMode].desc + ' ' + GADGETS[gadgetChoice].desc;
+    document.getElementById('playDesc').textContent =
+      (HUNT_ROLES[huntRole].desc ? HUNT_ROLES[huntRole].desc + ' ' : '') + MODES[gameMode].desc;
     updateGadgetButtonIcon();
   }
 
@@ -388,8 +392,23 @@
     animateOverlayIn();
   }
 
+  // Schritt nach "1 Player": Rolle und Modus waehlen, dann starten
+  function openPlayModes() {
+    playModesOpen = true;
+    ['vsBtn', 'tutorialBtn', 'optionsToggle'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('playModes').classList.remove('hidden');
+    document.getElementById('playBackBtn').classList.remove('hidden');
+    document.getElementById('overlayTitle').textContent = '1 Player';
+    document.getElementById('startBtn').textContent = '▶ Start';
+    refreshModeSelect();
+    animateOverlayIn();
+  }
+
   function openModeSelect() {
     modeSelectOpen = true;
+    playModesOpen = false;
+    document.getElementById('playModes').classList.add('hidden');
+    document.getElementById('playBackBtn').classList.add('hidden');
     document.body.classList.remove('inGame');
     shopOpen = false;
     document.getElementById('shop').classList.add('hidden');

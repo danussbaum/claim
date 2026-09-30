@@ -58,12 +58,15 @@
           <div id="shopRow"></div>
         </div>
         <div id="modeSelect" class="hidden">
-          <button id="optionsToggle" type="button">⚙️ Options<span id="optionsSummary"></span></button>
-          <div id="runOptions" class="hidden">
+          <div id="playModes" class="hidden">
           <div class="selectLabel">Role</div>
           <div class="pillRow" id="roleRow"></div>
           <div class="selectLabel">Mode</div>
           <div class="pillRow" id="modeRow"></div>
+          <div class="selectDesc" id="playDesc"></div>
+          </div>
+          <button id="optionsToggle" type="button">⚙️ Options<span id="optionsSummary"></span></button>
+          <div id="runOptions" class="hidden">
           <div class="selectLabel">Camera</div>
           <div class="pillRow" id="cameraRow"></div>
           <div class="selectLabel">Gadget</div>
@@ -81,6 +84,7 @@
         <div id="overlayPops" class="hidden"></div>
         <button class="primary" id="startBtn">Next</button>
         <button id="skipBtn">Skip - Play now</button>
+        <button id="playBackBtn" class="hidden">Back</button>
         <button id="vsBtn" class="hidden">⚔️ 2 Player</button>
         <button id="tutorialBtn" class="hidden">🎓 Play tutorial</button>
         <div id="vsPanel" class="hidden">
