@@ -24,7 +24,8 @@
     const me = enemies[0];
     if (me) { me.controlled = true; me.personality = 'wanderer'; huntDir = me.dc0 > 0 ? 'right' : 'left'; }
     playerInterval = Math.max(150, 230 - (level - 1) * 10);
-    enemyInterval = Math.round(playerInterval * 1.08); // Waechter etwas langsamer als die Figur
+    // Anfangs ist dein Waechter etwas schneller als die Figur, spaeter etwas langsamer
+    enemyInterval = Math.round(playerInterval * Math.min(1.08, 0.9 + (level - 1) * 0.04));
     shieldUntil = 0;
     boostsRemaining = 0; boostsMax = 0;
     huntPlan = { phase: 'home', count: 0, len: 0 };
@@ -126,7 +127,8 @@
     const cautious = free.filter(d => { const [dx, dy] = dirDelta(d); return huntGuardDistAt(px + dx, py + dy) > 1; });
     if (cautious.length) free = cautious;
     const pick = list => list[Math.floor(Math.random() * list.length)];
-    const awareness = 3 + Math.min(level, 6);   // wie weit die CPU Waechter wittert
+    const awareness = 2 + Math.min(level, 6);   // wie weit die CPU Waechter wittert
+    const fleeDist = level < 3 ? 2 : 3;          // ab diesem Abstand bricht sie ab und flieht
     let danger = huntGuardDistAt(px, py);
     if (danger > awareness) danger = 99;
     const onLand = grid[py][px] === TERRITORY;
@@ -134,15 +136,15 @@
 
     if (onLand && !trail.length) {
       const out = free.filter(k => { const [dx, dy] = dirDelta(k); return grid[py + dy][px + dx] !== TERRITORY; });
-      const waited = now - huntHomeSince > 4000; // nicht ewig warten, wenn du vor der Tuer stehst
-      if (out.length && (danger > 4 || waited) && Math.random() < 0.5) {
+      const waited = now - huntHomeSince > 2000; // nicht ewig warten, wenn du vor der Tuer stehst
+      if (out.length && (danger > fleeDist + 1 || waited) && Math.random() < 0.7) {
         // Ausgang moeglichst weit weg vom naechsten Waechter
         out.sort((a, b) => {
           const [ax, ay] = dirDelta(a), [bx, by] = dirDelta(b);
           return huntGuardDistAt(px + bx, py + by) - huntGuardDistAt(px + ax, py + ay);
         });
         d = out[0];
-        huntPlan = { phase: 'out', count: 0, len: 2 + Math.floor(Math.random() * (3 + Math.min(level, 5))) };
+        huntPlan = { phase: 'out', count: 0, len: 3 + Math.floor(Math.random() * (4 + Math.min(level, 5))) };
       } else {
         const stay = free.filter(k => !out.includes(k));
         const pool = stay.length ? stay : free;
@@ -157,8 +159,8 @@
       }
     } else {
       huntHomeSince = now;
-      const maxTrail = 8 + Math.min(level, 8);
-      if (huntPlan.phase === 'back' || danger <= 3 || trail.length >= maxTrail) {
+      const maxTrail = 12 + Math.min(level, 8);
+      if (huntPlan.phase === 'back' || danger <= fleeDist || trail.length >= maxTrail) {
         huntPlan.phase = 'back';
         d = huntWayHome() || pick(free);
       } else {
@@ -167,7 +169,7 @@
           if (huntPlan.phase === 'out') {
             const turns = free.filter(k => k !== dir);
             if (turns.length) d = pick(turns);
-            huntPlan = { phase: 'turn', count: 0, len: 2 + Math.floor(Math.random() * 3) };
+            huntPlan = { phase: 'turn', count: 0, len: 3 + Math.floor(Math.random() * 4) };
           } else {
             huntPlan.phase = 'back';
             d = huntWayHome() || pick(free);
