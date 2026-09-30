@@ -31,14 +31,9 @@
 
   function huntActive() { return huntRole === 'guard' && !tutorialActive && !versusRender; }
 
-  // Eigenes Tempo deines Waechters (Power-ups wirken nur auf ihn)
+  // Eigenes Tempo deines Waechters
   let huntGuardIv = 250, huntGuardTimer = 0;
-  let huntSpeedUntil = 0, huntSlowUntil = 0, huntConfuseUntil = 0, huntRunnerFrozenUntil = 0;
-  function huntGuardInterval(now) {
-    if (now < huntSpeedUntil) return huntGuardIv * 0.6;
-    if (now < huntSlowUntil) return huntGuardIv * 1.6;
-    return huntGuardIv;
-  }
+  function huntGuardInterval(now) { return huntGuardIv; }
 
   // Animationsfortschritt eines Waechters; dein Waechter laeuft im eigenen Takt
   function guardStepT(e, now) {
@@ -60,7 +55,6 @@
     enemyInterval = huntGuardIv;
     huntGuardTimer = 0;
     if (me) { me.ownStepTime = now; me.ownInterval = huntGuardIv; }
-    huntSpeedUntil = 0; huntSlowUntil = 0; huntConfuseUntil = 0; huntRunnerFrozenUntil = 0;
     shieldUntil = 0;
     boostsRemaining = 0; boostsMax = 0;
     huntPlan = { phase: 'home', count: 0, len: 0 };
@@ -86,7 +80,7 @@
     milestonePopups.push({ x: me.c, y: me.r - 1, text: '🔁 Switched guard', startTime: performance.now() });
   }
 
-  function huntSetDir(d) { huntDir = performance.now() < huntConfuseUntil ? INVERTED_DIR[d] : d; }
+  function huntSetDir(d) { huntDir = d; }
 
   // Schritt deines Waechters: gewuenschte Richtung, sonst stehen bleiben
   function huntGuardStep(e, opts) {
@@ -249,7 +243,6 @@
 
   // Punkte der CPU zaehlen nicht fuer dich
   function huntStepPlayer() {
-    if (performance.now() < huntRunnerFrozenUntil) return; // von dir eingefroren
     const s0 = score;
     huntCpuThink();
     stepPlayer();
@@ -274,7 +267,6 @@
         huntGuardTimer = Math.min(huntGuardTimer - iv, iv);
         me.ownStepTime = now; me.ownInterval = iv;
         moveEnemies(me);
-        if (enemies.includes(me)) huntGuardPickup(me);
       }
     }
     const iv = huntPingInterval();
@@ -313,53 +305,3 @@
     }
   }
 
-  // --- Power-ups und -downs ---
-  // Nimmt die CPU eine Kugel, wirkt sie wie im normalen Spiel auf die Figur (nur Effekte, die
-  // ihr etwas bringen oder dir helfen). Nimmst du sie, wirkt sie auf deinen Waechter.
-  const HUNT_RUNNER_UP = ['speed', 'shield', 'freeze', 'trailguard', 'spikes'];
-  const HUNT_RUNNER_DOWN = ['slow', 'alarm', 'swarm'];
-  const HUNT_RUNNER_DOWN_CHAOS = ['duck', 'disco', 'banana'];
-  const HUNT_GUARD_UP = ['speed', 'freeze', 'alarm', 'swarm'];
-  const HUNT_GUARD_DOWN = ['slow', 'confuse', 'drunk', 'psylo'];
-  const HUNT_GUARD_DOWN_CHAOS = ['banana'];
-
-  function huntPick(list) { return list[Math.floor(Math.random() * list.length)]; }
-
-  function huntRunnerOrbType(kind) {
-    if (kind === 'up') return huntPick(HUNT_RUNNER_UP);
-    return huntPick(gameMode === 'chaos' ? HUNT_RUNNER_DOWN.concat(HUNT_RUNNER_DOWN_CHAOS) : HUNT_RUNNER_DOWN);
-  }
-
-  function huntGuardPickup(me) {
-    const idx = powerUps.findIndex(p => p.c === me.c && p.r === me.r);
-    if (idx < 0) return;
-    const p = powerUps.splice(idx, 1)[0];
-    const type = p.kind === 'up' ? huntPick(HUNT_GUARD_UP)
-      : huntPick(gameMode === 'chaos' ? HUNT_GUARD_DOWN.concat(HUNT_GUARD_DOWN_CHAOS) : HUNT_GUARD_DOWN);
-    const now = performance.now();
-    revealPopups.push({
-      x: me.c, y: me.r, type, kind: p.kind, owner: 'guard',
-      startTime: now, resolveAt: now + ROULETTE_MS, applied: false, lastTickIdx: -1
-    });
-  }
-
-  function huntGuardPower(type, kind) {
-    const now = performance.now();
-    const me = huntControlled();
-    if (type === 'speed') huntSpeedUntil = now + POWER_MS.speed;
-    else if (type === 'freeze') huntRunnerFrozenUntil = now + POWER_MS.freeze;
-    else if (type === 'alarm') { alarmUntil = now + 3500; huntPingAt = now + 3500 - HUNT_PING_SHOW; triggerShake(3, 200); }
-    else if (type === 'swarm') { swarmUntil = now + 6000; spawnSwarmEnemy(); }
-    else if (type === 'slow') huntSlowUntil = now + POWER_MS.slow;
-    else if (type === 'confuse') huntConfuseUntil = now + 4000;
-    else if (type === 'drunk') drunkUntil = now + 5500;
-    else if (type === 'psylo') psyloUntil = now + 8000;
-    else if (type === 'banana' && me) {
-      me.stunnedUntil = now + 1500;
-      spawnEmote('🍌', me.c, me.r);
-      sndGuardSlip();
-    }
-    if (kind === 'up') { score += 15; sndPowerUp(type); }
-    else sndPowerDown(type);
-    updateStats();
-  }
